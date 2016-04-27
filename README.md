@@ -1,5 +1,10 @@
 # AWS RDS Service Broker [![Build Status](https://travis-ci.org/alphagov/paas-rds-broker.png)](https://travis-ci.org/alphagov/paas-rds-broker)
 
+
+This is a fork of [AWS RDS Service Broker](https://github.com/cf-platform-eng/rds-broker) written by Pivotal Software Inc. 
+
+We have changed all source code includes to point to this repository. 
+
 This is an **experimental** [Cloud Foundry Service Broker](https://docs.cloudfoundry.org/services/overview.html) for [Amazon Relational Database Service (RDS)](https://aws.amazon.com/rds/) supporting [Aurora](https://aws.amazon.com/rds/aurora/), [MariaDB](https://aws.amazon.com/rds/mariadb/), [MySQL](https://aws.amazon.com/rds/mysql/) and [PostgreSQL](https://aws.amazon.com/rds/postgresql/) RDS Databases.
 
 More details can be found at this [Pivotal P.O.V Blog post](http://blog.pivotal.io/pivotal-cloud-foundry/products/a-look-at-cloud-foundrys-service-broker-updates).
