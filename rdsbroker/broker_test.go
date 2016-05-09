@@ -2,6 +2,7 @@ package rdsbroker_test
 
 import (
 	"errors"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -46,7 +47,10 @@ var _ = Describe("RDS Broker", func() {
 		serviceBindable              bool
 		planUpdateable               bool
 		skipFinalSnapshot            bool
+		dbPrefix                     string
+	)
 
+	const (
 		instanceID           = "instance-id"
 		bindingID            = "binding-id"
 		dbInstanceIdentifier = "cf-instance-id"
@@ -63,6 +67,7 @@ var _ = Describe("RDS Broker", func() {
 		serviceBindable = true
 		planUpdateable = true
 		skipFinalSnapshot = true
+		dbPrefix = "cf"
 
 		dbInstance = &rdsfake.FakeDBInstance{}
 		dbCluster = &rdsfake.FakeDBCluster{}
@@ -125,7 +130,7 @@ var _ = Describe("RDS Broker", func() {
 
 		config = Config{
 			Region:                       "rds-region",
-			DBPrefix:                     "cf",
+			DBPrefix:                     dbPrefix,
 			AllowUserProvisionParameters: allowUserProvisionParameters,
 			AllowUserUpdateParameters:    allowUserUpdateParameters,
 			AllowUserBindParameters:      allowUserBindParameters,
@@ -231,6 +236,21 @@ var _ = Describe("RDS Broker", func() {
 			Expect(dbInstance.CreateDBInstanceDetails.Tags["Organization ID"]).To(Equal("organization-id"))
 			Expect(dbInstance.CreateDBInstanceDetails.Tags["Space ID"]).To(Equal("space-id"))
 			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("with a db prefix including - and _", func() {
+			BeforeEach(func() {
+				dbPrefix = "with-dash_underscore"
+			})
+
+			It("makes the proper calls", func() {
+				_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dbInstance.CreateCalled).To(BeTrue())
+				Expect(dbInstance.CreateID).To(Equal("with-dash-underscore-" + instanceID))
+				expectedDBName := "with_dash_underscore_" + strings.Replace(instanceID, "-", "_", -1)
+				Expect(dbInstance.CreateDBInstanceDetails.DBName).To(Equal(expectedDBName))
+			})
 		})
 
 		Context("when has AllocatedStorage", func() {
