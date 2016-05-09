@@ -456,11 +456,11 @@ func (b *RDSBroker) LastOperation(instanceID string) (brokerapi.LastOperationRes
 }
 
 func (b *RDSBroker) dbClusterIdentifier(instanceID string) string {
-	return fmt.Sprintf("%s-%s", b.dbPrefix, strings.Replace(instanceID, "_", "-", -1))
+	return fmt.Sprintf("%s-%s", strings.Replace(b.dbPrefix, "_", "-", -1), strings.Replace(instanceID, "_", "-", -1))
 }
 
 func (b *RDSBroker) dbInstanceIdentifier(instanceID string) string {
-	return fmt.Sprintf("%s-%s", b.dbPrefix, strings.Replace(instanceID, "_", "-", -1))
+	return fmt.Sprintf("%s-%s", strings.Replace(b.dbPrefix, "_", "-", -1), strings.Replace(instanceID, "_", "-", -1))
 }
 
 func (b *RDSBroker) masterUsername() string {
@@ -480,7 +480,7 @@ func (b *RDSBroker) dbPassword() string {
 }
 
 func (b *RDSBroker) dbName(instanceID string) string {
-	return fmt.Sprintf("%s_%s", b.dbPrefix, strings.Replace(instanceID, "-", "_", -1))
+	return fmt.Sprintf("%s_%s", strings.Replace(b.dbPrefix, "-", "_", -1), strings.Replace(instanceID, "-", "_", -1))
 }
 
 func (b *RDSBroker) createDBCluster(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) *awsrds.DBClusterDetails {
