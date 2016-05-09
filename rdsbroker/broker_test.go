@@ -46,7 +46,9 @@ var _ = Describe("RDS Broker", func() {
 		serviceBindable              bool
 		planUpdateable               bool
 		skipFinalSnapshot            bool
+	)
 
+	const (
 		instanceID           = "instance-id"
 		bindingID            = "binding-id"
 		dbInstanceIdentifier = "cf-instance-id"
