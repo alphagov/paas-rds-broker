@@ -344,6 +344,14 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
+		Context("when has default BackupRetentionPeriod", func() {
+			It("has backups turned off", func() {
+				_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
+				Expect(dbInstance.CreateDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(0)))
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
 		Context("when has CharacterSetName", func() {
 			BeforeEach(func() {
 				rdsProperties1.CharacterSetName = "test-characterset-name"

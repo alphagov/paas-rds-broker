@@ -669,12 +669,10 @@ func (b *RDSBroker) dbInstanceFromPlan(servicePlan ServicePlan) *awsrds.DBInstan
 	dbInstanceDetails.PubliclyAccessible = servicePlan.RDSProperties.PubliclyAccessible
 
 	if strings.ToLower(servicePlan.RDSProperties.Engine) != "aurora" {
+		dbInstanceDetails.BackupRetentionPeriod = servicePlan.RDSProperties.BackupRetentionPeriod
+
 		if servicePlan.RDSProperties.AllocatedStorage > 0 {
 			dbInstanceDetails.AllocatedStorage = servicePlan.RDSProperties.AllocatedStorage
-		}
-
-		if servicePlan.RDSProperties.BackupRetentionPeriod > 0 {
-			dbInstanceDetails.BackupRetentionPeriod = servicePlan.RDSProperties.BackupRetentionPeriod
 		}
 
 		if servicePlan.RDSProperties.CharacterSetName != "" {
