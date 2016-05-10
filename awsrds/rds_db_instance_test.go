@@ -220,6 +220,7 @@ var _ = Describe("RDS DB Instance", func() {
 				MultiAZ:                 aws.Bool(false),
 				PubliclyAccessible:      aws.Bool(false),
 				StorageEncrypted:        aws.Bool(false),
+				BackupRetentionPeriod:   aws.Int64(0),
 			}
 			createDBInstanceError = nil
 		})

@@ -196,9 +196,7 @@ func (r *RDSDBInstance) buildCreateDBInstanceInput(ID string, dbInstanceDetails 
 		createDBInstanceInput.AvailabilityZone = aws.String(dbInstanceDetails.AvailabilityZone)
 	}
 
-	if dbInstanceDetails.BackupRetentionPeriod > 0 {
-		createDBInstanceInput.BackupRetentionPeriod = aws.Int64(dbInstanceDetails.BackupRetentionPeriod)
-	}
+	createDBInstanceInput.BackupRetentionPeriod = aws.Int64(dbInstanceDetails.BackupRetentionPeriod)
 
 	if dbInstanceDetails.CharacterSetName != "" {
 		createDBInstanceInput.CharacterSetName = aws.String(dbInstanceDetails.CharacterSetName)
