@@ -314,18 +314,6 @@ var _ = Describe("RDS DB Instance", func() {
 			})
 		})
 
-		Context("when has DBClusterIdentifier", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.DBClusterIdentifier = "test-db-cluster-identifier"
-				createDBInstanceInput.DBClusterIdentifier = aws.String("test-db-cluster-identifier")
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Create(dbInstanceIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
 		Context("when has DBInstanceClass", func() {
 			BeforeEach(func() {
 				dbInstanceDetails.DBInstanceClass = "db.m3.small"

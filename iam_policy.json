@@ -7,10 +7,6 @@
         "rds:CreateDBInstance",
         "rds:ModifyDBInstance",
         "rds:DeleteDBInstance",
-        "rds:DescribeDBClusters",
-        "rds:CreateDBCluster",
-        "rds:ModifyDBCluster",
-        "rds:DeleteDBCluster",
         "rds:AddTagsToResource"
       ],
       "Effect": "Allow",

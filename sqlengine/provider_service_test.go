@@ -27,14 +27,6 @@ var _ = Describe("Provider Service", func() {
 			Expect(err.Error()).To(ContainSubstring("SQL Engine 'unknown' not supported"))
 		})
 
-		Context("when engine is aurora", func() {
-			It("return the proper SQL Engine", func() {
-				sqlEngine, err := sqlProvider.GetSQLEngine("aurora")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(sqlEngine).To(BeAssignableToTypeOf(&MySQLEngine{}))
-			})
-		})
-
 		Context("when engine is mariadb", func() {
 			It("return the proper SQL Engine", func() {
 				sqlEngine, err := sqlProvider.GetSQLEngine("mariadb")
