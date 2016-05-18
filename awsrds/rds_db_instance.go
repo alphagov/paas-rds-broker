@@ -75,11 +75,6 @@ func (r *RDSDBInstance) Create(ID string, dbInstanceDetails DBInstanceDetails) e
 	if err != nil {
 		r.logger.Error("aws-rds-error", err)
 		if awsErr, ok := err.(awserr.Error); ok {
-			if reqErr, ok := err.(awserr.RequestFailure); ok {
-				if reqErr.StatusCode() == 404 {
-					return ErrDBClusterDoesNotExist
-				}
-			}
 			return errors.New(awsErr.Code() + ": " + awsErr.Message())
 		}
 		return err
@@ -108,7 +103,7 @@ func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, a
 		if awsErr, ok := err.(awserr.Error); ok {
 			if reqErr, ok := err.(awserr.RequestFailure); ok {
 				if reqErr.StatusCode() == 404 {
-					return ErrDBClusterDoesNotExist
+					return ErrDBInstanceDoesNotExist
 				}
 			}
 			return errors.New(awsErr.Code() + ": " + awsErr.Message())
@@ -203,10 +198,6 @@ func (r *RDSDBInstance) buildCreateDBInstanceInput(ID string, dbInstanceDetails 
 	}
 
 	createDBInstanceInput.CopyTagsToSnapshot = aws.Bool(dbInstanceDetails.CopyTagsToSnapshot)
-
-	if dbInstanceDetails.DBClusterIdentifier != "" {
-		createDBInstanceInput.DBClusterIdentifier = aws.String(dbInstanceDetails.DBClusterIdentifier)
-	}
 
 	if dbInstanceDetails.DBInstanceClass != "" {
 		createDBInstanceInput.DBInstanceClass = aws.String(dbInstanceDetails.DBInstanceClass)

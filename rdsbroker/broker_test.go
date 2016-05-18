@@ -31,7 +31,6 @@ var _ = Describe("RDS Broker", func() {
 		config Config
 
 		dbInstance *rdsfake.FakeDBInstance
-		dbCluster  *rdsfake.FakeDBCluster
 
 		sqlProvider *sqlfake.FakeProvider
 		sqlEngine   *sqlfake.FakeSQLEngine
@@ -54,7 +53,6 @@ var _ = Describe("RDS Broker", func() {
 		instanceID           = "instance-id"
 		bindingID            = "binding-id"
 		dbInstanceIdentifier = "cf-instance-id"
-		dbClusterIdentifier  = "cf-instance-id"
 		dbName               = "cf_instance_id"
 		dbUsername           = "YmluZGluZy1pZNQd"
 		masterUserPassword   = "aW5zdGFuY2UtaWTUHYzZjwCyBOm"
@@ -70,7 +68,6 @@ var _ = Describe("RDS Broker", func() {
 		dbPrefix = "cf"
 
 		dbInstance = &rdsfake.FakeDBInstance{}
-		dbCluster = &rdsfake.FakeDBCluster{}
 
 		sqlProvider = &sqlfake.FakeProvider{}
 		sqlEngine = &sqlfake.FakeSQLEngine{}
@@ -141,7 +138,7 @@ var _ = Describe("RDS Broker", func() {
 		testSink = lagertest.NewTestSink()
 		logger.RegisterSink(testSink)
 
-		rdsBroker = New(config, dbInstance, dbCluster, sqlProvider, logger)
+		rdsBroker = New(config, dbInstance, sqlProvider, logger)
 	})
 
 	var _ = Describe("Services", func() {
@@ -263,18 +260,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.AllocatedStorage).To(Equal(int64(100)))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.AllocatedStorage).To(Equal(int64(0)))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has AutoMinorVersionUpgrade", func() {
@@ -299,19 +284,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.AvailabilityZone).To(Equal("test-az"))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.AvailabilityZone).To(Equal("test-az"))
-					Expect(dbCluster.CreateDBClusterDetails.AvailabilityZones).To(Equal([]string{"test-az"}))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has BackupRetentionPeriod", func() {
@@ -325,19 +297,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbCluster.CreateDBClusterDetails.BackupRetentionPeriod).To(Equal(int64(7)))
-					Expect(dbInstance.CreateDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(0)))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
-
 			Context("but has BackupRetentionPeriod Parameter", func() {
 				BeforeEach(func() {
 					provisionDetails.Parameters = map[string]interface{}{"backup_retention_period": 12}
@@ -347,19 +306,6 @@ var _ = Describe("RDS Broker", func() {
 					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
 					Expect(dbInstance.CreateDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(12)))
 					Expect(err).ToNot(HaveOccurred())
-				})
-
-				Context("when Engine is Aurora", func() {
-					BeforeEach(func() {
-						rdsProperties1.Engine = "aurora"
-					})
-
-					It("makes the proper calls", func() {
-						_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-						Expect(dbCluster.CreateDBClusterDetails.BackupRetentionPeriod).To(Equal(int64(12)))
-						Expect(dbInstance.CreateDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(0)))
-						Expect(err).ToNot(HaveOccurred())
-					})
 				})
 			})
 		})
@@ -383,18 +329,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.CharacterSetName).To(Equal(""))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
-
 			Context("but has CharacterSetName Parameter", func() {
 				BeforeEach(func() {
 					provisionDetails.Parameters = map[string]interface{}{"character_set_name": "test-characterset-name-parameter"}
@@ -404,18 +338,6 @@ var _ = Describe("RDS Broker", func() {
 					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
 					Expect(dbInstance.CreateDBInstanceDetails.CharacterSetName).To(Equal("test-characterset-name-parameter"))
 					Expect(err).ToNot(HaveOccurred())
-				})
-
-				Context("when Engine is Aurora", func() {
-					BeforeEach(func() {
-						rdsProperties1.Engine = "aurora"
-					})
-
-					It("makes the proper calls", func() {
-						_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-						Expect(dbInstance.CreateDBInstanceDetails.CharacterSetName).To(Equal(""))
-						Expect(err).ToNot(HaveOccurred())
-					})
 				})
 			})
 		})
@@ -442,19 +364,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.DBName).To(Equal("test-dbname"))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbCluster.CreateDBClusterDetails.DatabaseName).To(Equal("test-dbname"))
-					Expect(dbInstance.CreateDBInstanceDetails.DBName).To(Equal(""))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has DBParameterGroupName", func() {
@@ -479,18 +388,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.DBSecurityGroups).To(Equal([]string{"test-db-security-group"}))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.DBSecurityGroups).To(BeNil())
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has DBSubnetGroupName", func() {
@@ -502,18 +399,6 @@ var _ = Describe("RDS Broker", func() {
 				_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
 				Expect(dbInstance.CreateDBInstanceDetails.DBSubnetGroupName).To(Equal("test-db-subnet-group-name"))
 				Expect(err).ToNot(HaveOccurred())
-			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbCluster.CreateDBClusterDetails.DBSubnetGroupName).To(Equal("test-db-subnet-group-name"))
-					Expect(err).ToNot(HaveOccurred())
-				})
 			})
 		})
 
@@ -527,19 +412,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.EngineVersion).To(Equal("1.2.3"))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.EngineVersion).To(Equal("1.2.3"))
-					Expect(dbCluster.CreateDBClusterDetails.EngineVersion).To(Equal("1.2.3"))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has Iops", func() {
@@ -551,18 +423,6 @@ var _ = Describe("RDS Broker", func() {
 				_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
 				Expect(dbInstance.CreateDBInstanceDetails.Iops).To(Equal(int64(1000)))
 				Expect(err).ToNot(HaveOccurred())
-			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.Iops).To(Equal(int64(0)))
-					Expect(err).ToNot(HaveOccurred())
-				})
 			})
 		})
 
@@ -576,18 +436,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.KmsKeyID).To(Equal("test-kms-key-id"))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.KmsKeyID).To(Equal(""))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has LicenseModel", func() {
@@ -600,18 +448,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.LicenseModel).To(Equal("test-license-model"))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.LicenseModel).To(Equal(""))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has MultiAZ", func() {
@@ -623,18 +459,6 @@ var _ = Describe("RDS Broker", func() {
 				_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
 				Expect(dbInstance.CreateDBInstanceDetails.MultiAZ).To(BeTrue())
 				Expect(err).ToNot(HaveOccurred())
-			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.MultiAZ).To(BeFalse())
-					Expect(err).ToNot(HaveOccurred())
-				})
 			})
 		})
 
@@ -660,19 +484,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.Port).To(Equal(int64(3306)))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbCluster.CreateDBClusterDetails.Port).To(Equal(int64(3306)))
-					Expect(dbInstance.CreateDBInstanceDetails.Port).To(Equal(int64(0)))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has PreferredBackupWindow", func() {
@@ -686,19 +497,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbCluster.CreateDBClusterDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window"))
-					Expect(dbInstance.CreateDBInstanceDetails.PreferredBackupWindow).To(Equal(""))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
-
 			Context("but has PreferredBackupWindow Parameter", func() {
 				BeforeEach(func() {
 					provisionDetails.Parameters = map[string]interface{}{"preferred_backup_window": "test-preferred-backup-window-parameter"}
@@ -708,19 +506,6 @@ var _ = Describe("RDS Broker", func() {
 					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
 					Expect(dbInstance.CreateDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window-parameter"))
 					Expect(err).ToNot(HaveOccurred())
-				})
-
-				Context("when Engine is Aurora", func() {
-					BeforeEach(func() {
-						rdsProperties1.Engine = "aurora"
-					})
-
-					It("makes the proper calls", func() {
-						_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-						Expect(dbCluster.CreateDBClusterDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window-parameter"))
-						Expect(dbInstance.CreateDBInstanceDetails.PreferredBackupWindow).To(Equal(""))
-						Expect(err).ToNot(HaveOccurred())
-					})
 				})
 			})
 		})
@@ -736,18 +521,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbCluster.CreateDBClusterDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window"))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
-
 			Context("but has PreferredMaintenanceWindow Parameter", func() {
 				BeforeEach(func() {
 					provisionDetails.Parameters = map[string]interface{}{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}
@@ -757,18 +530,6 @@ var _ = Describe("RDS Broker", func() {
 					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
 					Expect(dbInstance.CreateDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window-parameter"))
 					Expect(err).ToNot(HaveOccurred())
-				})
-
-				Context("when Engine is Aurora", func() {
-					BeforeEach(func() {
-						rdsProperties1.Engine = "aurora"
-					})
-
-					It("makes the proper calls", func() {
-						_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-						Expect(dbCluster.CreateDBClusterDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window-parameter"))
-						Expect(err).ToNot(HaveOccurred())
-					})
 				})
 			})
 		})
@@ -795,18 +556,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.StorageEncrypted).To(BeTrue())
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.StorageEncrypted).To(BeFalse())
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has StorageType", func() {
@@ -819,18 +568,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.StorageType).To(Equal("test-storage-type"))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.StorageType).To(Equal(""))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has VpcSecurityGroupIds", func() {
@@ -842,19 +579,6 @@ var _ = Describe("RDS Broker", func() {
 				_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
 				Expect(dbInstance.CreateDBInstanceDetails.VpcSecurityGroupIds).To(Equal([]string{"test-vpc-security-group-ids"}))
 				Expect(err).ToNot(HaveOccurred())
-			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbCluster.CreateDBClusterDetails.VpcSecurityGroupIds).To(Equal([]string{"test-vpc-security-group-ids"}))
-					Expect(dbInstance.CreateDBInstanceDetails.VpcSecurityGroupIds).To(BeNil())
-					Expect(err).ToNot(HaveOccurred())
-				})
 			})
 		})
 
@@ -916,57 +640,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err.Error()).To(Equal("operation failed"))
 			})
 		})
-
-		Context("when Engine is Aurora", func() {
-			BeforeEach(func() {
-				rdsProperties1.Engine = "aurora"
-			})
-
-			It("makes the proper calls", func() {
-				_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-				Expect(dbCluster.CreateCalled).To(BeTrue())
-				Expect(dbCluster.CreateID).To(Equal(dbClusterIdentifier))
-				Expect(dbCluster.CreateDBClusterDetails.Engine).To(Equal("aurora"))
-				Expect(dbCluster.CreateDBClusterDetails.DatabaseName).To(Equal(dbName))
-				Expect(dbCluster.CreateDBClusterDetails.MasterUsername).ToNot(BeEmpty())
-				Expect(dbCluster.CreateDBClusterDetails.MasterUserPassword).To(Equal(masterUserPassword))
-				Expect(dbCluster.CreateDBClusterDetails.Tags["Owner"]).To(Equal("Cloud Foundry"))
-				Expect(dbCluster.CreateDBClusterDetails.Tags["Created by"]).To(Equal("AWS RDS Service Broker"))
-				Expect(dbCluster.CreateDBClusterDetails.Tags).To(HaveKey("Created at"))
-				Expect(dbCluster.CreateDBClusterDetails.Tags["Service ID"]).To(Equal("Service-1"))
-				Expect(dbCluster.CreateDBClusterDetails.Tags["Plan ID"]).To(Equal("Plan-1"))
-				Expect(dbCluster.CreateDBClusterDetails.Tags["Organization ID"]).To(Equal("organization-id"))
-				Expect(dbCluster.CreateDBClusterDetails.Tags["Space ID"]).To(Equal("space-id"))
-				Expect(dbInstance.CreateDBInstanceDetails.DBClusterIdentifier).To(Equal(dbClusterIdentifier))
-				Expect(dbCluster.DeleteCalled).To(BeFalse())
-				Expect(err).ToNot(HaveOccurred())
-			})
-
-			Context("when has DBClusterParameterGroupName", func() {
-				BeforeEach(func() {
-					rdsProperties1.DBClusterParameterGroupName = "test-db-cluster-parameter-group-name"
-				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbCluster.CreateDBClusterDetails.DBClusterParameterGroupName).To(Equal("test-db-cluster-parameter-group-name"))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
-
-			Context("when creating the DB Instance fails", func() {
-				BeforeEach(func() {
-					dbInstance.CreateError = errors.New("operation failed")
-				})
-
-				It("deletes the DB Cluster", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(err).To(HaveOccurred())
-					Expect(dbCluster.DeleteCalled).To(BeTrue())
-					Expect(dbCluster.DeleteID).To(Equal(dbClusterIdentifier))
-				})
-			})
-		})
 	})
 
 	var _ = Describe("Update", func() {
@@ -1020,18 +693,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.ModifyDBInstanceDetails.AllocatedStorage).To(Equal(int64(100)))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.AllocatedStorage).To(Equal(int64(0)))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has AutoMinorVersionUpgrade", func() {
@@ -1056,19 +717,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.ModifyDBInstanceDetails.AvailabilityZone).To(Equal("test-az"))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.AvailabilityZone).To(Equal("test-az"))
-					Expect(dbCluster.ModifyDBClusterDetails.AvailabilityZones).To(Equal([]string{"test-az"}))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has BackupRetentionPeriod", func() {
@@ -1082,19 +730,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbCluster.ModifyDBClusterDetails.BackupRetentionPeriod).To(Equal(int64(7)))
-					Expect(dbInstance.ModifyDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(0)))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
-
 			Context("but has BackupRetentionPeriod Parameter", func() {
 				BeforeEach(func() {
 					updateDetails.Parameters = map[string]interface{}{"backup_retention_period": 12}
@@ -1104,19 +739,6 @@ var _ = Describe("RDS Broker", func() {
 					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
 					Expect(dbInstance.ModifyDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(12)))
 					Expect(err).ToNot(HaveOccurred())
-				})
-
-				Context("when Engine is Aurora", func() {
-					BeforeEach(func() {
-						rdsProperties2.Engine = "aurora"
-					})
-
-					It("makes the proper calls", func() {
-						_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-						Expect(dbCluster.ModifyDBClusterDetails.BackupRetentionPeriod).To(Equal(int64(12)))
-						Expect(dbInstance.ModifyDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(0)))
-						Expect(err).ToNot(HaveOccurred())
-					})
 				})
 			})
 		})
@@ -1130,18 +752,6 @@ var _ = Describe("RDS Broker", func() {
 				_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
 				Expect(dbInstance.ModifyDBInstanceDetails.CharacterSetName).To(Equal("test-characterset-name"))
 				Expect(err).ToNot(HaveOccurred())
-			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.CharacterSetName).To(Equal(""))
-					Expect(err).ToNot(HaveOccurred())
-				})
 			})
 		})
 
@@ -1179,18 +789,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.ModifyDBInstanceDetails.DBSecurityGroups).To(Equal([]string{"test-db-security-group"}))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.DBSecurityGroups).To(BeNil())
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has DBSubnetGroupName", func() {
@@ -1202,18 +800,6 @@ var _ = Describe("RDS Broker", func() {
 				_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
 				Expect(dbInstance.ModifyDBInstanceDetails.DBSubnetGroupName).To(Equal("test-db-subnet-group-name"))
 				Expect(err).ToNot(HaveOccurred())
-			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbCluster.ModifyDBClusterDetails.DBSubnetGroupName).To(Equal("test-db-subnet-group-name"))
-					Expect(err).ToNot(HaveOccurred())
-				})
 			})
 		})
 
@@ -1227,19 +813,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.ModifyDBInstanceDetails.EngineVersion).To(Equal("1.2.3"))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.EngineVersion).To(Equal("1.2.3"))
-					Expect(dbCluster.ModifyDBClusterDetails.EngineVersion).To(Equal("1.2.3"))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has Iops", func() {
@@ -1251,18 +824,6 @@ var _ = Describe("RDS Broker", func() {
 				_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
 				Expect(dbInstance.ModifyDBInstanceDetails.Iops).To(Equal(int64(1000)))
 				Expect(err).ToNot(HaveOccurred())
-			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.Iops).To(Equal(int64(0)))
-					Expect(err).ToNot(HaveOccurred())
-				})
 			})
 		})
 
@@ -1276,18 +837,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.ModifyDBInstanceDetails.KmsKeyID).To(Equal("test-kms-key-id"))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.KmsKeyID).To(Equal(""))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has LicenseModel", func() {
@@ -1300,18 +849,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.ModifyDBInstanceDetails.LicenseModel).To(Equal("test-license-model"))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.LicenseModel).To(Equal(""))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has MultiAZ", func() {
@@ -1323,18 +860,6 @@ var _ = Describe("RDS Broker", func() {
 				_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
 				Expect(dbInstance.ModifyDBInstanceDetails.MultiAZ).To(BeTrue())
 				Expect(err).ToNot(HaveOccurred())
-			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.MultiAZ).To(BeFalse())
-					Expect(err).ToNot(HaveOccurred())
-				})
 			})
 		})
 
@@ -1360,19 +885,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.ModifyDBInstanceDetails.Port).To(Equal(int64(3306)))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbCluster.ModifyDBClusterDetails.Port).To(Equal(int64(3306)))
-					Expect(dbInstance.ModifyDBInstanceDetails.Port).To(Equal(int64(0)))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has PreferredBackupWindow", func() {
@@ -1386,19 +898,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbCluster.ModifyDBClusterDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window"))
-					Expect(dbInstance.ModifyDBInstanceDetails.PreferredBackupWindow).To(Equal(""))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
-
 			Context("but has PreferredBackupWindow Parameter", func() {
 				BeforeEach(func() {
 					updateDetails.Parameters = map[string]interface{}{"preferred_backup_window": "test-preferred-backup-window-parameter"}
@@ -1408,19 +907,6 @@ var _ = Describe("RDS Broker", func() {
 					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
 					Expect(dbInstance.ModifyDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window-parameter"))
 					Expect(err).ToNot(HaveOccurred())
-				})
-
-				Context("when Engine is Aurora", func() {
-					BeforeEach(func() {
-						rdsProperties2.Engine = "aurora"
-					})
-
-					It("makes the proper calls", func() {
-						_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-						Expect(dbCluster.ModifyDBClusterDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window-parameter"))
-						Expect(dbInstance.ModifyDBInstanceDetails.PreferredBackupWindow).To(Equal(""))
-						Expect(err).ToNot(HaveOccurred())
-					})
 				})
 			})
 		})
@@ -1436,18 +922,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbCluster.ModifyDBClusterDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window"))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
-
 			Context("but has PreferredMaintenanceWindow Parameter", func() {
 				BeforeEach(func() {
 					updateDetails.Parameters = map[string]interface{}{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}
@@ -1457,18 +931,6 @@ var _ = Describe("RDS Broker", func() {
 					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
 					Expect(dbInstance.ModifyDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window-parameter"))
 					Expect(err).ToNot(HaveOccurred())
-				})
-
-				Context("when Engine is Aurora", func() {
-					BeforeEach(func() {
-						rdsProperties2.Engine = "aurora"
-					})
-
-					It("makes the proper calls", func() {
-						_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-						Expect(dbCluster.ModifyDBClusterDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window-parameter"))
-						Expect(err).ToNot(HaveOccurred())
-					})
 				})
 			})
 		})
@@ -1495,18 +957,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.ModifyDBInstanceDetails.StorageEncrypted).To(BeTrue())
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.StorageEncrypted).To(BeFalse())
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has StorageType", func() {
@@ -1519,18 +969,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.ModifyDBInstanceDetails.StorageType).To(Equal("test-storage-type"))
 				Expect(err).ToNot(HaveOccurred())
 			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.StorageType).To(Equal(""))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
 		})
 
 		Context("when has VpcSecurityGroupIds", func() {
@@ -1542,19 +980,6 @@ var _ = Describe("RDS Broker", func() {
 				_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
 				Expect(dbInstance.ModifyDBInstanceDetails.VpcSecurityGroupIds).To(Equal([]string{"test-vpc-security-group-ids"}))
 				Expect(err).ToNot(HaveOccurred())
-			})
-
-			Context("when Engine is Aurora", func() {
-				BeforeEach(func() {
-					rdsProperties2.Engine = "aurora"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbCluster.ModifyDBClusterDetails.VpcSecurityGroupIds).To(Equal([]string{"test-vpc-security-group-ids"}))
-					Expect(dbInstance.ModifyDBInstanceDetails.VpcSecurityGroupIds).To(BeNil())
-					Expect(err).ToNot(HaveOccurred())
-				})
 			})
 		})
 
@@ -1652,37 +1077,6 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 		})
-
-		Context("when Engine is Aurora", func() {
-			BeforeEach(func() {
-				rdsProperties2.Engine = "aurora"
-			})
-
-			It("makes the proper calls", func() {
-				_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbCluster.ModifyCalled).To(BeTrue())
-				Expect(dbCluster.ModifyID).To(Equal(dbClusterIdentifier))
-				Expect(dbCluster.ModifyDBClusterDetails.Engine).To(Equal("aurora"))
-				Expect(dbCluster.ModifyDBClusterDetails.Tags["Owner"]).To(Equal("Cloud Foundry"))
-				Expect(dbCluster.ModifyDBClusterDetails.Tags["Updated by"]).To(Equal("AWS RDS Service Broker"))
-				Expect(dbCluster.ModifyDBClusterDetails.Tags).To(HaveKey("Updated at"))
-				Expect(dbCluster.ModifyDBClusterDetails.Tags["Service ID"]).To(Equal("Service-2"))
-				Expect(dbCluster.ModifyDBClusterDetails.Tags["Plan ID"]).To(Equal("Plan-2"))
-				Expect(err).ToNot(HaveOccurred())
-			})
-
-			Context("when has DBClusterParameterGroupName", func() {
-				BeforeEach(func() {
-					rdsProperties2.DBClusterParameterGroupName = "test-db-cluster-parameter-group-name"
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbCluster.ModifyDBClusterDetails.DBClusterParameterGroupName).To(Equal("test-db-cluster-parameter-group-name"))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
-		})
 	})
 
 	var _ = Describe("Deprovision", func() {
@@ -1774,45 +1168,6 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 		})
-
-		Context("when Engine is Aurora", func() {
-			BeforeEach(func() {
-				rdsProperties1.Engine = "aurora"
-			})
-
-			It("makes the proper calls", func() {
-				_, err := rdsBroker.Deprovision(instanceID, deprovisionDetails, acceptsIncomplete)
-				Expect(dbCluster.DeleteCalled).To(BeTrue())
-				Expect(dbCluster.DeleteID).To(Equal(dbClusterIdentifier))
-				Expect(dbCluster.DeleteSkipFinalSnapshot).To(BeTrue())
-				Expect(dbInstance.DeleteSkipFinalSnapshot).To(BeTrue())
-				Expect(err).ToNot(HaveOccurred())
-			})
-
-			Context("when it does not skip final snaphot", func() {
-				BeforeEach(func() {
-					rdsProperties1.SkipFinalSnapshot = false
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Deprovision(instanceID, deprovisionDetails, acceptsIncomplete)
-					Expect(dbCluster.DeleteSkipFinalSnapshot).To(BeFalse())
-					Expect(dbInstance.DeleteSkipFinalSnapshot).To(BeTrue())
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
-
-			Context("when deleting the DB Instance fails", func() {
-				BeforeEach(func() {
-					dbCluster.DeleteError = errors.New("operation failed")
-				})
-
-				It("does not return an error", func() {
-					_, err := rdsBroker.Deprovision(instanceID, deprovisionDetails, acceptsIncomplete)
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
-		})
 	})
 
 	var _ = Describe("Bind", func() {
@@ -1835,14 +1190,6 @@ var _ = Describe("RDS Broker", func() {
 				DBName:         "test-db",
 				MasterUsername: "master-username",
 			}
-
-			dbCluster.DescribeDBClusterDetails = awsrds.DBClusterDetails{
-				Identifier:     dbClusterIdentifier,
-				Endpoint:       "endpoint-address",
-				Port:           3306,
-				DatabaseName:   "test-db",
-				MasterUsername: "master-username",
-			}
 		})
 
 		It("returns the proper response", func() {
@@ -1861,7 +1208,6 @@ var _ = Describe("RDS Broker", func() {
 
 		It("makes the proper calls", func() {
 			_, err := rdsBroker.Bind(instanceID, bindingID, bindDetails)
-			Expect(dbCluster.DescribeCalled).To(BeFalse())
 			Expect(dbInstance.DescribeCalled).To(BeTrue())
 			Expect(dbInstance.DescribeID).To(Equal(dbInstanceIdentifier))
 			Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
@@ -1962,42 +1308,6 @@ var _ = Describe("RDS Broker", func() {
 					_, err := rdsBroker.Bind(instanceID, bindingID, bindDetails)
 					Expect(err).To(HaveOccurred())
 					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
-				})
-			})
-		})
-
-		Context("when Engine is aurora", func() {
-			BeforeEach(func() {
-				rdsProperties1.Engine = "aurora"
-			})
-
-			It("does not describe the DB Instance", func() {
-				_, err := rdsBroker.Bind(instanceID, bindingID, bindDetails)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstance.DescribeCalled).To(BeFalse())
-			})
-
-			Context("when describing the DB Cluster fails", func() {
-				BeforeEach(func() {
-					dbCluster.DescribeError = errors.New("operation failed")
-				})
-
-				It("returns the proper error", func() {
-					_, err := rdsBroker.Bind(instanceID, bindingID, bindDetails)
-					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).To(Equal("operation failed"))
-				})
-
-				Context("when the DB Cluster does not exists", func() {
-					BeforeEach(func() {
-						dbCluster.DescribeError = awsrds.ErrDBInstanceDoesNotExist
-					})
-
-					It("returns the proper error", func() {
-						_, err := rdsBroker.Bind(instanceID, bindingID, bindDetails)
-						Expect(err).To(HaveOccurred())
-						Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
-					})
 				})
 			})
 		})
@@ -2104,19 +1414,10 @@ var _ = Describe("RDS Broker", func() {
 				DBName:         "test-db",
 				MasterUsername: "master-username",
 			}
-
-			dbCluster.DescribeDBClusterDetails = awsrds.DBClusterDetails{
-				Identifier:     dbClusterIdentifier,
-				Endpoint:       "endpoint-address",
-				Port:           3306,
-				DatabaseName:   "test-db",
-				MasterUsername: "master-username",
-			}
 		})
 
 		It("makes the proper calls", func() {
 			err := rdsBroker.Unbind(instanceID, bindingID, unbindDetails)
-			Expect(dbCluster.DescribeCalled).To(BeFalse())
 			Expect(dbInstance.DescribeCalled).To(BeTrue())
 			Expect(dbInstance.DescribeID).To(Equal(dbInstanceIdentifier))
 			Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
@@ -2168,42 +1469,6 @@ var _ = Describe("RDS Broker", func() {
 					err := rdsBroker.Unbind(instanceID, bindingID, unbindDetails)
 					Expect(err).To(HaveOccurred())
 					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
-				})
-			})
-		})
-
-		Context("when Engine is aurora", func() {
-			BeforeEach(func() {
-				rdsProperties1.Engine = "aurora"
-			})
-
-			It("does not describe the DB Instance", func() {
-				err := rdsBroker.Unbind(instanceID, bindingID, unbindDetails)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstance.DescribeCalled).To(BeFalse())
-			})
-
-			Context("when describing the DB Cluster fails", func() {
-				BeforeEach(func() {
-					dbCluster.DescribeError = errors.New("operation failed")
-				})
-
-				It("returns the proper error", func() {
-					err := rdsBroker.Unbind(instanceID, bindingID, unbindDetails)
-					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).To(Equal("operation failed"))
-				})
-
-				Context("when the DB Cluster does not exists", func() {
-					BeforeEach(func() {
-						dbCluster.DescribeError = awsrds.ErrDBInstanceDoesNotExist
-					})
-
-					It("returns the proper error", func() {
-						err := rdsBroker.Unbind(instanceID, bindingID, unbindDetails)
-						Expect(err).To(HaveOccurred())
-						Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
-					})
 				})
 			})
 		})

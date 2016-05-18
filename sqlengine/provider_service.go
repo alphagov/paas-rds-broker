@@ -17,7 +17,7 @@ func NewProviderService(logger lager.Logger) *ProviderService {
 
 func (p *ProviderService) GetSQLEngine(engine string) (SQLEngine, error) {
 	switch strings.ToLower(engine) {
-	case "aurora", "mariadb", "mysql":
+	case "mariadb", "mysql":
 		return NewMySQLEngine(p.logger), nil
 	case "postgres", "postgresql":
 		return NewPostgresEngine(p.logger), nil
