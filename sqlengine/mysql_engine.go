@@ -41,11 +41,11 @@ func (d *MySQLEngine) Close() {
 }
 
 func (d *MySQLEngine) ExistsDB(dbname string) (bool, error) {
-	selectDatabaseStatement := "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '" + dbname + "'"
-	d.logger.Debug("database-exists", lager.Data{"statement": selectDatabaseStatement})
+	selectDatabaseStatement := "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?"
+	d.logger.Debug("database-exists", lager.Data{"statement": selectDatabaseStatement, "params": []string{dbname}})
 
 	var dummy string
-	err := d.db.QueryRow(selectDatabaseStatement).Scan(&dummy)
+	err := d.db.QueryRow(selectDatabaseStatement, dbname).Scan(&dummy)
 	switch {
 	case err == sql.ErrNoRows:
 		return false, nil
@@ -65,10 +65,10 @@ func (d *MySQLEngine) CreateDB(dbname string) error {
 		return nil
 	}
 
-	createDBStatement := "CREATE DATABASE IF NOT EXISTS " + dbname
-	d.logger.Debug("create-database", lager.Data{"statement": createDBStatement})
+	createDBStatement := "CREATE DATABASE IF NOT EXISTS ?"
+	d.logger.Debug("create-database", lager.Data{"statement": createDBStatement, "params": []string{dbname}})
 
-	if _, err := d.db.Exec(createDBStatement); err != nil {
+	if _, err := d.db.Exec(createDBStatement, dbname); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
@@ -77,10 +77,10 @@ func (d *MySQLEngine) CreateDB(dbname string) error {
 }
 
 func (d *MySQLEngine) DropDB(dbname string) error {
-	dropDBStatement := "DROP DATABASE IF EXISTS " + dbname
-	d.logger.Debug("drop-database", lager.Data{"statement": dropDBStatement})
+	dropDBStatement := "DROP DATABASE IF EXISTS ?"
+	d.logger.Debug("drop-database", lager.Data{"statement": dropDBStatement, "params": []string{dbname}})
 
-	if _, err := d.db.Exec(dropDBStatement); err != nil {
+	if _, err := d.db.Exec(dropDBStatement, dbname); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
@@ -89,10 +89,10 @@ func (d *MySQLEngine) DropDB(dbname string) error {
 }
 
 func (d *MySQLEngine) CreateUser(username string, password string) error {
-	createUserStatement := "CREATE USER '" + username + "' IDENTIFIED BY '" + password + "'"
-	d.logger.Debug("create-user", lager.Data{"statement": createUserStatement})
+	createUserStatement := "CREATE USER ? IDENTIFIED BY ?"
+	d.logger.Debug("create-user", lager.Data{"statement": createUserStatement, "params": []string{username, password}})
 
-	if _, err := d.db.Exec(createUserStatement); err != nil {
+	if _, err := d.db.Exec(createUserStatement, username, password); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
@@ -101,10 +101,10 @@ func (d *MySQLEngine) CreateUser(username string, password string) error {
 }
 
 func (d *MySQLEngine) DropUser(username string) error {
-	dropUserStatement := "DROP USER '" + username + "'@'%'"
-	d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
+	dropUserStatement := "DROP USER ?@'%'"
+	d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement, "params": []string{username}})
 
-	if _, err := d.db.Exec(dropUserStatement); err != nil {
+	if _, err := d.db.Exec(dropUserStatement, username); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
@@ -149,10 +149,10 @@ func (d *MySQLEngine) Privileges() (map[string][]string, error) {
 }
 
 func (d *MySQLEngine) GrantPrivileges(dbname string, username string) error {
-	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON " + dbname + ".* TO '" + username + "'@'%'"
-	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON ?.* TO ?@'%'"
+	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement, "params": []string{dbname, username}})
 
-	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
+	if _, err := d.db.Exec(grantPrivilegesStatement, dbname, username); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
@@ -161,10 +161,10 @@ func (d *MySQLEngine) GrantPrivileges(dbname string, username string) error {
 }
 
 func (d *MySQLEngine) RevokePrivileges(dbname string, username string) error {
-	revokePrivilegesStatement := "REVOKE ALL PRIVILEGES ON " + dbname + ".* from '" + username + "'@'%'"
-	d.logger.Debug("revoke-privileges", lager.Data{"statement": revokePrivilegesStatement})
+	revokePrivilegesStatement := "REVOKE ALL PRIVILEGES ON ?.* from ?@'%'"
+	d.logger.Debug("revoke-privileges", lager.Data{"statement": revokePrivilegesStatement, "params": []string{dbname, username}})
 
-	if _, err := d.db.Exec(revokePrivilegesStatement); err != nil {
+	if _, err := d.db.Exec(revokePrivilegesStatement, dbname, username); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
