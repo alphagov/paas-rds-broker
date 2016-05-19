@@ -41,15 +41,14 @@ func (d *PostgresEngine) Close() {
 }
 
 func (d *PostgresEngine) ExistsDB(dbname string) (bool, error) {
-	selectDatabaseStatement := "SELECT datname FROM pg_database WHERE datname='" + dbname + "'"
-	d.logger.Debug("database-exists", lager.Data{"statement": selectDatabaseStatement})
+	selectDatabaseStatement := "SELECT datname FROM pg_database WHERE datname=?"
+	d.logger.Debug("database-exists", lager.Data{"statement": selectDatabaseStatement, "params": []string{dbname}})
 
 	var dummy string
-	err := d.db.QueryRow(selectDatabaseStatement).Scan(&dummy)
-	switch {
-	case err == sql.ErrNoRows:
+	err := d.db.QueryRow(selectDatabaseStatement, dbname).Scan(&dummy)
+	if err == sql.ErrNoRows {
 		return false, nil
-	case err != nil:
+	} else if err != nil {
 		return false, err
 	}
 
@@ -65,10 +64,10 @@ func (d *PostgresEngine) CreateDB(dbname string) error {
 		return nil
 	}
 
-	createDBStatement := "CREATE DATABASE \"" + dbname + "\""
-	d.logger.Debug("create-database", lager.Data{"statement": createDBStatement})
+	createDBStatement := "CREATE DATABASE ?"
+	d.logger.Debug("create-database", lager.Data{"statement": createDBStatement, "params": []string{dbname}})
 
-	if _, err := d.db.Exec(createDBStatement); err != nil {
+	if _, err := d.db.Exec(createDBStatement, dbname); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
@@ -81,10 +80,10 @@ func (d *PostgresEngine) DropDB(dbname string) error {
 		return err
 	}
 
-	dropDBStatement := "DROP DATABASE IF EXISTS \"" + dbname + "\""
-	d.logger.Debug("drop-database", lager.Data{"statement": dropDBStatement})
+	dropDBStatement := "DROP DATABASE IF EXISTS ?"
+	d.logger.Debug("drop-database", lager.Data{"statement": dropDBStatement, "params": []string{dbname}})
 
-	if _, err := d.db.Exec(dropDBStatement); err != nil {
+	if _, err := d.db.Exec(dropDBStatement, dbname); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
@@ -93,10 +92,10 @@ func (d *PostgresEngine) DropDB(dbname string) error {
 }
 
 func (d *PostgresEngine) CreateUser(username string, password string) error {
-	createUserStatement := "CREATE USER \"" + username + "\" WITH PASSWORD '" + password + "'"
-	d.logger.Debug("create-user", lager.Data{"statement": createUserStatement})
+	createUserStatement := "CREATE USER ? WITH PASSWORD ?"
+	d.logger.Debug("create-user", lager.Data{"statement": createUserStatement, "params": []string{username, password}})
 
-	if _, err := d.db.Exec(createUserStatement); err != nil {
+	if _, err := d.db.Exec(createUserStatement, username, password); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
@@ -147,10 +146,10 @@ func (d *PostgresEngine) Privileges() (map[string][]string, error) {
 }
 
 func (d *PostgresEngine) GrantPrivileges(dbname string, username string) error {
-	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON DATABASE \"" + dbname + "\" TO \"" + username + "\""
-	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON DATABASE ? TO ?"
+	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement, "params": []string{dbname, username}})
 
-	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
+	if _, err := d.db.Exec(grantPrivilegesStatement, dbname, username); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
@@ -159,10 +158,10 @@ func (d *PostgresEngine) GrantPrivileges(dbname string, username string) error {
 }
 
 func (d *PostgresEngine) RevokePrivileges(dbname string, username string) error {
-	revokePrivilegesStatement := "REVOKE ALL PRIVILEGES ON DATABASE \"" + dbname + "\" FROM \"" + username + "\""
-	d.logger.Debug("revoke-privileges", lager.Data{"statement": revokePrivilegesStatement})
+	revokePrivilegesStatement := "REVOKE ALL PRIVILEGES ON DATABASE ? FROM ?"
+	d.logger.Debug("revoke-privileges", lager.Data{"statement": revokePrivilegesStatement, "params": []string{dbname, username}})
 
-	if _, err := d.db.Exec(revokePrivilegesStatement); err != nil {
+	if _, err := d.db.Exec(revokePrivilegesStatement, dbname, username); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
@@ -179,10 +178,10 @@ func (d *PostgresEngine) JDBCURI(address string, port int64, dbname string, user
 }
 
 func (d *PostgresEngine) dropConnections(dbname string) error {
-	dropDBConnectionsStatement := "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '" + dbname + "' AND pid <> pg_backend_pid()"
-	d.logger.Debug("drop-connections", lager.Data{"statement": dropDBConnectionsStatement})
+	dropDBConnectionsStatement := "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = ? AND pid <> pg_backend_pid()"
+	d.logger.Debug("drop-connections", lager.Data{"statement": dropDBConnectionsStatement, "params": []string{dbname}})
 
-	if _, err := d.db.Exec(dropDBConnectionsStatement); err != nil {
+	if _, err := d.db.Exec(dropDBConnectionsStatement, dbname); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
