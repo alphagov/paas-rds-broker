@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"io"
-	"math"
 )
 
 var alpha = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
@@ -38,8 +37,12 @@ func randChar(length int, chars []byte) string {
 	}
 }
 
-func GetMD5B64(text string, length int) string {
-	hasher := md5.New()
-	md5 := hasher.Sum([]byte(text))
-	return base64.StdEncoding.EncodeToString(md5)[0:int(math.Min(float64(length), float64(len(md5))))]
+func GetMD5B64(text string, maxLength int) string {
+	md5 := md5.Sum([]byte(text))
+	encoded := base64.StdEncoding.EncodeToString(md5[:])
+	if len(encoded) > maxLength {
+		return encoded[0:maxLength]
+	} else {
+		return encoded
+	}
 }
