@@ -69,7 +69,10 @@ func (r *RDSDBInstance) Describe(ID string) (DBInstanceDetails, error) {
 
 func (r *RDSDBInstance) Create(ID string, dbInstanceDetails DBInstanceDetails) error {
 	createDBInstanceInput := r.buildCreateDBInstanceInput(ID, dbInstanceDetails)
-	r.logger.Debug("create-db-instance", lager.Data{"input": createDBInstanceInput})
+
+	sanitizedDBInstanceInput := *createDBInstanceInput
+	sanitizedDBInstanceInput.MasterUserPassword = aws.String("REDACTED")
+	r.logger.Debug("create-db-instance", lager.Data{"input": &sanitizedDBInstanceInput})
 
 	createDBInstanceOutput, err := r.rdssvc.CreateDBInstance(createDBInstanceInput)
 	if err != nil {
@@ -95,7 +98,10 @@ func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, a
 	}
 
 	modifyDBInstanceInput := r.buildModifyDBInstanceInput(ID, dbInstanceDetails, oldDBInstanceDetails, applyImmediately)
-	r.logger.Debug("modify-db-instance", lager.Data{"input": modifyDBInstanceInput})
+
+	sanitizedDBInstanceInput := *modifyDBInstanceInput
+	sanitizedDBInstanceInput.MasterUserPassword = aws.String("REDACTED")
+	r.logger.Debug("modify-db-instance", lager.Data{"input": &sanitizedDBInstanceInput})
 
 	modifyDBInstanceOutput, err := r.rdssvc.ModifyDBInstance(modifyDBInstanceInput)
 	if err != nil {

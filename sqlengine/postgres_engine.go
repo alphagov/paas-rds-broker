@@ -21,8 +21,11 @@ func NewPostgresEngine(logger lager.Logger) *PostgresEngine {
 }
 
 func (d *PostgresEngine) Open(address string, port int64, dbname string, username string, password string) error {
-	connectionString := d.connectionString(address, port, dbname, username, password)
-	d.logger.Debug("sql-open", lager.Data{"connection-string": connectionString})
+	var (
+		connectionString          = d.connectionString(address, port, dbname, username, password)
+		sanitizedConnectionString = d.connectionString(address, port, dbname, username, "REDACTED")
+	)
+	d.logger.Debug("sql-open", lager.Data{"connection-string": sanitizedConnectionString})
 
 	db, err := sql.Open("postgres", connectionString)
 	if err != nil {
@@ -93,8 +96,11 @@ func (d *PostgresEngine) DropDB(dbname string) error {
 }
 
 func (d *PostgresEngine) CreateUser(username string, password string) error {
-	createUserStatement := "CREATE USER \"" + username + "\" WITH PASSWORD '" + password + "'"
-	d.logger.Debug("create-user", lager.Data{"statement": createUserStatement})
+	var (
+		createUserStatement          = "CREATE USER \"" + username + "\" WITH PASSWORD '" + password + "'"
+		sanitizedCreateUserStatement = "CREATE USER \"" + username + "\" WITH PASSWORD 'REDACTED'"
+	)
+	d.logger.Debug("create-user", lager.Data{"statement": sanitizedCreateUserStatement})
 
 	if _, err := d.db.Exec(createUserStatement); err != nil {
 		d.logger.Error("sql-error", err)
