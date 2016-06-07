@@ -402,7 +402,7 @@ func (b *RDSBroker) masterPassword(instanceID string) string {
 }
 
 func (b *RDSBroker) dbUsername(bindingID string) string {
-	return utils.GetMD5B64(bindingID, defaultUsernameLength)
+	return "u" + strings.Replace(utils.GetMD5B64(bindingID, defaultUsernameLength-1), "-", "_", -1)
 }
 
 func (b *RDSBroker) dbPassword() string {

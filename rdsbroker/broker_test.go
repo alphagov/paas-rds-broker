@@ -55,8 +55,8 @@ var _ = Describe("RDS Broker", func() {
 		bindingID            = "binding-id"
 		dbInstanceIdentifier = "cf-instance-id"
 		dbName               = "cf_instance_id"
-		dbUsername           = "vMSB820K+t3WvCXd"
-		masterUserPassword   = "qOeiJ6AstR/mUQJxn6jyew=="
+		dbUsername           = "uvMSB820K_t3WvCX"
+		masterUserPassword   = "qOeiJ6AstR_mUQJxn6jyew=="
 	)
 
 	BeforeEach(func() {

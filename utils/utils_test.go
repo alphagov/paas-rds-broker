@@ -26,4 +26,11 @@ var _ = Describe("GetMD5B64", func() {
 		md5b64 := GetMD5B64("ce71b484-d542-40f7-9dd4-5526e38c81ba", 16)
 		Expect(md5b64).To(Equal("OzUBBVyWFqGmb7pb"))
 	})
+
+	It("Uses the URL safe base64 scheme", func() {
+		md5b64 := GetMD5B64("1123456678", 32)
+		// Expectation generated with
+		// echo -n 1123456678 | openssl dgst -md5 -binary | openssl enc -base64 | tr '+/' '-_'
+		Expect(md5b64).To(Equal("4P7L73_9u3fGZbGG-GDHOw=="))
+	})
 })

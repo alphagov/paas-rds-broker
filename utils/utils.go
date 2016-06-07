@@ -39,7 +39,7 @@ func randChar(length int, chars []byte) string {
 
 func GetMD5B64(text string, maxLength int) string {
 	md5 := md5.Sum([]byte(text))
-	encoded := base64.StdEncoding.EncodeToString(md5[:])
+	encoded := base64.URLEncoding.EncodeToString(md5[:])
 	if len(encoded) > maxLength {
 		return encoded[0:maxLength]
 	} else {
