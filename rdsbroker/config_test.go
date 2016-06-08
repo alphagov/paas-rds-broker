@@ -12,8 +12,9 @@ var _ = Describe("Config", func() {
 		config Config
 
 		validConfig = Config{
-			Region:   "rds-region",
-			DBPrefix: "cf",
+			Region:             "rds-region",
+			DBPrefix:           "cf",
+			MasterPasswordSeed: "secret",
 			Catalog: Catalog{
 				[]Service{
 					Service{
@@ -50,6 +51,14 @@ var _ = Describe("Config", func() {
 			err := config.Validate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Must provide a non-empty DBPrefix"))
+		})
+
+		It("returns error if MasterPasswordSeed is not valid", func() {
+			config.MasterPasswordSeed = ""
+
+			err := config.Validate()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("Must provide a non-empty MasterPasswordSeed"))
 		})
 
 		It("returns error if Catalog is not valid", func() {
