@@ -47,6 +47,7 @@ var _ = Describe("RDS Broker", func() {
 		planUpdateable               bool
 		skipFinalSnapshot            bool
 		dbPrefix                     string
+		brokerName                   string
 	)
 
 	const (
@@ -67,6 +68,7 @@ var _ = Describe("RDS Broker", func() {
 		planUpdateable = true
 		skipFinalSnapshot = true
 		dbPrefix = "cf"
+		brokerName = "mybroker"
 
 		dbInstance = &rdsfake.FakeDBInstance{}
 
@@ -129,6 +131,7 @@ var _ = Describe("RDS Broker", func() {
 		config = Config{
 			Region:                       "rds-region",
 			DBPrefix:                     dbPrefix,
+			BrokerName:                   brokerName,
 			MasterPasswordSeed:           masterPasswordSeed,
 			AllowUserProvisionParameters: allowUserProvisionParameters,
 			AllowUserUpdateParameters:    allowUserUpdateParameters,
@@ -678,6 +681,7 @@ var _ = Describe("RDS Broker", func() {
 			Expect(dbInstance.ModifyDBInstanceDetails.DBInstanceClass).To(Equal("db.m2.test"))
 			Expect(dbInstance.ModifyDBInstanceDetails.Engine).To(Equal("test-engine-2"))
 			Expect(dbInstance.ModifyDBInstanceDetails.Tags["Owner"]).To(Equal("Cloud Foundry"))
+			Expect(dbInstance.ModifyDBInstanceDetails.Tags["Broker Name"]).To(Equal("mybroker"))
 			Expect(dbInstance.ModifyDBInstanceDetails.Tags["Updated by"]).To(Equal("AWS RDS Service Broker"))
 			Expect(dbInstance.ModifyDBInstanceDetails.Tags).To(HaveKey("Updated at"))
 			Expect(dbInstance.ModifyDBInstanceDetails.Tags["Service ID"]).To(Equal("Service-2"))
