@@ -8,6 +8,7 @@ import (
 type Config struct {
 	Region                       string  `json:"region"`
 	DBPrefix                     string  `json:"db_prefix"`
+	BrokerName                   string  `json:"broker_name"`
 	MasterPasswordSeed           string  `json:"master_password_seed"`
 	AllowUserProvisionParameters bool    `json:"allow_user_provision_parameters"`
 	AllowUserUpdateParameters    bool    `json:"allow_user_update_parameters"`
@@ -22,6 +23,10 @@ func (c Config) Validate() error {
 
 	if c.DBPrefix == "" {
 		return errors.New("Must provide a non-empty DBPrefix")
+	}
+
+	if c.BrokerName == "" {
+		return errors.New("Must provide a non-empty BrokerName")
 	}
 
 	if c.MasterPasswordSeed == "" {
