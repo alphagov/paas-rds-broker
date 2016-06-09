@@ -46,6 +46,7 @@ type RDSBroker struct {
 	dbInstance                   awsrds.DBInstance
 	sqlProvider                  sqlengine.Provider
 	logger                       lager.Logger
+	brokerName                   string
 }
 
 func New(
@@ -61,6 +62,7 @@ func New(
 		allowUserUpdateParameters:    config.AllowUserUpdateParameters,
 		allowUserBindParameters:      config.AllowUserBindParameters,
 		catalog:                      config.Catalog,
+		brokerName:                   config.BrokerName,
 		dbInstance:                   dbInstance,
 		sqlProvider:                  sqlProvider,
 		logger:                       logger.Session("broker"),
@@ -554,6 +556,8 @@ func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID st
 	tags := make(map[string]string)
 
 	tags["Owner"] = "Cloud Foundry"
+
+	tags["Broker Name"] = b.brokerName
 
 	tags[action+" by"] = "AWS RDS Service Broker"
 
