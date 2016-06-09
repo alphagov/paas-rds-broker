@@ -2,6 +2,8 @@ package awsrds_test
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -196,6 +198,118 @@ var _ = Describe("RDS DB Instance", func() {
 					Expect(err).To(Equal(ErrDBInstanceDoesNotExist))
 				})
 			})
+		})
+	})
+
+	var _ = Describe("DescribeByTag", func() {
+		var (
+			expectedDBInstanceDetails []*DBInstanceDetails
+
+			describeDBInstances []*rds.DBInstance
+
+			describeDBInstancesInput *rds.DescribeDBInstancesInput
+			describeDBInstanceError  error
+		)
+
+		BeforeEach(func() {
+			buildDBInstanceAWSResponse := func(id, suffix string) *rds.DBInstance {
+				return &rds.DBInstance{
+					DBInstanceIdentifier: aws.String(id + suffix),
+					DBInstanceStatus:     aws.String("available"),
+					Engine:               aws.String("test-engine"),
+					EngineVersion:        aws.String("1.2.3"),
+					DBName:               aws.String("test-dbname" + suffix),
+					MasterUsername:       aws.String("test-master-username" + suffix),
+					AllocatedStorage:     aws.Int64(100),
+				}
+			}
+			describeDBInstances = []*rds.DBInstance{
+				buildDBInstanceAWSResponse(dbInstanceIdentifier, "-1"),
+				buildDBInstanceAWSResponse(dbInstanceIdentifier, "-2"),
+				buildDBInstanceAWSResponse(dbInstanceIdentifier, "-3"),
+			}
+
+			describeDBInstancesInput = &rds.DescribeDBInstancesInput{}
+			describeDBInstanceError = nil
+
+			/// ... tags
+		})
+
+		BeforeEach(func() {
+			buildExpectedDBInstanceDetails := func(id, suffix, brokerName string) *DBInstanceDetails {
+				return &DBInstanceDetails{
+					Identifier:       id + suffix,
+					Status:           "available",
+					Engine:           "test-engine",
+					EngineVersion:    "1.2.3",
+					DBName:           "test-dbname" + suffix,
+					MasterUsername:   "test-master-username" + suffix,
+					AllocatedStorage: int64(100),
+					Tags: map[string]string{
+						"Broker Name": brokerName,
+					},
+				}
+			}
+			expectedDBInstanceDetails = []*DBInstanceDetails{
+				buildExpectedDBInstanceDetails(dbInstanceIdentifier, "-1", "mybroker"),
+				buildExpectedDBInstanceDetails(dbInstanceIdentifier, "-2", "mybroker"),
+			}
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				switch r.Operation.Name {
+				case "DescribeDBInstances":
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.DescribeDBInstancesInput{}))
+					Expect(r.Params).To(Equal(describeDBInstancesInput))
+					data := r.Data.(*rds.DescribeDBInstancesOutput)
+					data.DBInstances = describeDBInstances
+					r.Error = describeDBInstanceError
+				case "ListTagsForResource":
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
+
+					listTagsForResourceInput := r.Params.(*rds.ListTagsForResourceInput)
+					gotARN := *listTagsForResourceInput.ResourceName
+					expectedARN := fmt.Sprintf("arn:aws:rds:%s:123456789012:db:%s", region, dbInstanceIdentifier)
+					Expect(gotARN).To(HavePrefix(expectedARN))
+
+					data := r.Data.(*rds.ListTagsForResourceOutput)
+
+					brokerName := "mybroker"
+					if strings.HasSuffix(gotARN, "-3") {
+						brokerName = "otherbroker"
+					}
+					data.TagList = []*rds.Tag{
+						&rds.Tag{
+							Key:   aws.String("Broker Name"),
+							Value: aws.String(brokerName),
+						},
+					}
+				default:
+					Fail(fmt.Sprintf("Unexpected call to AWS RDS API: '%s'", r.Operation.Name))
+				}
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		JustBeforeEach(func() {
+			iamsvc.Handlers.Clear()
+
+			iamCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("GetUser"))
+				Expect(r.Params).To(BeAssignableToTypeOf(&iam.GetUserInput{}))
+				data := r.Data.(*iam.GetUserOutput)
+				data.User = &iam.User{Arn: aws.String("arn:aws:iam::123456789012:user/myuser")}
+			}
+			iamsvc.Handlers.Send.PushBack(iamCall)
+		})
+
+		It("returns the expected DB Instances for mybroker", func() {
+			dbInstanceDetailsList, err := rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dbInstanceDetailsList).To(HaveLen(2))
 		})
 	})
 

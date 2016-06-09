@@ -67,6 +67,44 @@ func (r *RDSDBInstance) Describe(ID string) (DBInstanceDetails, error) {
 	return dbInstanceDetails, ErrDBInstanceDoesNotExist
 }
 
+func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string) ([]*DBInstanceDetails, error) {
+	dbInstanceDetails := []*DBInstanceDetails{}
+
+	describeDBInstancesInput := &rds.DescribeDBInstancesInput{}
+
+	r.logger.Debug("describe-db-instances", lager.Data{"input": describeDBInstancesInput})
+
+	dbInstances, err := r.rdssvc.DescribeDBInstances(describeDBInstancesInput)
+	if err != nil {
+		r.logger.Error("aws-rds-error", err)
+		return dbInstanceDetails, err
+	}
+
+	for _, dbInstance := range dbInstances.DBInstances {
+		dbArn, err := r.dbInstanceARN(*dbInstance.DBInstanceIdentifier)
+		if err != nil {
+			return dbInstanceDetails, err
+		}
+		listTagsForResourceInput := &rds.ListTagsForResourceInput{
+			ResourceName: aws.String(dbArn),
+		}
+		listTagsForResourceOutput, err := r.rdssvc.ListTagsForResource(listTagsForResourceInput)
+		if err != nil {
+			return dbInstanceDetails, err
+		}
+		for _, t := range listTagsForResourceOutput.TagList {
+			if *t.Key == tagKey && *t.Value == tagValue {
+				r.logger.Debug("describe-db-instances", lager.Data{"db-instance": dbInstance})
+				d := r.buildDBInstance(dbInstance)
+				dbInstanceDetails = append(dbInstanceDetails, &d)
+				break
+			}
+		}
+	}
+
+	return dbInstanceDetails, nil
+}
+
 func (r *RDSDBInstance) Create(ID string, dbInstanceDetails DBInstanceDetails) error {
 	createDBInstanceInput := r.buildCreateDBInstanceInput(ID, dbInstanceDetails)
 
