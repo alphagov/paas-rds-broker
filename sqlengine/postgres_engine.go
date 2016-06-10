@@ -65,10 +65,69 @@ func (d *PostgresEngine) DropUser(username string) error {
 }
 
 func (d *PostgresEngine) GrantPrivileges(dbname string, username string) error {
-	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON DATABASE \"" + dbname + "\" TO \"" + username + "\""
-	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+	groupName := dbname + "_owner"
+	err := d.setupGroup(dbname, groupName)
+	if err != nil {
+		return err
+	}
 
-	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
+	grantRoleStatement := "GRANT \"" + groupName + "\" TO \"" + username + "\""
+	d.logger.Debug("grant-role", lager.Data{"statement": grantRoleStatement})
+
+	if _, err := d.db.Exec(grantRoleStatement); err != nil {
+		d.logger.Error("sql-error", err)
+		return err
+	}
+
+	return nil
+}
+
+func (d *PostgresEngine) setupGroup(dbname, groupName string) error {
+	statements := []string{
+		// Create group if it doesn't exist.
+		`DO
+$body$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '` + groupName + `') THEN
+        CREATE GROUP "` + groupName + `";
+    END IF;
+END
+$body$;`,
+
+		// Allow access to the database
+		"GRANT ALL PRIVILEGES ON DATABASE \"" + dbname + "\" TO \"" + groupName + "\"",
+
+		// Create/replace function to set the owner of new objects to the group
+		`CREATE OR REPLACE FUNCTION change_owner() RETURNS event_trigger AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true) THEN
+        REASSIGN OWNED BY current_user TO ` + groupName + `;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;`,
+
+		// Create the trigger to call the above function
+		"DROP EVENT TRIGGER IF EXISTS change_owner;",
+		"CREATE EVENT TRIGGER change_owner ON ddl_command_end EXECUTE PROCEDURE change_owner();",
+	}
+
+	tx, err := d.db.Begin()
+	if err != nil {
+		d.logger.Error("sql-error", err)
+		return err
+	}
+
+	for _, statement := range statements {
+		d.logger.Debug("grant-privileges", lager.Data{"statement": statement})
+		if _, err := tx.Exec(statement); err != nil {
+			d.logger.Error("sql-error", err)
+			tx.Rollback()
+			return err
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
