@@ -14,8 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
 )
@@ -27,11 +27,11 @@ var _ = Describe("RDS DB Instance", func() {
 
 		awsSession *session.Session
 
-		iamsvc  *iam.IAM
-		iamCall func(r *request.Request)
-
 		rdssvc  *rds.RDS
 		rdsCall func(r *request.Request)
+
+		stssvc  *sts.STS
+		stsCall func(r *request.Request)
 
 		testSink *lagertest.TestSink
 		logger   lager.Logger
@@ -47,14 +47,14 @@ var _ = Describe("RDS DB Instance", func() {
 	JustBeforeEach(func() {
 		awsSession = session.New(nil)
 
-		iamsvc = iam.New(awsSession)
 		rdssvc = rds.New(awsSession)
+		stssvc = sts.New(awsSession)
 
 		logger = lager.NewLogger("rdsdbinstance_test")
 		testSink = lagertest.NewTestSink()
 		logger.RegisterSink(testSink)
 
-		rdsDBInstance = NewRDSDBInstance(region, iamsvc, rdssvc, logger)
+		rdsDBInstance = NewRDSDBInstance(region, rdssvc, stssvc, logger)
 	})
 
 	var _ = Describe("Describe", func() {
@@ -292,15 +292,16 @@ var _ = Describe("RDS DB Instance", func() {
 			}
 			rdssvc.Handlers.Send.PushBack(rdsCall)
 
-			iamsvc.Handlers.Clear()
+			// Configure STS api mock to return an account ID
+			stssvc.Handlers.Clear()
 
-			iamCall = func(r *request.Request) {
-				Expect(r.Operation.Name).To(Equal("GetUser"))
-				Expect(r.Params).To(BeAssignableToTypeOf(&iam.GetUserInput{}))
-				data := r.Data.(*iam.GetUserOutput)
-				data.User = &iam.User{Arn: aws.String("arn:aws:iam::123456789012:user/myuser")}
+			stsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("GetCallerIdentity"))
+				Expect(r.Params).To(BeAssignableToTypeOf(&sts.GetCallerIdentityInput{}))
+				data := r.Data.(*sts.GetCallerIdentityOutput)
+				data.Account = aws.String("123456789012")
 			}
-			iamsvc.Handlers.Send.PushBack(iamCall)
+			stssvc.Handlers.Send.PushBack(stsCall)
 		})
 
 		It("returns the expected DB Instances for mybroker", func() {
@@ -721,10 +722,10 @@ var _ = Describe("RDS DB Instance", func() {
 			addTagsToResourceInput *rds.AddTagsToResourceInput
 			addTagsToResourceError error
 
-			user         *iam.User
-			getUserInput *iam.GetUserInput
-			getUserError error
+			getCallerIdentityInput *sts.GetCallerIdentityInput
+			getCallerIdentityError error
 		)
+		const account = "123456789012"
 
 		BeforeEach(func() {
 			dbInstanceDetails = DBInstanceDetails{}
@@ -756,7 +757,7 @@ var _ = Describe("RDS DB Instance", func() {
 			modifyDBInstanceError = nil
 
 			addTagsToResourceInput = &rds.AddTagsToResourceInput{
-				ResourceName: aws.String("arn:aws:rds:rds-region:account:db:" + dbInstanceIdentifier),
+				ResourceName: aws.String("arn:aws:rds:rds-region:" + account + ":db:" + dbInstanceIdentifier),
 				Tags: []*rds.Tag{
 					&rds.Tag{
 						Key:   aws.String("Owner"),
@@ -765,12 +766,8 @@ var _ = Describe("RDS DB Instance", func() {
 				},
 			}
 			addTagsToResourceError = nil
-
-			user = &iam.User{
-				Arn: aws.String("arn:aws:service:region:account:resource"),
-			}
-			getUserInput = &iam.GetUserInput{}
-			getUserError = nil
+			getCallerIdentityError = nil
+			getCallerIdentityInput = &sts.GetCallerIdentityInput{}
 		})
 
 		JustBeforeEach(func() {
@@ -798,15 +795,15 @@ var _ = Describe("RDS DB Instance", func() {
 			}
 			rdssvc.Handlers.Send.PushBack(rdsCall)
 
-			iamsvc.Handlers.Clear()
-			iamCall = func(r *request.Request) {
-				Expect(r.Operation.Name).To(Equal("GetUser"))
-				Expect(r.Params).To(Equal(getUserInput))
-				data := r.Data.(*iam.GetUserOutput)
-				data.User = user
-				r.Error = getUserError
+			stssvc.Handlers.Clear()
+			stsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("GetCallerIdentity"))
+				Expect(r.Params).To(Equal(getCallerIdentityInput))
+				data := r.Data.(*sts.GetCallerIdentityOutput)
+				data.Account = aws.String(account)
+				r.Error = getCallerIdentityError
 			}
-			iamsvc.Handlers.Send.PushBack(iamCall)
+			stssvc.Handlers.Send.PushBack(stsCall)
 		})
 
 		It("does not return error", func() {
@@ -1067,7 +1064,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 			Context("when getting user arn fails", func() {
 				BeforeEach(func() {
-					getUserError = errors.New("operation failed")
+					getCallerIdentityError = errors.New("operation failed")
 				})
 
 				It("does not return error", func() {
