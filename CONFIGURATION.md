@@ -9,7 +9,12 @@ A sample configuration can be found at [config-sample.json](https://github.com/a
 | log_level  | Y        | String | Broker Log Level (DEBUG, INFO, ERROR, FATAL)
 | username   | Y        | String | Broker Auth Username
 | password   | Y        | String | Broker Auth Password
+| master_password_seed | Y        | String | Seed to generate DB instances master passwords
+| broker_name | Y        | String | Unique name to identify by tag in RDS the instances created by this broker
 | rds_config | Y        | Hash   | [RDS Broker configuration](https://github.com/alphagov/paas-rds-broker/blob/master/CONFIGURATION.md#rds-broker-configuration)
+
+### Note
+When the seed is changed and the broker restarted, the instances master passwords will be updated.
 
 ## RDS Broker Configuration
 
