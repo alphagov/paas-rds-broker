@@ -59,7 +59,13 @@ func (d *PostgresEngine) CreateUser(username string, password string) error {
 }
 
 func (d *PostgresEngine) DropUser(username string) error {
-	// For PostgreSQL we don't drop the user because it might still be owner of some objects
+	dropUserStatement := "DROP USER \"" + username + "\""
+	d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
+
+	if _, err := d.db.Exec(dropUserStatement); err != nil {
+		d.logger.Error("sql-error", err)
+		return err
+	}
 
 	return nil
 }
