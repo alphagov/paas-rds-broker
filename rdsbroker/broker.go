@@ -251,13 +251,6 @@ func (b *RDSBroker) Bind(instanceID, bindingID string, details brokerapi.BindDet
 	dbUsername := b.dbUsername(bindingID)
 	dbPassword := b.dbPassword()
 
-	if bindParameters.DBName != "" {
-		dbName = bindParameters.DBName
-		if err = sqlEngine.CreateDB(dbName); err != nil {
-			return bindingResponse, err
-		}
-	}
-
 	if err = sqlEngine.CreateUser(dbUsername, dbPassword); err != nil {
 		return bindingResponse, err
 	}
@@ -316,37 +309,7 @@ func (b *RDSBroker) Unbind(instanceID, bindingID string, details brokerapi.Unbin
 	}
 	defer sqlEngine.Close()
 
-	privileges, err := sqlEngine.Privileges()
-	if err != nil {
-		return err
-	}
-
-	var userDB string
 	dbUsername := b.dbUsername(bindingID)
-	for privDBName, userNames := range privileges {
-		for _, userName := range userNames {
-			if userName == dbUsername {
-				userDB = privDBName
-				break
-			}
-		}
-	}
-
-	if userDB != "" {
-		if err = sqlEngine.RevokePrivileges(userDB, dbUsername); err != nil {
-			return err
-		}
-
-		if userDB != dbName {
-			users := privileges[userDB]
-			if len(users) == 1 {
-				if err = sqlEngine.DropDB(userDB); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
 	if err = sqlEngine.DropUser(dbUsername); err != nil {
 		return err
 	}

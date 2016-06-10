@@ -16,5 +16,6 @@ type UpdateParameters struct {
 }
 
 type BindParameters struct {
-	DBName string `mapstructure:"dbname"`
+	// This is currently empty, but preserved to make it easier to add
+	// bind-time parameters in future.
 }
