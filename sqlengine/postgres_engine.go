@@ -22,8 +22,8 @@ func NewPostgresEngine(logger lager.Logger) *PostgresEngine {
 
 func (d *PostgresEngine) Open(address string, port int64, dbname string, username string, password string) error {
 	var (
-		connectionString          = d.connectionString(address, port, dbname, username, password)
-		sanitizedConnectionString = d.connectionString(address, port, dbname, username, "REDACTED")
+		connectionString          = d.URI(address, port, dbname, username, password)
+		sanitizedConnectionString = d.URI(address, port, dbname, username, "REDACTED")
 	)
 	d.logger.Debug("sql-open", lager.Data{"connection-string": sanitizedConnectionString})
 
@@ -95,8 +95,4 @@ func (d *PostgresEngine) URI(address string, port int64, dbname string, username
 
 func (d *PostgresEngine) JDBCURI(address string, port int64, dbname string, username string, password string) string {
 	return fmt.Sprintf("jdbc:postgresql://%s:%d/%s?user=%s&password=%s", address, port, dbname, username, password)
-}
-
-func (d *PostgresEngine) connectionString(address string, port int64, dbname string, username string, password string) string {
-	return fmt.Sprintf("host=%s port=%d dbname=%s user='%s' password='%s'", address, port, dbname, username, password)
 }
