@@ -15,18 +15,6 @@ type FakeSQLEngine struct {
 
 	CloseCalled bool
 
-	ExistsDBCalled bool
-	ExistsDBDBName string
-	ExistsDBError  error
-
-	CreateDBCalled bool
-	CreateDBDBName string
-	CreateDBError  error
-
-	DropDBCalled bool
-	DropDBDBName string
-	DropDBError  error
-
 	CreateUserCalled   bool
 	CreateUserUsername string
 	CreateUserPassword string
@@ -36,19 +24,10 @@ type FakeSQLEngine struct {
 	DropUserUsername string
 	DropUserError    error
 
-	PrivilegesCalled     bool
-	PrivilegesPrivileges map[string][]string
-	PrivilegesError      error
-
 	GrantPrivilegesCalled   bool
 	GrantPrivilegesDBName   string
 	GrantPrivilegesUsername string
 	GrantPrivilegesError    error
-
-	RevokePrivilegesCalled   bool
-	RevokePrivilegesDBName   string
-	RevokePrivilegesUsername string
-	RevokePrivilegesError    error
 }
 
 func (f *FakeSQLEngine) Open(address string, port int64, dbname string, username string, password string) error {
@@ -66,27 +45,6 @@ func (f *FakeSQLEngine) Close() {
 	f.CloseCalled = true
 }
 
-func (f *FakeSQLEngine) ExistsDB(dbname string) (bool, error) {
-	f.ExistsDBCalled = true
-	f.ExistsDBDBName = dbname
-
-	return true, f.ExistsDBError
-}
-
-func (f *FakeSQLEngine) CreateDB(dbname string) error {
-	f.CreateDBCalled = true
-	f.CreateDBDBName = dbname
-
-	return f.CreateDBError
-}
-
-func (f *FakeSQLEngine) DropDB(dbname string) error {
-	f.DropDBCalled = true
-	f.DropDBDBName = dbname
-
-	return f.DropDBError
-}
-
 func (f *FakeSQLEngine) CreateUser(username string, password string) error {
 	f.CreateUserCalled = true
 	f.CreateUserUsername = username
@@ -102,26 +60,12 @@ func (f *FakeSQLEngine) DropUser(username string) error {
 	return f.DropUserError
 }
 
-func (f *FakeSQLEngine) Privileges() (map[string][]string, error) {
-	f.PrivilegesCalled = true
-
-	return f.PrivilegesPrivileges, f.PrivilegesError
-}
-
 func (f *FakeSQLEngine) GrantPrivileges(dbname string, username string) error {
 	f.GrantPrivilegesCalled = true
 	f.GrantPrivilegesDBName = dbname
 	f.GrantPrivilegesUsername = username
 
 	return f.GrantPrivilegesError
-}
-
-func (f *FakeSQLEngine) RevokePrivileges(dbname string, username string) error {
-	f.RevokePrivilegesCalled = true
-	f.RevokePrivilegesDBName = dbname
-	f.RevokePrivilegesUsername = username
-
-	return f.RevokePrivilegesError
 }
 
 func (f *FakeSQLEngine) URI(address string, port int64, dbname string, username string, password string) string {
