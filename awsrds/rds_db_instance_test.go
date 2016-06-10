@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
 )
@@ -33,6 +34,8 @@ var _ = Describe("RDS DB Instance", func() {
 		rdssvc  *rds.RDS
 		rdsCall func(r *request.Request)
 
+		stssvc *sts.STS
+
 		testSink *lagertest.TestSink
 		logger   lager.Logger
 
@@ -49,12 +52,13 @@ var _ = Describe("RDS DB Instance", func() {
 
 		iamsvc = iam.New(awsSession)
 		rdssvc = rds.New(awsSession)
+		stssvc = sts.New(awsSession)
 
 		logger = lager.NewLogger("rdsdbinstance_test")
 		testSink = lagertest.NewTestSink()
 		logger.RegisterSink(testSink)
 
-		rdsDBInstance = NewRDSDBInstance(region, iamsvc, rdssvc, logger)
+		rdsDBInstance = NewRDSDBInstance(region, iamsvc, rdssvc, stssvc, logger)
 	})
 
 	var _ = Describe("Describe", func() {

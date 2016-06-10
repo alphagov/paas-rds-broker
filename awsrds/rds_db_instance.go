@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/pivotal-golang/lager"
 )
 
@@ -17,6 +18,7 @@ type RDSDBInstance struct {
 	region string
 	iamsvc *iam.IAM
 	rdssvc *rds.RDS
+	stssvc *sts.STS
 	logger lager.Logger
 }
 
@@ -24,12 +26,14 @@ func NewRDSDBInstance(
 	region string,
 	iamsvc *iam.IAM,
 	rdssvc *rds.RDS,
+	stssvc *sts.STS,
 	logger lager.Logger,
 ) *RDSDBInstance {
 	return &RDSDBInstance{
 		region: region,
 		iamsvc: iamsvc,
 		rdssvc: rdssvc,
+		stssvc: stssvc,
 		logger: logger.Session("db-instance"),
 	}
 }

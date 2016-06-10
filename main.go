@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/frodenas/brokerapi"
 	"github.com/pivotal-golang/lager"
 
@@ -64,7 +65,9 @@ func main() {
 
 	iamsvc := iam.New(awsSession)
 	rdssvc := rds.New(awsSession)
-	dbInstance := awsrds.NewRDSDBInstance(config.RDSConfig.Region, iamsvc, rdssvc, logger)
+	stssvc := sts.New(awsSession)
+
+	dbInstance := awsrds.NewRDSDBInstance(config.RDSConfig.Region, iamsvc, rdssvc, stssvc, logger)
 
 	sqlProvider := sqlengine.NewProviderService(logger)
 
