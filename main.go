@@ -70,6 +70,11 @@ func main() {
 
 	serviceBroker := rdsbroker.New(config.RDSConfig, dbInstance, sqlProvider, logger)
 
+	err = serviceBroker.CheckAndRotateCredentials()
+	if err != nil {
+		logger.Error("Error while checking/rotating master passwords", err)
+	}
+
 	credentials := brokerapi.BrokerCredentials{
 		Username: config.Username,
 		Password: config.Password,

@@ -391,6 +391,49 @@ func (b *RDSBroker) LastOperation(instanceID string) (brokerapi.LastOperationRes
 	return lastOperationResponse, nil
 }
 
+func (b *RDSBroker) CheckAndRotateCredentials() error {
+	dbInstanceDetailsList, err := b.dbInstance.DescribeByTag("Broker Name", b.brokerName)
+	if err != nil {
+		b.logger.Error("Could not retrieve the list of DB instances", err)
+		return err
+	}
+
+	for _, dbInstanceDetails := range dbInstanceDetailsList {
+		dbAddress := dbInstanceDetails.Address
+		dbPort := dbInstanceDetails.Port
+		masterUsername := dbInstanceDetails.MasterUsername
+		instanceID := dbInstanceDetails.Identifier
+
+		var dbName string
+		if dbInstanceDetails.DBName != "" {
+			dbName = dbInstanceDetails.DBName
+		} else {
+			dbName = b.dbName(instanceID)
+		}
+
+		sqlEngine, err := b.sqlProvider.GetSQLEngine(dbInstanceDetails.Engine)
+		if err != nil {
+			b.logger.Error("Could not get the SQL Engine", err)
+			return err
+		}
+
+		err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, b.masterPassword(instanceID))
+		if err != nil {
+			b.logger.Error(fmt.Sprintf("Can't connect to DB %v at %v, will attempt to reset the password", dbName, dbAddress), err)
+			dbInstanceDetails.MasterUserPassword = b.masterPassword(instanceID)
+			err = b.dbInstance.Modify(instanceID, *dbInstanceDetails, true)
+			if err != nil {
+				b.logger.Error("Could not reset the master password", err)
+				return err
+			}
+		} else {
+			defer sqlEngine.Close()
+		}
+	}
+
+	return nil
+}
+
 func (b *RDSBroker) dbInstanceIdentifier(instanceID string) string {
 	return fmt.Sprintf("%s-%s", strings.Replace(b.dbPrefix, "_", "-", -1), strings.Replace(instanceID, "_", "-", -1))
 }
