@@ -8,6 +8,8 @@
     "allow_user_provision_parameters": true,
     "allow_user_update_parameters": true,
     "allow_user_bind_parameters": true,
+    "master_password_seed": "jK5Q45Gx2q4I",
+    "broker_name": "GDS-prod-1",
     "catalog": {
       "services": [
         {
