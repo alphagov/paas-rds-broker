@@ -18,9 +18,8 @@ var _ = Describe("Config", func() {
 			Username: "broker-username",
 			Password: "broker-password",
 			RDSConfig: rdsbroker.Config{
-				Region:             "rds-region",
-				DBPrefix:           "cf",
-				MasterPasswordSeed: "secret",
+				Region:   "rds-region",
+				DBPrefix: "cf",
 			},
 		}
 	)

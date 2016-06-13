@@ -50,13 +50,12 @@ var _ = Describe("RDS Broker", func() {
 	)
 
 	const (
-		masterPasswordSeed   = "something-secret"
 		instanceID           = "instance-id"
 		bindingID            = "binding-id"
 		dbInstanceIdentifier = "cf-instance-id"
 		dbName               = "cf_instance_id"
-		dbUsername           = "uvMSB820K_t3WvCX"
-		masterUserPassword   = "qOeiJ6AstR_mUQJxn6jyew=="
+		dbUsername           = "YmluZGluZy1pZNQd"
+		masterUserPassword   = "aW5zdGFuY2UtaWTUHYzZjwCyBOm"
 	)
 
 	BeforeEach(func() {
@@ -129,7 +128,6 @@ var _ = Describe("RDS Broker", func() {
 		config = Config{
 			Region:                       "rds-region",
 			DBPrefix:                     dbPrefix,
-			MasterPasswordSeed:           masterPasswordSeed,
 			AllowUserProvisionParameters: allowUserProvisionParameters,
 			AllowUserUpdateParameters:    allowUserUpdateParameters,
 			AllowUserBindParameters:      allowUserBindParameters,
