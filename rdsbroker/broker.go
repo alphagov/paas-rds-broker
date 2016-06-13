@@ -38,7 +38,6 @@ var rdsStatus2State = map[string]string{
 
 type RDSBroker struct {
 	dbPrefix                     string
-	masterPasswordSeed           string
 	allowUserProvisionParameters bool
 	allowUserUpdateParameters    bool
 	allowUserBindParameters      bool
@@ -56,7 +55,6 @@ func New(
 ) *RDSBroker {
 	return &RDSBroker{
 		dbPrefix:                     config.DBPrefix,
-		masterPasswordSeed:           config.MasterPasswordSeed,
 		allowUserProvisionParameters: config.AllowUserProvisionParameters,
 		allowUserUpdateParameters:    config.AllowUserUpdateParameters,
 		allowUserBindParameters:      config.AllowUserBindParameters,
@@ -398,11 +396,11 @@ func (b *RDSBroker) masterUsername() string {
 }
 
 func (b *RDSBroker) masterPassword(instanceID string) string {
-	return utils.GetMD5B64(b.masterPasswordSeed+instanceID, defaultPasswordLength)
+	return utils.GetMD5B64(instanceID, defaultPasswordLength)
 }
 
 func (b *RDSBroker) dbUsername(bindingID string) string {
-	return "u" + strings.Replace(utils.GetMD5B64(bindingID, defaultUsernameLength-1), "-", "_", -1)
+	return utils.GetMD5B64(bindingID, defaultUsernameLength)
 }
 
 func (b *RDSBroker) dbPassword() string {
