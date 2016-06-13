@@ -7,14 +7,8 @@
         "rds:CreateDBInstance",
         "rds:ModifyDBInstance",
         "rds:DeleteDBInstance",
-        "rds:AddTagsToResource"
-      ],
-      "Effect": "Allow",
-      "Resource": "*"
-    },
-    {
-      "Action": [
-        "iam:GetUser"
+        "rds:AddTagsToResource",
+        "rds:ListTagsForResource"
       ],
       "Effect": "Allow",
       "Resource": "*"
