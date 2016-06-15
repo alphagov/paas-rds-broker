@@ -10,8 +10,12 @@ import (
 )
 
 type PostgresEngine struct {
-	logger lager.Logger
-	db     *sql.DB
+	logger   lager.Logger
+	db       *sql.DB
+	address  string
+	port     int64
+	username string
+	password string
 }
 
 func NewPostgresEngine(logger lager.Logger) *PostgresEngine {
@@ -21,6 +25,7 @@ func NewPostgresEngine(logger lager.Logger) *PostgresEngine {
 }
 
 func (d *PostgresEngine) Open(address string, port int64, dbname string, username string, password string) error {
+	d.address, d.port, d.username, d.password = address, port, username, password
 	var (
 		connectionString          = d.URI(address, port, dbname, username, password)
 		sanitizedConnectionString = d.URI(address, port, dbname, username, "REDACTED")
@@ -57,25 +62,63 @@ func (d *PostgresEngine) Close() {
 }
 
 func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
-	username = generateUsername(bindingID)
-	password = generatePassword()
+	stateDB, err := d.openStateDB(d.logger)
+	if err != nil {
+		return "", "", err
+	}
+	defer stateDB.Close()
 
+	tx, err := stateDB.Begin()
+	if err != nil {
+		stateDB.logger.Error("sql-error", err)
+		return "", "", err
+	}
+	commitCalled := false
+	defer func() {
+		if !commitCalled {
+			tx.Rollback()
+		}
+	}()
+
+	username = generatePostgresUsername(dbname)
+
+	password, ok, err := stateDB.fetchUserPassword(username)
+	if err != nil {
+		return "", "", err
+	}
+	if ok {
+		// User already exists. Nothing further to do.
+		return username, password, nil
+	}
+
+	// No user exists, proceed with creation.
+
+	password = generatePassword()
 	var (
 		createUserStatement          = "CREATE USER \"" + username + "\" WITH PASSWORD '" + password + "'"
 		sanitizedCreateUserStatement = "CREATE USER \"" + username + "\" WITH PASSWORD 'REDACTED'"
 	)
 	d.logger.Debug("create-user", lager.Data{"statement": sanitizedCreateUserStatement})
-
-	if _, err := d.db.Exec(createUserStatement); err != nil {
+	if _, err := tx.Exec(createUserStatement); err != nil {
 		d.logger.Error("sql-error", err)
 		return "", "", err
 	}
 
 	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON DATABASE \"" + dbname + "\" TO \"" + username + "\""
 	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
-
-	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
+	if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
 		d.logger.Error("sql-error", err)
+		return "", "", err
+	}
+
+	err = stateDB.storeUser(username, password)
+	if err != nil {
+		return "", "", err
+	}
+	err = tx.Commit()
+	commitCalled = true // Prevent Rollback being called in deferred function
+	if err != nil {
+		d.logger.Error("commit.sql-error", err)
 		return "", "", err
 	}
 
@@ -83,7 +126,7 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, passwor
 }
 
 func (d *PostgresEngine) DropUser(bindingID string) error {
-	// For PostgreSQL we don't drop the user because it might still be owner of some objects
+	// For PostgreSQL we don't drop the user because we retain a single user for all bound applications
 
 	return nil
 }
@@ -94,4 +137,10 @@ func (d *PostgresEngine) URI(address string, port int64, dbname string, username
 
 func (d *PostgresEngine) JDBCURI(address string, port int64, dbname string, username string, password string) string {
 	return fmt.Sprintf("jdbc:postgresql://%s:%d/%s?user=%s&password=%s", address, port, dbname, username, password)
+}
+
+// generatePostgresUsername produces a deterministic user name. This is because the role
+// will be persisted across multiple application bindings
+func generatePostgresUsername(dbname string) string {
+	return dbname + "_owner"
 }
