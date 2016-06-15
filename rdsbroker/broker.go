@@ -15,8 +15,8 @@ import (
 	"github.com/alphagov/paas-rds-broker/utils"
 )
 
-const defaultUsernameLength = 16
-const defaultPasswordLength = 32
+const masterUsernameLength = 16
+const masterPasswordLength = 32
 
 const instanceIDLogKey = "instance-id"
 const bindingIDLogKey = "binding-id"
@@ -248,10 +248,8 @@ func (b *RDSBroker) Bind(instanceID, bindingID string, details brokerapi.BindDet
 	}
 	defer sqlEngine.Close()
 
-	dbUsername := b.dbUsername(bindingID)
-	dbPassword := b.dbPassword()
-
-	if err = sqlEngine.CreateUser(dbUsername, dbPassword, dbName); err != nil {
+	dbUsername, dbPassword, err := sqlEngine.CreateUser(bindingID, dbName)
+	if err != nil {
 		return bindingResponse, err
 	}
 
@@ -305,8 +303,7 @@ func (b *RDSBroker) Unbind(instanceID, bindingID string, details brokerapi.Unbin
 	}
 	defer sqlEngine.Close()
 
-	dbUsername := b.dbUsername(bindingID)
-	if err = sqlEngine.DropUser(dbUsername); err != nil {
+	if err = sqlEngine.DropUser(bindingID); err != nil {
 		return err
 	}
 
@@ -397,19 +394,11 @@ func (b *RDSBroker) dbInstanceIdentifierToServiceInstanceID(serviceInstanceID st
 }
 
 func (b *RDSBroker) masterUsername() string {
-	return utils.RandomAlphaNum(defaultUsernameLength)
+	return utils.RandomAlphaNum(masterUsernameLength)
 }
 
 func (b *RDSBroker) masterPassword(instanceID string) string {
-	return utils.GetMD5B64(b.masterPasswordSeed+instanceID, defaultPasswordLength)
-}
-
-func (b *RDSBroker) dbUsername(bindingID string) string {
-	return "u" + strings.Replace(utils.GetMD5B64(bindingID, defaultUsernameLength-1), "-", "_", -1)
-}
-
-func (b *RDSBroker) dbPassword() string {
-	return utils.RandomAlphaNum(defaultPasswordLength)
+	return utils.GetMD5B64(b.masterPasswordSeed+instanceID, masterPasswordLength)
 }
 
 func (b *RDSBroker) dbName(instanceID string) string {

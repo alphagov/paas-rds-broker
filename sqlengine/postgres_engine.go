@@ -56,7 +56,10 @@ func (d *PostgresEngine) Close() {
 	}
 }
 
-func (d *PostgresEngine) CreateUser(username, password, dbname string) error {
+func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
+	username = generateUsername(bindingID)
+	password = generatePassword()
+
 	var (
 		createUserStatement          = "CREATE USER \"" + username + "\" WITH PASSWORD '" + password + "'"
 		sanitizedCreateUserStatement = "CREATE USER \"" + username + "\" WITH PASSWORD 'REDACTED'"
@@ -65,7 +68,7 @@ func (d *PostgresEngine) CreateUser(username, password, dbname string) error {
 
 	if _, err := d.db.Exec(createUserStatement); err != nil {
 		d.logger.Error("sql-error", err)
-		return err
+		return "", "", err
 	}
 
 	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON DATABASE \"" + dbname + "\" TO \"" + username + "\""
@@ -73,13 +76,13 @@ func (d *PostgresEngine) CreateUser(username, password, dbname string) error {
 
 	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
 		d.logger.Error("sql-error", err)
-		return err
+		return "", "", err
 	}
 
-	return nil
+	return username, password, nil
 }
 
-func (d *PostgresEngine) DropUser(username string) error {
+func (d *PostgresEngine) DropUser(bindingID string) error {
 	// For PostgreSQL we don't drop the user because it might still be owner of some objects
 
 	return nil

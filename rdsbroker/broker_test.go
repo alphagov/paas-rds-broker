@@ -1197,6 +1197,9 @@ var _ = Describe("RDS Broker", func() {
 				DBName:         "test-db",
 				MasterUsername: "master-username",
 			}
+
+			sqlEngine.CreateUserUsername = dbUsername
+			sqlEngine.CreateUserPassword = "secret"
 		})
 
 		It("returns the proper response", func() {
@@ -1207,7 +1210,7 @@ var _ = Describe("RDS Broker", func() {
 			Expect(credentials.Port).To(Equal(int64(3306)))
 			Expect(credentials.Name).To(Equal("test-db"))
 			Expect(credentials.Username).To(Equal(dbUsername))
-			Expect(credentials.Password).ToNot(BeEmpty())
+			Expect(credentials.Password).To(Equal("secret"))
 			Expect(credentials.URI).To(ContainSubstring("@endpoint-address:3306/test-db?reconnect=true"))
 			Expect(credentials.JDBCURI).To(ContainSubstring("jdbc:fake://endpoint-address:3306/test-db?user=" + dbUsername + "&password="))
 			Expect(err).ToNot(HaveOccurred())
@@ -1226,8 +1229,7 @@ var _ = Describe("RDS Broker", func() {
 			Expect(sqlEngine.OpenUsername).To(Equal("master-username"))
 			Expect(sqlEngine.OpenPassword).ToNot(BeEmpty())
 			Expect(sqlEngine.CreateUserCalled).To(BeTrue())
-			Expect(sqlEngine.CreateUserUsername).To(Equal(dbUsername))
-			Expect(sqlEngine.CreateUserPassword).ToNot(BeEmpty())
+			Expect(sqlEngine.CreateUserBindingID).To(Equal(bindingID))
 			Expect(sqlEngine.CreateUserDBName).To(Equal("test-db"))
 			Expect(sqlEngine.CloseCalled).To(BeTrue())
 			Expect(err).ToNot(HaveOccurred())
@@ -1388,7 +1390,7 @@ var _ = Describe("RDS Broker", func() {
 			Expect(sqlEngine.OpenUsername).To(Equal("master-username"))
 			Expect(sqlEngine.OpenPassword).ToNot(BeEmpty())
 			Expect(sqlEngine.DropUserCalled).To(BeTrue())
-			Expect(sqlEngine.DropUserUsername).To(Equal(dbUsername))
+			Expect(sqlEngine.DropUserBindingID).To(Equal(bindingID))
 			Expect(sqlEngine.CloseCalled).To(BeTrue())
 			Expect(err).ToNot(HaveOccurred())
 		})

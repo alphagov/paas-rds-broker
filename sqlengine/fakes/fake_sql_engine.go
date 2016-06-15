@@ -15,15 +15,17 @@ type FakeSQLEngine struct {
 
 	CloseCalled bool
 
-	CreateUserCalled   bool
+	CreateUserCalled    bool
+	CreateUserBindingID string
+	CreateUserDBName    string
+	// returns
 	CreateUserUsername string
 	CreateUserPassword string
-	CreateUserDBName   string
 	CreateUserError    error
 
-	DropUserCalled   bool
-	DropUserUsername string
-	DropUserError    error
+	DropUserCalled    bool
+	DropUserBindingID string
+	DropUserError     error
 }
 
 func (f *FakeSQLEngine) Open(address string, port int64, dbname string, username string, password string) error {
@@ -41,18 +43,17 @@ func (f *FakeSQLEngine) Close() {
 	f.CloseCalled = true
 }
 
-func (f *FakeSQLEngine) CreateUser(username, password, dbname string) error {
+func (f *FakeSQLEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
 	f.CreateUserCalled = true
-	f.CreateUserUsername = username
+	f.CreateUserBindingID = bindingID
 	f.CreateUserDBName = dbname
-	f.CreateUserPassword = password
 
-	return f.CreateUserError
+	return f.CreateUserUsername, f.CreateUserPassword, f.CreateUserError
 }
 
-func (f *FakeSQLEngine) DropUser(username string) error {
+func (f *FakeSQLEngine) DropUser(bindingID string) error {
 	f.DropUserCalled = true
-	f.DropUserUsername = username
+	f.DropUserBindingID = bindingID
 
 	return f.DropUserError
 }

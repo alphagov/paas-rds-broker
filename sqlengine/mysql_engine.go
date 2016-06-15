@@ -40,13 +40,16 @@ func (d *MySQLEngine) Close() {
 	}
 }
 
-func (d *MySQLEngine) CreateUser(username, password, dbname string) error {
+func (d *MySQLEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
+	username = generateUsername(bindingID)
+	password = generatePassword()
+
 	createUserStatement := "CREATE USER '" + username + "' IDENTIFIED BY '" + password + "'"
 	d.logger.Debug("create-user", lager.Data{"statement": createUserStatement})
 
 	if _, err := d.db.Exec(createUserStatement); err != nil {
 		d.logger.Error("sql-error", err)
-		return err
+		return "", "", err
 	}
 
 	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON " + dbname + ".* TO '" + username + "'@'%'"
@@ -54,13 +57,15 @@ func (d *MySQLEngine) CreateUser(username, password, dbname string) error {
 
 	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
 		d.logger.Error("sql-error", err)
-		return err
+		return "", "", err
 	}
 
-	return nil
+	return username, password, nil
 }
 
-func (d *MySQLEngine) DropUser(username string) error {
+func (d *MySQLEngine) DropUser(bindingID string) error {
+	username := generateUsername(bindingID)
+
 	dropUserStatement := "DROP USER '" + username + "'@'%'"
 	d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
 
