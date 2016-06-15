@@ -18,16 +18,12 @@ type FakeSQLEngine struct {
 	CreateUserCalled   bool
 	CreateUserUsername string
 	CreateUserPassword string
+	CreateUserDBName   string
 	CreateUserError    error
 
 	DropUserCalled   bool
 	DropUserUsername string
 	DropUserError    error
-
-	GrantPrivilegesCalled   bool
-	GrantPrivilegesDBName   string
-	GrantPrivilegesUsername string
-	GrantPrivilegesError    error
 }
 
 func (f *FakeSQLEngine) Open(address string, port int64, dbname string, username string, password string) error {
@@ -45,9 +41,10 @@ func (f *FakeSQLEngine) Close() {
 	f.CloseCalled = true
 }
 
-func (f *FakeSQLEngine) CreateUser(username string, password string) error {
+func (f *FakeSQLEngine) CreateUser(username, password, dbname string) error {
 	f.CreateUserCalled = true
 	f.CreateUserUsername = username
+	f.CreateUserDBName = dbname
 	f.CreateUserPassword = password
 
 	return f.CreateUserError
@@ -58,14 +55,6 @@ func (f *FakeSQLEngine) DropUser(username string) error {
 	f.DropUserUsername = username
 
 	return f.DropUserError
-}
-
-func (f *FakeSQLEngine) GrantPrivileges(dbname string, username string) error {
-	f.GrantPrivilegesCalled = true
-	f.GrantPrivilegesDBName = dbname
-	f.GrantPrivilegesUsername = username
-
-	return f.GrantPrivilegesError
 }
 
 func (f *FakeSQLEngine) URI(address string, port int64, dbname string, username string, password string) string {

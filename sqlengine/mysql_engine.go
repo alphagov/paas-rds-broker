@@ -40,11 +40,19 @@ func (d *MySQLEngine) Close() {
 	}
 }
 
-func (d *MySQLEngine) CreateUser(username string, password string) error {
+func (d *MySQLEngine) CreateUser(username, password, dbname string) error {
 	createUserStatement := "CREATE USER '" + username + "' IDENTIFIED BY '" + password + "'"
 	d.logger.Debug("create-user", lager.Data{"statement": createUserStatement})
 
 	if _, err := d.db.Exec(createUserStatement); err != nil {
+		d.logger.Error("sql-error", err)
+		return err
+	}
+
+	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON " + dbname + ".* TO '" + username + "'@'%'"
+	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+
+	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
@@ -57,18 +65,6 @@ func (d *MySQLEngine) DropUser(username string) error {
 	d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
 
 	if _, err := d.db.Exec(dropUserStatement); err != nil {
-		d.logger.Error("sql-error", err)
-		return err
-	}
-
-	return nil
-}
-
-func (d *MySQLEngine) GrantPrivileges(dbname string, username string) error {
-	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON " + dbname + ".* TO '" + username + "'@'%'"
-	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
-
-	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}

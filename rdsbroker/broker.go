@@ -251,11 +251,7 @@ func (b *RDSBroker) Bind(instanceID, bindingID string, details brokerapi.BindDet
 	dbUsername := b.dbUsername(bindingID)
 	dbPassword := b.dbPassword()
 
-	if err = sqlEngine.CreateUser(dbUsername, dbPassword); err != nil {
-		return bindingResponse, err
-	}
-
-	if err = sqlEngine.GrantPrivileges(dbName, dbUsername); err != nil {
+	if err = sqlEngine.CreateUser(dbUsername, dbPassword, dbName); err != nil {
 		return bindingResponse, err
 	}
 

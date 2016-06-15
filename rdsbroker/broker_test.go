@@ -1228,9 +1228,7 @@ var _ = Describe("RDS Broker", func() {
 			Expect(sqlEngine.CreateUserCalled).To(BeTrue())
 			Expect(sqlEngine.CreateUserUsername).To(Equal(dbUsername))
 			Expect(sqlEngine.CreateUserPassword).ToNot(BeEmpty())
-			Expect(sqlEngine.GrantPrivilegesCalled).To(BeTrue())
-			Expect(sqlEngine.GrantPrivilegesDBName).To(Equal("test-db"))
-			Expect(sqlEngine.GrantPrivilegesUsername).To(Equal(dbUsername))
+			Expect(sqlEngine.CreateUserDBName).To(Equal("test-db"))
 			Expect(sqlEngine.CloseCalled).To(BeTrue())
 			Expect(err).ToNot(HaveOccurred())
 		})
@@ -1352,19 +1350,6 @@ var _ = Describe("RDS Broker", func() {
 				_, err := rdsBroker.Bind(instanceID, bindingID, bindDetails)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("Failed to create user"))
-				Expect(sqlEngine.CloseCalled).To(BeTrue())
-			})
-		})
-
-		Context("when granting privileges fails", func() {
-			BeforeEach(func() {
-				sqlEngine.GrantPrivilegesError = errors.New("Failed to grant privileges")
-			})
-
-			It("returns the proper error", func() {
-				_, err := rdsBroker.Bind(instanceID, bindingID, bindDetails)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal("Failed to grant privileges"))
 				Expect(sqlEngine.CloseCalled).To(BeTrue())
 			})
 		})
