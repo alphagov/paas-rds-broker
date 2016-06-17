@@ -236,11 +236,7 @@ func (b *RDSBroker) Bind(instanceID, bindingID string, details brokerapi.BindDet
 	dbAddress = dbInstanceDetails.Address
 	dbPort = dbInstanceDetails.Port
 	masterUsername = dbInstanceDetails.MasterUsername
-	if dbInstanceDetails.DBName != "" {
-		dbName = dbInstanceDetails.DBName
-	} else {
-		dbName = b.dbName(instanceID)
-	}
+	dbName = b.dbNameFromDetails(instanceID, dbInstanceDetails)
 
 	sqlEngine, err := b.sqlProvider.GetSQLEngine(servicePlan.RDSProperties.Engine)
 	if err != nil {
@@ -308,11 +304,7 @@ func (b *RDSBroker) Unbind(instanceID, bindingID string, details brokerapi.Unbin
 	dbAddress = dbInstanceDetails.Address
 	dbPort = dbInstanceDetails.Port
 	masterUsername = dbInstanceDetails.MasterUsername
-	if dbInstanceDetails.DBName != "" {
-		dbName = dbInstanceDetails.DBName
-	} else {
-		dbName = b.dbName(instanceID)
-	}
+	dbName = b.dbNameFromDetails(instanceID, dbInstanceDetails)
 
 	sqlEngine, err := b.sqlProvider.GetSQLEngine(servicePlan.RDSProperties.Engine)
 	if err != nil {
@@ -406,13 +398,7 @@ func (b *RDSBroker) CheckAndRotateCredentials() {
 		b.logger.Debug(fmt.Sprintf("Checking credentials for instance %v", dbDetails.Identifier))
 		serviceInstanceID := b.dbInstanceIdentifierToServiceInstanceID(dbDetails.Identifier)
 		masterPassword := b.masterPassword(serviceInstanceID)
-
-		var dbName string
-		if dbDetails.DBName != "" {
-			dbName = dbDetails.DBName
-		} else {
-			dbName = b.dbName(dbDetails.Identifier)
-		}
+		dbName := b.dbNameFromDetails(dbDetails.Identifier, *dbDetails)
 
 		sqlEngine, err := b.sqlProvider.GetSQLEngine(dbDetails.Engine)
 		if err != nil {
@@ -469,6 +455,16 @@ func (b *RDSBroker) dbPassword() string {
 
 func (b *RDSBroker) dbName(instanceID string) string {
 	return fmt.Sprintf("%s_%s", strings.Replace(b.dbPrefix, "-", "_", -1), strings.Replace(instanceID, "-", "_", -1))
+}
+
+func (b *RDSBroker) dbNameFromDetails(instanceID string, dbInstanceDetails awsrds.DBInstanceDetails) string {
+	var dbName string
+	if dbInstanceDetails.DBName != "" {
+		dbName = dbInstanceDetails.DBName
+	} else {
+		dbName = b.dbName(instanceID)
+	}
+	return dbName
 }
 
 func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) *awsrds.DBInstanceDetails {
