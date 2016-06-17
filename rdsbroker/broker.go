@@ -391,8 +391,64 @@ func (b *RDSBroker) LastOperation(instanceID string) (brokerapi.LastOperationRes
 	return lastOperationResponse, nil
 }
 
+func (b *RDSBroker) CheckAndRotateCredentials() {
+	b.logger.Info(fmt.Sprintf("Started checking credentials of RDS instances managed by this broker"))
+
+	dbInstanceDetailsList, err := b.dbInstance.DescribeByTag("Broker Name", b.brokerName)
+	if err != nil {
+		b.logger.Error("Could not obtain the list of instances", err)
+		return
+	}
+
+	b.logger.Debug(fmt.Sprintf("Found %v RDS instances managed by the broker", len(dbInstanceDetailsList)))
+
+	for _, dbDetails := range dbInstanceDetailsList {
+		b.logger.Debug(fmt.Sprintf("Checking credentials for instance %v", dbDetails.Identifier))
+		serviceInstanceID := b.dbInstanceIdentifierToServiceInstanceID(dbDetails.Identifier)
+		masterPassword := b.masterPassword(serviceInstanceID)
+
+		var dbName string
+		if dbDetails.DBName != "" {
+			dbName = dbDetails.DBName
+		} else {
+			dbName = b.dbName(dbDetails.Identifier)
+		}
+
+		sqlEngine, err := b.sqlProvider.GetSQLEngine(dbDetails.Engine)
+		if err != nil {
+			b.logger.Error(fmt.Sprintf("Could not determine SQL Engine of instance %v", dbDetails.Identifier), err)
+			continue
+		}
+
+		err = sqlEngine.Open(dbDetails.Address, dbDetails.Port, dbName, dbDetails.MasterUsername, masterPassword)
+
+		if err != nil {
+			if err == sqlengine.LoginFailedError {
+				b.logger.Info(fmt.Sprintf(
+					"Login failed when connecting to DB %v at %v. Will attempt to reset the password.",
+					dbName, dbDetails.Address))
+				dbDetails.MasterUserPassword = masterPassword
+				err = b.dbInstance.Modify(dbDetails.Identifier, *dbDetails, true)
+				if err != nil {
+					b.logger.Error(fmt.Sprintf("Could not reset the master password of instance %v", dbDetails.Identifier), err)
+					continue
+				}
+			} else {
+				b.logger.Error(fmt.Sprintf("Unknown error when connecting to DB %v at %v", dbName, dbDetails.Address), err)
+				continue
+			}
+		}
+		defer sqlEngine.Close()
+	}
+	b.logger.Info(fmt.Sprintf("Instances credentials check has ended"))
+}
+
 func (b *RDSBroker) dbInstanceIdentifier(instanceID string) string {
 	return fmt.Sprintf("%s-%s", strings.Replace(b.dbPrefix, "_", "-", -1), strings.Replace(instanceID, "_", "-", -1))
+}
+
+func (b *RDSBroker) dbInstanceIdentifierToServiceInstanceID(serviceInstanceID string) string {
+	return strings.TrimLeft(serviceInstanceID, b.dbPrefix+"-")
 }
 
 func (b *RDSBroker) masterUsername() string {

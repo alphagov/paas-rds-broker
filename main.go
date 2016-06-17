@@ -70,6 +70,8 @@ func main() {
 
 	serviceBroker := rdsbroker.New(config.RDSConfig, dbInstance, sqlProvider, logger)
 
+	go serviceBroker.CheckAndRotateCredentials()
+
 	credentials := brokerapi.BrokerCredentials{
 		Username: config.Username,
 		Password: config.Password,

@@ -15,6 +15,7 @@ import (
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	rdsfake "github.com/alphagov/paas-rds-broker/awsrds/fakes"
+	"github.com/alphagov/paas-rds-broker/sqlengine"
 	sqlfake "github.com/alphagov/paas-rds-broker/sqlengine/fakes"
 )
 
@@ -1709,4 +1710,128 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 	})
+
+	var _ = Describe("CheckAndRotateCredentials", func() {
+		Context("when there is no DB instance", func() {
+			It("shouldn't try to connect to databases", func() {
+				rdsBroker.CheckAndRotateCredentials()
+				Expect(sqlProvider.GetSQLEngineCalled).To(BeFalse())
+				Expect(sqlEngine.OpenCalled).To(BeFalse())
+			})
+		})
+
+		Context("when there are DB instances", func() {
+			BeforeEach(func() {
+				dbInstance.DescribeByTagDBInstanceDetails = []*awsrds.DBInstanceDetails{
+					&awsrds.DBInstanceDetails{
+						Identifier:     dbInstanceIdentifier,
+						Address:        "endpoint-address",
+						Port:           3306,
+						DBName:         "test-db",
+						MasterUsername: "master-username",
+						Engine:         "fake-engine",
+					},
+				}
+			})
+
+			It("should try to connect to databases", func() {
+				rdsBroker.CheckAndRotateCredentials()
+				Expect(dbInstance.DescribeByTagCalled).To(BeTrue())
+				Expect(dbInstance.DescribeByTagKey).To(BeEquivalentTo("Broker Name"))
+				Expect(dbInstance.DescribeByTagValue).To(BeEquivalentTo(brokerName))
+				Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
+				Expect(sqlProvider.GetSQLEngineEngine).To(BeEquivalentTo("fake-engine"))
+				Expect(sqlEngine.OpenCalled).To(BeTrue())
+				Expect(sqlEngine.OpenAddress).To(BeEquivalentTo("endpoint-address"))
+				Expect(sqlEngine.OpenPort).To(BeEquivalentTo(3306))
+				Expect(sqlEngine.OpenDBName).To(BeEquivalentTo("test-db"))
+				Expect(sqlEngine.OpenUsername).To(BeEquivalentTo("master-username"))
+			})
+
+			Context("and the passwords work", func() {
+				It("should not try to change the master password", func() {
+					rdsBroker.CheckAndRotateCredentials()
+					Expect(dbInstance.ModifyCalled).To(BeFalse())
+				})
+			})
+
+			Context("and the passwords don't work", func() {
+				BeforeEach(func() {
+					sqlEngine.OpenError = sqlengine.LoginFailedError
+				})
+
+				It("should try to change the master password", func() {
+					rdsBroker.CheckAndRotateCredentials()
+					Expect(dbInstance.ModifyCalled).To(BeTrue())
+					Expect(dbInstance.ModifyID).To(BeEquivalentTo(dbInstanceIdentifier))
+					Expect(dbInstance.ModifyDBInstanceDetails.MasterUserPassword).To(BeEquivalentTo(sqlEngine.OpenPassword))
+				})
+			})
+
+			Context("and there is an unkown open error", func() {
+				BeforeEach(func() {
+					sqlEngine.OpenError = errors.New("Unknown open connection error")
+				})
+
+				It("should not try to change the master password", func() {
+					rdsBroker.CheckAndRotateCredentials()
+					Expect(dbInstance.ModifyCalled).To(BeFalse())
+				})
+			})
+
+			Context("and there is DescribeByTagError error", func() {
+				BeforeEach(func() {
+					dbInstance.DescribeByTagError = errors.New("Error when listing instances")
+				})
+
+				It("should exit with an error", func() {
+					rdsBroker.CheckAndRotateCredentials()
+					Expect(dbInstance.ModifyCalled).To(BeFalse())
+				})
+			})
+
+		})
+
+		Context("when we reset the password then try to bind", func() {
+			var (
+				bindDetails brokerapi.BindDetails
+			)
+
+			BeforeEach(func() {
+				dbInstance.DescribeByTagDBInstanceDetails = []*awsrds.DBInstanceDetails{
+					&awsrds.DBInstanceDetails{
+						Identifier:     dbInstanceIdentifier,
+						Address:        "endpoint-address",
+						Port:           3306,
+						DBName:         "test-db",
+						MasterUsername: "master-username",
+						Engine:         "fake-engine",
+					},
+				}
+
+				bindDetails = brokerapi.BindDetails{
+					ServiceID:  "Service-1",
+					PlanID:     "Plan-1",
+					AppGUID:    "Application-1",
+					Parameters: map[string]interface{}{},
+				}
+			})
+
+			It("the new password and the password used in bind are the same", func() {
+				sqlEngine.OpenError = sqlengine.LoginFailedError
+				rdsBroker.CheckAndRotateCredentials()
+				expectedMasterPassword := sqlEngine.OpenPassword
+				Expect(dbInstance.ModifyCalled).To(BeTrue())
+				Expect(dbInstance.ModifyDBInstanceDetails.MasterUserPassword).To(BeEquivalentTo(expectedMasterPassword))
+
+				sqlEngine.OpenError = nil
+				_, err := rdsBroker.Bind(instanceID, bindingID, bindDetails)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(sqlEngine.OpenCalled).To(BeTrue())
+
+				Expect(sqlEngine.OpenPassword).To(BeEquivalentTo(expectedMasterPassword))
+			})
+		})
+	})
+
 })
