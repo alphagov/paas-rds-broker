@@ -10,17 +10,19 @@ import (
 )
 
 type PostgresEngine struct {
-	logger   lager.Logger
-	db       *sql.DB
-	address  string
-	port     int64
-	username string
-	password string
+	logger             lager.Logger
+	stateEncryptionKey string
+	db                 *sql.DB
+	address            string
+	port               int64
+	username           string
+	password           string
 }
 
-func NewPostgresEngine(logger lager.Logger) *PostgresEngine {
+func NewPostgresEngine(logger lager.Logger, stateEncryptionKey string) *PostgresEngine {
 	return &PostgresEngine{
-		logger: logger.Session("postgres-engine"),
+		logger:             logger.Session("postgres-engine"),
+		stateEncryptionKey: stateEncryptionKey,
 	}
 }
 
@@ -62,7 +64,7 @@ func (d *PostgresEngine) Close() {
 }
 
 func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
-	stateDB, err := d.openStateDB(d.logger)
+	stateDB, err := d.openStateDB(d.logger, d.stateEncryptionKey)
 	if err != nil {
 		return "", "", err
 	}

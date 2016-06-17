@@ -17,7 +17,7 @@ var _ = Describe("Provider Service", func() {
 
 	BeforeEach(func() {
 		logger = lager.NewLogger("provider_service_test")
-		sqlProvider = NewProviderService(logger)
+		sqlProvider = NewProviderService(logger, "encryption key")
 	})
 
 	Describe("GetSQLEngine", func() {

@@ -14,7 +14,7 @@ const stateDBName = "broker_state"
 // (which is stored in the database) will allow us to migrate more easily.
 const passwordStorageVersion = "1.0"
 
-func (d *PostgresEngine) openStateDB(logger lager.Logger) (*postgresEngineState, error) {
+func (d *PostgresEngine) openStateDB(logger lager.Logger, stateEncryptionKey string) (*postgresEngineState, error) {
 	logger = logger.Session("postgres-engine-state")
 
 	statement := "CREATE DATABASE " + stateDBName
@@ -50,8 +50,9 @@ func (d *PostgresEngine) openStateDB(logger lager.Logger) (*postgresEngineState,
 	}
 
 	s := &postgresEngineState{
-		DB:     db,
-		logger: logger,
+		DB:                 db,
+		logger:             logger,
+		stateEncryptionKey: stateEncryptionKey,
 	}
 
 	err = s.initSchema()
@@ -65,11 +66,12 @@ func (d *PostgresEngine) openStateDB(logger lager.Logger) (*postgresEngineState,
 
 type postgresEngineState struct {
 	*sql.DB
-	logger lager.Logger
+	logger             lager.Logger
+	stateEncryptionKey string
 }
 
 func (s *postgresEngineState) initSchema() error {
-	statement := "CREATE TABLE IF NOT EXISTS role (username varchar(128) NOT NULL, password varchar(128) NOT NULL, password_storage_version varchar(10), PRIMARY KEY(username))"
+	statement := "CREATE TABLE IF NOT EXISTS role (username varchar(128) NOT NULL, encrypted_password varchar(128) NOT NULL, password_storage_version varchar(10), PRIMARY KEY(username))"
 	s.logger.Debug("create-table", lager.Data{"statement": statement})
 	_, err := s.Exec(statement)
 	if err != nil {
@@ -80,25 +82,31 @@ func (s *postgresEngineState) initSchema() error {
 }
 
 func (s *postgresEngineState) fetchUserPassword(username string) (password string, ok bool, err error) {
-	statement := "SELECT password FROM role WHERE username = $1"
+	var encryptedPassword string
+	statement := "SELECT encrypted_password FROM role WHERE username = $1"
 	s.logger.Debug("fetch-user", lager.Data{"statement": statement, "params": []string{username}})
-	err = s.QueryRow(statement, username).Scan(&password)
+	err = s.QueryRow(statement, username).Scan(&encryptedPassword)
 	if err == sql.ErrNoRows {
 		return "", false, nil
 	} else if err != nil {
 		s.logger.Error("fetch-user.sql-error", err)
 		return "", false, err
 	}
-	return password, true, nil
+	password, err = decryptString(s.stateEncryptionKey, encryptedPassword)
+	return password, (err == nil), err
 }
 
 func (s *postgresEngineState) storeUser(username, password string) error {
-	statement := "INSERT INTO role (username, password, password_storage_version) VALUES($1, $2, $3)"
+	encryptedPassword, err := encryptString(s.stateEncryptionKey, password)
+	if err != nil {
+		return err
+	}
+	statement := "INSERT INTO role (username, encrypted_password, password_storage_version) VALUES($1, $2, $3)"
 	s.logger.Debug("insert-user", lager.Data{
 		"statement": statement,
 		"params":    []string{username, "REDACTED", passwordStorageVersion},
 	})
-	_, err := s.Exec(statement, username, password, passwordStorageVersion)
+	_, err = s.Exec(statement, username, encryptedPassword, passwordStorageVersion)
 	if err != nil {
 		s.logger.Error("insert-user.sql-error", err)
 		return err
