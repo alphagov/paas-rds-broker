@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/lib/pq" // PostgreSQL Driver
+	"github.com/lib/pq" // PostgreSQL Driver
 
 	"github.com/pivotal-golang/lager"
 )
@@ -33,6 +33,19 @@ func (d *PostgresEngine) Open(address string, port int64, dbname string, usernam
 	}
 
 	d.db = db
+
+	// Open() may not actually open the connection so we ping to validate it
+	err = d.db.Ping()
+	if err != nil {
+		// We specifically look for invalid password error and map it to a
+		// generic error that can be the same across other engines
+		// See: https://www.postgresql.org/docs/9.3/static/errcodes-appendix.html
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "28P01" {
+			// return &LoginFailedError{username}
+			return LoginFailedError
+		}
+		return err
+	}
 
 	return nil
 }
