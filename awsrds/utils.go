@@ -2,25 +2,23 @@ package awsrds
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/pivotal-golang/lager"
 )
 
-func UserAccount(iamsvc *iam.IAM) (string, error) {
-	getUserInput := &iam.GetUserInput{}
-	getUserOutput, err := iamsvc.GetUser(getUserInput)
+func UserAccount(stssvc *sts.STS) (string, error) {
+	getCallerIdentityInput := &sts.GetCallerIdentityInput{}
+	getCallerIdentityOutput, err := stssvc.GetCallerIdentity(getCallerIdentityInput)
 	if err != nil {
 		return "", err
 	}
 
-	userAccount := strings.Split(*getUserOutput.User.Arn, ":")
+	return *getCallerIdentityOutput.Account, nil
 
-	return userAccount[4], nil
 }
 
 func BuilRDSTags(tags map[string]string) []*rds.Tag {

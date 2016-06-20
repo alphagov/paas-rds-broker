@@ -12,8 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
 )
@@ -22,11 +22,11 @@ var _ = Describe("RDS Utils", func() {
 	var (
 		awsSession *session.Session
 
-		iamsvc  *iam.IAM
-		iamCall func(r *request.Request)
-
 		rdssvc  *rds.RDS
 		rdsCall func(r *request.Request)
+
+		stssvc  *sts.STS
+		stsCall func(r *request.Request)
 
 		testSink *lagertest.TestSink
 		logger   lager.Logger
@@ -35,8 +35,8 @@ var _ = Describe("RDS Utils", func() {
 	BeforeEach(func() {
 		awsSession = session.New(nil)
 
-		iamsvc = iam.New(awsSession)
 		rdssvc = rds.New(awsSession)
+		stssvc = sts.New(awsSession)
 
 		logger = lager.NewLogger("rdsservice_test")
 		testSink = lagertest.NewTestSink()
@@ -45,44 +45,42 @@ var _ = Describe("RDS Utils", func() {
 
 	var _ = Describe("UserAccount", func() {
 		var (
-			user         *iam.User
-			getUserInput *iam.GetUserInput
-			getUserError error
+			getCallerIdentityInput *sts.GetCallerIdentityInput
+			getCallerIdentityError error
 		)
+		const account = "123456789012"
 
 		BeforeEach(func() {
-			user = &iam.User{
-				Arn: aws.String("arn:aws:service:region:account:resource"),
-			}
-			getUserInput = &iam.GetUserInput{}
-			getUserError = nil
+			getCallerIdentityError = nil
+			getCallerIdentityInput = &sts.GetCallerIdentityInput{}
 		})
 
 		JustBeforeEach(func() {
-			iamsvc.Handlers.Clear()
-			iamCall = func(r *request.Request) {
-				Expect(r.Operation.Name).To(Equal("GetUser"))
-				Expect(r.Params).To(Equal(getUserInput))
-				data := r.Data.(*iam.GetUserOutput)
-				data.User = user
-				r.Error = getUserError
+			stssvc.Handlers.Clear()
+
+			stsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("GetCallerIdentity"))
+				Expect(r.Params).To(Equal(getCallerIdentityInput))
+				data := r.Data.(*sts.GetCallerIdentityOutput)
+				data.Account = aws.String(account)
+				r.Error = getCallerIdentityError
 			}
-			iamsvc.Handlers.Send.PushBack(iamCall)
+			stssvc.Handlers.Send.PushBack(stsCall)
 		})
 
 		It("returns the User Account", func() {
-			userAccount, err := UserAccount(iamsvc)
+			userAccount, err := UserAccount(stssvc)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(userAccount).To(Equal("account"))
+			Expect(userAccount).To(Equal(account))
 		})
 
 		Context("when getting user fails", func() {
 			BeforeEach(func() {
-				getUserError = errors.New("operation failed")
+				getCallerIdentityError = errors.New("operation failed")
 			})
 
-			It("return error the proper error", func() {
-				_, err := UserAccount(iamsvc)
+			It("returns the proper error", func() {
+				_, err := UserAccount(stssvc)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("operation failed"))
 			})

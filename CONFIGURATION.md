@@ -21,6 +21,11 @@ A sample configuration can be found at [config-sample.json](https://github.com/a
 | allow_user_update_parameters   | N        | Boolean | Allow users to send arbitrary parameters on update calls (defaults to `false`)
 | allow_user_bind_parameters     | N        | Boolean | Allow users to send arbitrary parameters on bind calls (defaults to `false`)
 | catalog                        | Y        | Hash    | [RDS Broker catalog](https://github.com/alphagov/paas-rds-broker/blob/master/CONFIGURATION.md#rds-broker-catalog)
+| master_password_seed           | Y        | String  | Seed to generate DB instances master passwords
+| broker_name                    | Y        | String  | RDS broker name used to tag instances for identification
+
+### Note
+When the seed is changed and the broker restarted, the instances master passwords will be updated.
 
 ## RDS Broker catalog
 

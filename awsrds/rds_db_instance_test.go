@@ -2,6 +2,8 @@ package awsrds_test
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -12,8 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
 )
@@ -25,11 +27,11 @@ var _ = Describe("RDS DB Instance", func() {
 
 		awsSession *session.Session
 
-		iamsvc  *iam.IAM
-		iamCall func(r *request.Request)
-
 		rdssvc  *rds.RDS
 		rdsCall func(r *request.Request)
+
+		stssvc  *sts.STS
+		stsCall func(r *request.Request)
 
 		testSink *lagertest.TestSink
 		logger   lager.Logger
@@ -45,14 +47,14 @@ var _ = Describe("RDS DB Instance", func() {
 	JustBeforeEach(func() {
 		awsSession = session.New(nil)
 
-		iamsvc = iam.New(awsSession)
 		rdssvc = rds.New(awsSession)
+		stssvc = sts.New(awsSession)
 
 		logger = lager.NewLogger("rdsdbinstance_test")
 		testSink = lagertest.NewTestSink()
 		logger.RegisterSink(testSink)
 
-		rdsDBInstance = NewRDSDBInstance(region, iamsvc, rdssvc, logger)
+		rdsDBInstance = NewRDSDBInstance(region, rdssvc, stssvc, logger)
 	})
 
 	var _ = Describe("Describe", func() {
@@ -196,6 +198,116 @@ var _ = Describe("RDS DB Instance", func() {
 					Expect(err).To(Equal(ErrDBInstanceDoesNotExist))
 				})
 			})
+		})
+	})
+
+	var _ = Describe("DescribeByTag", func() {
+		var (
+			expectedDBInstanceDetails []*DBInstanceDetails
+
+			describeDBInstances []*rds.DBInstance
+
+			describeDBInstancesInput *rds.DescribeDBInstancesInput
+			describeDBInstanceError  error
+		)
+
+		BeforeEach(func() {
+			// Build DescribeDBInstances mock response with 3 instances
+			buildDBInstanceAWSResponse := func(id, suffix string) *rds.DBInstance {
+				return &rds.DBInstance{
+					DBInstanceIdentifier: aws.String(id + suffix),
+					DBInstanceStatus:     aws.String("available"),
+					Engine:               aws.String("test-engine"),
+					EngineVersion:        aws.String("1.2.3"),
+					DBName:               aws.String("test-dbname" + suffix),
+					MasterUsername:       aws.String("test-master-username" + suffix),
+					AllocatedStorage:     aws.Int64(100),
+				}
+			}
+			describeDBInstances = []*rds.DBInstance{
+				buildDBInstanceAWSResponse(dbInstanceIdentifier, "-1"),
+				buildDBInstanceAWSResponse(dbInstanceIdentifier, "-2"),
+				buildDBInstanceAWSResponse(dbInstanceIdentifier, "-3"),
+			}
+
+			describeDBInstancesInput = &rds.DescribeDBInstancesInput{}
+			describeDBInstanceError = nil
+
+			// Build expected DB instances from DescribeByTag with only 2 instances
+			buildExpectedDBInstanceDetails := func(id, suffix, brokerName string) *DBInstanceDetails {
+				return &DBInstanceDetails{
+					Identifier:       id + suffix,
+					Status:           "available",
+					Engine:           "test-engine",
+					EngineVersion:    "1.2.3",
+					DBName:           "test-dbname" + suffix,
+					MasterUsername:   "test-master-username" + suffix,
+					AllocatedStorage: int64(100),
+					Tags: map[string]string{
+						"Broker Name": brokerName,
+					},
+				}
+			}
+			expectedDBInstanceDetails = []*DBInstanceDetails{
+				buildExpectedDBInstanceDetails(dbInstanceIdentifier, "-1", "mybroker"),
+				buildExpectedDBInstanceDetails(dbInstanceIdentifier, "-2", "mybroker"),
+			}
+		})
+
+		JustBeforeEach(func() {
+			// Configure RDS api mock. 1 of the instances is not from our broker
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				switch r.Operation.Name {
+				case "DescribeDBInstances":
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.DescribeDBInstancesInput{}))
+					Expect(r.Params).To(Equal(describeDBInstancesInput))
+					data := r.Data.(*rds.DescribeDBInstancesOutput)
+					data.DBInstances = describeDBInstances
+					r.Error = describeDBInstanceError
+				case "ListTagsForResource":
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
+
+					listTagsForResourceInput := r.Params.(*rds.ListTagsForResourceInput)
+					gotARN := *listTagsForResourceInput.ResourceName
+					expectedARN := fmt.Sprintf("arn:aws:rds:%s:123456789012:db:%s", region, dbInstanceIdentifier)
+					Expect(gotARN).To(HavePrefix(expectedARN))
+
+					data := r.Data.(*rds.ListTagsForResourceOutput)
+
+					brokerName := "mybroker"
+					if strings.HasSuffix(gotARN, "-3") {
+						brokerName = "otherbroker"
+					}
+					data.TagList = []*rds.Tag{
+						&rds.Tag{
+							Key:   aws.String("Broker Name"),
+							Value: aws.String(brokerName),
+						},
+					}
+				default:
+					Fail(fmt.Sprintf("Unexpected call to AWS RDS API: '%s'", r.Operation.Name))
+				}
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+
+			// Configure STS api mock to return an account ID
+			stssvc.Handlers.Clear()
+
+			stsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("GetCallerIdentity"))
+				Expect(r.Params).To(BeAssignableToTypeOf(&sts.GetCallerIdentityInput{}))
+				data := r.Data.(*sts.GetCallerIdentityOutput)
+				data.Account = aws.String("123456789012")
+			}
+			stssvc.Handlers.Send.PushBack(stsCall)
+		})
+
+		It("returns the expected DB Instances for mybroker", func() {
+			dbInstanceDetailsList, err := rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dbInstanceDetailsList).To(HaveLen(2))
 		})
 	})
 
@@ -610,10 +722,10 @@ var _ = Describe("RDS DB Instance", func() {
 			addTagsToResourceInput *rds.AddTagsToResourceInput
 			addTagsToResourceError error
 
-			user         *iam.User
-			getUserInput *iam.GetUserInput
-			getUserError error
+			getCallerIdentityInput *sts.GetCallerIdentityInput
+			getCallerIdentityError error
 		)
+		const account = "123456789012"
 
 		BeforeEach(func() {
 			dbInstanceDetails = DBInstanceDetails{}
@@ -645,7 +757,7 @@ var _ = Describe("RDS DB Instance", func() {
 			modifyDBInstanceError = nil
 
 			addTagsToResourceInput = &rds.AddTagsToResourceInput{
-				ResourceName: aws.String("arn:aws:rds:rds-region:account:db:" + dbInstanceIdentifier),
+				ResourceName: aws.String("arn:aws:rds:rds-region:" + account + ":db:" + dbInstanceIdentifier),
 				Tags: []*rds.Tag{
 					&rds.Tag{
 						Key:   aws.String("Owner"),
@@ -654,12 +766,8 @@ var _ = Describe("RDS DB Instance", func() {
 				},
 			}
 			addTagsToResourceError = nil
-
-			user = &iam.User{
-				Arn: aws.String("arn:aws:service:region:account:resource"),
-			}
-			getUserInput = &iam.GetUserInput{}
-			getUserError = nil
+			getCallerIdentityError = nil
+			getCallerIdentityInput = &sts.GetCallerIdentityInput{}
 		})
 
 		JustBeforeEach(func() {
@@ -687,15 +795,15 @@ var _ = Describe("RDS DB Instance", func() {
 			}
 			rdssvc.Handlers.Send.PushBack(rdsCall)
 
-			iamsvc.Handlers.Clear()
-			iamCall = func(r *request.Request) {
-				Expect(r.Operation.Name).To(Equal("GetUser"))
-				Expect(r.Params).To(Equal(getUserInput))
-				data := r.Data.(*iam.GetUserOutput)
-				data.User = user
-				r.Error = getUserError
+			stssvc.Handlers.Clear()
+			stsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("GetCallerIdentity"))
+				Expect(r.Params).To(Equal(getCallerIdentityInput))
+				data := r.Data.(*sts.GetCallerIdentityOutput)
+				data.Account = aws.String(account)
+				r.Error = getCallerIdentityError
 			}
-			iamsvc.Handlers.Send.PushBack(iamCall)
+			stssvc.Handlers.Send.PushBack(stsCall)
 		})
 
 		It("does not return error", func() {
@@ -956,7 +1064,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 			Context("when getting user arn fails", func() {
 				BeforeEach(func() {
-					getUserError = errors.New("operation failed")
+					getCallerIdentityError = errors.New("operation failed")
 				})
 
 				It("does not return error", func() {

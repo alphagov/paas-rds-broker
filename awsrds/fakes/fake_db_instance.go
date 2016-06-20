@@ -10,6 +10,12 @@ type FakeDBInstance struct {
 	DescribeDBInstanceDetails awsrds.DBInstanceDetails
 	DescribeError             error
 
+	DescribeByTagCalled            bool
+	DescribeByTagKey               string
+	DescribeByTagValue             string
+	DescribeByTagDBInstanceDetails []*awsrds.DBInstanceDetails
+	DescribeByTagError             error
+
 	CreateCalled            bool
 	CreateID                string
 	CreateDBInstanceDetails awsrds.DBInstanceDetails
@@ -32,6 +38,14 @@ func (f *FakeDBInstance) Describe(ID string) (awsrds.DBInstanceDetails, error) {
 	f.DescribeID = ID
 
 	return f.DescribeDBInstanceDetails, f.DescribeError
+}
+
+func (f *FakeDBInstance) DescribeByTag(tagKey, tagValue string) ([]*awsrds.DBInstanceDetails, error) {
+	f.DescribeByTagCalled = true
+	f.DescribeByTagKey = tagKey
+	f.DescribeByTagValue = tagValue
+
+	return f.DescribeByTagDBInstanceDetails, f.DescribeByTagError
 }
 
 func (f *FakeDBInstance) Create(ID string, dbInstanceDetails awsrds.DBInstanceDetails) error {

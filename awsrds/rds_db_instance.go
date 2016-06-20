@@ -8,28 +8,28 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/pivotal-golang/lager"
 )
 
 type RDSDBInstance struct {
 	region string
-	iamsvc *iam.IAM
 	rdssvc *rds.RDS
+	stssvc *sts.STS
 	logger lager.Logger
 }
 
 func NewRDSDBInstance(
 	region string,
-	iamsvc *iam.IAM,
 	rdssvc *rds.RDS,
+	stssvc *sts.STS,
 	logger lager.Logger,
 ) *RDSDBInstance {
 	return &RDSDBInstance{
 		region: region,
-		iamsvc: iamsvc,
 		rdssvc: rdssvc,
+		stssvc: stssvc,
 		logger: logger.Session("db-instance"),
 	}
 }
@@ -65,6 +65,40 @@ func (r *RDSDBInstance) Describe(ID string) (DBInstanceDetails, error) {
 	}
 
 	return dbInstanceDetails, ErrDBInstanceDoesNotExist
+}
+
+func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string) ([]*DBInstanceDetails, error) {
+	dbInstanceDetails := []*DBInstanceDetails{}
+
+	describeDBInstancesInput := &rds.DescribeDBInstancesInput{}
+
+	dbInstances, err := r.rdssvc.DescribeDBInstances(describeDBInstancesInput)
+
+	if err != nil {
+		return dbInstanceDetails, err
+	}
+	for _, dbInstance := range dbInstances.DBInstances {
+		dbArn, err := r.dbInstanceARN(*dbInstance.DBInstanceIdentifier)
+		if err != nil {
+			return dbInstanceDetails, err
+		}
+		listTagsForResourceInput := &rds.ListTagsForResourceInput{
+			ResourceName: aws.String(dbArn),
+		}
+		listTagsForResourceOutput, err := r.rdssvc.ListTagsForResource(listTagsForResourceInput)
+		if err != nil {
+			return dbInstanceDetails, err
+		}
+		for _, t := range listTagsForResourceOutput.TagList {
+			if *t.Key == tagKey && *t.Value == tagValue {
+				d := r.buildDBInstance(dbInstance)
+				dbInstanceDetails = append(dbInstanceDetails, &d)
+				break
+			}
+		}
+	}
+
+	return dbInstanceDetails, nil
 }
 
 func (r *RDSDBInstance) Create(ID string, dbInstanceDetails DBInstanceDetails) error {
@@ -376,7 +410,7 @@ func (r *RDSDBInstance) dbSnapshotName(ID string) string {
 }
 
 func (r *RDSDBInstance) dbInstanceARN(ID string) (string, error) {
-	userAccount, err := UserAccount(r.iamsvc)
+	userAccount, err := UserAccount(r.stssvc)
 	if err != nil {
 		return "", err
 	}
