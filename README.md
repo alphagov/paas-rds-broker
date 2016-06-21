@@ -113,14 +113,6 @@ Update calls support the following optional [arbitrary parameters](https://docs.
 
 (*) Refer to the [Amazon Relational Database Service Documentation](https://aws.amazon.com/documentation/rds/) for more details about how to set these properties
 
-#### Bind
-
-Bind calls support the following optional [arbitrary parameters](https://docs.cloudfoundry.org/devguide/services/application-binding.html#arbitrary-params-binding):
-
-| Option | Type   | Description
-|:-------|:------ |:-----------
-| dbname | String | The name of the Database to bind the application to (it must be provisioned previously)
-
 ## Contributing
 
 In the spirit of [free software](http://www.fsf.org/licensing/essays/free-sw.html), **everyone** is encouraged to help improve this project.

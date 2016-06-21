@@ -4,12 +4,13 @@ A sample configuration can be found at [config-sample.json](https://github.com/a
 
 ## General Configuration
 
-| Option     | Required | Type   | Description
-|:-----------|:--------:|:------ |:-----------
-| log_level  | Y        | String | Broker Log Level (DEBUG, INFO, ERROR, FATAL)
-| username   | Y        | String | Broker Auth Username
-| password   | Y        | String | Broker Auth Password
-| rds_config | Y        | Hash   | [RDS Broker configuration](https://github.com/alphagov/paas-rds-broker/blob/master/CONFIGURATION.md#rds-broker-configuration)
+| Option               | Required | Type   | Description
+|:---------------------|:--------:|:------ |:-----------
+| log_level            | Y        | String | Broker Log Level (DEBUG, INFO, ERROR, FATAL)
+| username             | Y        | String | Broker Auth Username
+| password             | Y        | String | Broker Auth Password
+| state_encryption_key | Y        | String | Key used to encrypt any secrets stored in the database
+| rds_config           | Y        | Hash   | [RDS Broker configuration](https://github.com/alphagov/paas-rds-broker/blob/master/CONFIGURATION.md#rds-broker-configuration)
 
 ## RDS Broker Configuration
 

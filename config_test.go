@@ -14,9 +14,10 @@ var _ = Describe("Config", func() {
 		config Config
 
 		validConfig = Config{
-			LogLevel: "DEBUG",
-			Username: "broker-username",
-			Password: "broker-password",
+			LogLevel:           "DEBUG",
+			Username:           "broker-username",
+			Password:           "broker-password",
+			StateEncryptionKey: "key",
 			RDSConfig: rdsbroker.Config{
 				Region:             "rds-region",
 				DBPrefix:           "cf",
@@ -58,6 +59,14 @@ var _ = Describe("Config", func() {
 			err := config.Validate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Must provide a non-empty Password"))
+		})
+
+		It("returns error if StateEncryptionKey is not valid", func() {
+			config.StateEncryptionKey = ""
+
+			err := config.Validate()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("Must provide a non-empty StateEncryptionKey"))
 		})
 
 		It("returns error if RDS configuration is not valid", func() {

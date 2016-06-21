@@ -10,20 +10,27 @@ import (
 )
 
 type PostgresEngine struct {
-	logger lager.Logger
-	db     *sql.DB
+	logger             lager.Logger
+	stateEncryptionKey string
+	db                 *sql.DB
+	address            string
+	port               int64
+	username           string
+	password           string
 }
 
-func NewPostgresEngine(logger lager.Logger) *PostgresEngine {
+func NewPostgresEngine(logger lager.Logger, stateEncryptionKey string) *PostgresEngine {
 	return &PostgresEngine{
-		logger: logger.Session("postgres-engine"),
+		logger:             logger.Session("postgres-engine"),
+		stateEncryptionKey: stateEncryptionKey,
 	}
 }
 
 func (d *PostgresEngine) Open(address string, port int64, dbname string, username string, password string) error {
+	d.address, d.port, d.username, d.password = address, port, username, password
 	var (
-		connectionString          = d.connectionString(address, port, dbname, username, password)
-		sanitizedConnectionString = d.connectionString(address, port, dbname, username, "REDACTED")
+		connectionString          = d.URI(address, port, dbname, username, password)
+		sanitizedConnectionString = d.URI(address, port, dbname, username, "REDACTED")
 	)
 	d.logger.Debug("sql-open", lager.Data{"connection-string": sanitizedConnectionString})
 
@@ -56,135 +63,72 @@ func (d *PostgresEngine) Close() {
 	}
 }
 
-func (d *PostgresEngine) ExistsDB(dbname string) (bool, error) {
-	selectDatabaseStatement := "SELECT datname FROM pg_database WHERE datname='" + dbname + "'"
-	d.logger.Debug("database-exists", lager.Data{"statement": selectDatabaseStatement})
-
-	var dummy string
-	err := d.db.QueryRow(selectDatabaseStatement).Scan(&dummy)
-	switch {
-	case err == sql.ErrNoRows:
-		return false, nil
-	case err != nil:
-		return false, err
-	}
-
-	return true, nil
-}
-
-func (d *PostgresEngine) CreateDB(dbname string) error {
-	ok, err := d.ExistsDB(dbname)
+func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
+	stateDB, err := d.openStateDB(d.logger, d.stateEncryptionKey)
 	if err != nil {
-		return err
+		return "", "", err
+	}
+	defer stateDB.Close()
+
+	tx, err := stateDB.Begin()
+	if err != nil {
+		stateDB.logger.Error("sql-error", err)
+		return "", "", err
+	}
+	commitCalled := false
+	defer func() {
+		if !commitCalled {
+			tx.Rollback()
+		}
+	}()
+
+	username = generatePostgresUsername(dbname)
+
+	password, ok, err := stateDB.fetchUserPassword(username)
+	if err != nil {
+		return "", "", err
 	}
 	if ok {
-		return nil
+		// User already exists. Nothing further to do.
+		return username, password, nil
 	}
 
-	createDBStatement := "CREATE DATABASE \"" + dbname + "\""
-	d.logger.Debug("create-database", lager.Data{"statement": createDBStatement})
+	// No user exists, proceed with creation.
 
-	if _, err := d.db.Exec(createDBStatement); err != nil {
-		d.logger.Error("sql-error", err)
-		return err
-	}
-
-	return nil
-}
-
-func (d *PostgresEngine) DropDB(dbname string) error {
-	if err := d.dropConnections(dbname); err != nil {
-		return err
-	}
-
-	dropDBStatement := "DROP DATABASE IF EXISTS \"" + dbname + "\""
-	d.logger.Debug("drop-database", lager.Data{"statement": dropDBStatement})
-
-	if _, err := d.db.Exec(dropDBStatement); err != nil {
-		d.logger.Error("sql-error", err)
-		return err
-	}
-
-	return nil
-}
-
-func (d *PostgresEngine) CreateUser(username string, password string) error {
+	password = generatePassword()
 	var (
 		createUserStatement          = "CREATE USER \"" + username + "\" WITH PASSWORD '" + password + "'"
 		sanitizedCreateUserStatement = "CREATE USER \"" + username + "\" WITH PASSWORD 'REDACTED'"
 	)
 	d.logger.Debug("create-user", lager.Data{"statement": sanitizedCreateUserStatement})
-
-	if _, err := d.db.Exec(createUserStatement); err != nil {
+	if _, err := tx.Exec(createUserStatement); err != nil {
 		d.logger.Error("sql-error", err)
-		return err
+		return "", "", err
 	}
 
-	return nil
-}
-
-func (d *PostgresEngine) DropUser(username string) error {
-	// For PostgreSQL we don't drop the user because it might still be owner of some objects
-
-	return nil
-}
-
-func (d *PostgresEngine) Privileges() (map[string][]string, error) {
-	privileges := make(map[string][]string)
-
-	selectPrivilegesStatement := "SELECT datname, usename FROM pg_database d, pg_user u WHERE usecreatedb = false AND (SELECT has_database_privilege(u.usename, d.datname, 'create'))"
-	d.logger.Debug("database-privileges", lager.Data{"statement": selectPrivilegesStatement})
-
-	rows, err := d.db.Query(selectPrivilegesStatement)
-	if err != nil {
-		d.logger.Error("sql-error", err)
-		return privileges, err
-	}
-	defer rows.Close()
-
-	var dbname, username string
-	for rows.Next() {
-		err := rows.Scan(&dbname, &username)
-		if err != nil {
-			d.logger.Error("sql-error", err)
-			return privileges, err
-		}
-		if _, ok := privileges[dbname]; !ok {
-			privileges[dbname] = []string{}
-		}
-		privileges[dbname] = append(privileges[dbname], username)
-	}
-	err = rows.Err()
-	if err != nil {
-		d.logger.Error("sql-error", err)
-		return privileges, err
-	}
-
-	d.logger.Debug("database-privileges", lager.Data{"output": privileges})
-
-	return privileges, nil
-}
-
-func (d *PostgresEngine) GrantPrivileges(dbname string, username string) error {
 	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON DATABASE \"" + dbname + "\" TO \"" + username + "\""
 	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
-
-	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
+	if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
 		d.logger.Error("sql-error", err)
-		return err
+		return "", "", err
 	}
 
-	return nil
+	err = stateDB.storeUser(username, password)
+	if err != nil {
+		return "", "", err
+	}
+	err = tx.Commit()
+	commitCalled = true // Prevent Rollback being called in deferred function
+	if err != nil {
+		d.logger.Error("commit.sql-error", err)
+		return "", "", err
+	}
+
+	return username, password, nil
 }
 
-func (d *PostgresEngine) RevokePrivileges(dbname string, username string) error {
-	revokePrivilegesStatement := "REVOKE ALL PRIVILEGES ON DATABASE \"" + dbname + "\" FROM \"" + username + "\""
-	d.logger.Debug("revoke-privileges", lager.Data{"statement": revokePrivilegesStatement})
-
-	if _, err := d.db.Exec(revokePrivilegesStatement); err != nil {
-		d.logger.Error("sql-error", err)
-		return err
-	}
+func (d *PostgresEngine) DropUser(bindingID string) error {
+	// For PostgreSQL we don't drop the user because we retain a single user for all bound applications
 
 	return nil
 }
@@ -197,18 +141,8 @@ func (d *PostgresEngine) JDBCURI(address string, port int64, dbname string, user
 	return fmt.Sprintf("jdbc:postgresql://%s:%d/%s?user=%s&password=%s", address, port, dbname, username, password)
 }
 
-func (d *PostgresEngine) dropConnections(dbname string) error {
-	dropDBConnectionsStatement := "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '" + dbname + "' AND pid <> pg_backend_pid()"
-	d.logger.Debug("drop-connections", lager.Data{"statement": dropDBConnectionsStatement})
-
-	if _, err := d.db.Exec(dropDBConnectionsStatement); err != nil {
-		d.logger.Error("sql-error", err)
-		return err
-	}
-
-	return nil
-}
-
-func (d *PostgresEngine) connectionString(address string, port int64, dbname string, username string, password string) string {
-	return fmt.Sprintf("host=%s port=%d dbname=%s user='%s' password='%s'", address, port, dbname, username, password)
+// generatePostgresUsername produces a deterministic user name. This is because the role
+// will be persisted across multiple application bindings
+func generatePostgresUsername(dbname string) string {
+	return dbname + "_owner"
 }
