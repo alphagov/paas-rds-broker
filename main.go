@@ -58,6 +58,9 @@ func buildHTTPHandler(serviceBroker *rdsbroker.RDSBroker, logger lager.Logger, c
 	brokerAPI := brokerapi.New(serviceBroker, logger, credentials)
 	mux := http.NewServeMux()
 	mux.Handle("/", brokerAPI)
+	mux.HandleFunc("/healthcheck", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 	return mux
 }
 
