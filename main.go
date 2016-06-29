@@ -49,6 +49,21 @@ func buildLogger(logLevel string) lager.Logger {
 	return logger
 }
 
+func buildHTTPHandler(serviceBroker *rdsbroker.RDSBroker, logger lager.Logger, config *Config) http.Handler {
+	credentials := brokerapi.BrokerCredentials{
+		Username: config.Username,
+		Password: config.Password,
+	}
+
+	brokerAPI := brokerapi.New(serviceBroker, logger, credentials)
+	mux := http.NewServeMux()
+	mux.Handle("/", brokerAPI)
+	mux.HandleFunc("/healthcheck", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	return mux
+}
+
 func main() {
 	flag.Parse()
 
@@ -73,14 +88,8 @@ func main() {
 
 	go serviceBroker.CheckAndRotateCredentials()
 
-	credentials := brokerapi.BrokerCredentials{
-		Username: config.Username,
-		Password: config.Password,
-	}
-
-	brokerAPI := brokerapi.New(serviceBroker, logger, credentials)
-	http.Handle("/", brokerAPI)
+	server := buildHTTPHandler(serviceBroker, logger, config)
 
 	fmt.Println("RDS Service Broker started on port " + port + "...")
-	http.ListenAndServe(":"+port, nil)
+	http.ListenAndServe(":"+port, server)
 }
