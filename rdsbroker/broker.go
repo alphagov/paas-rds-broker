@@ -390,7 +390,7 @@ func (b *RDSBroker) dbInstanceIdentifier(instanceID string) string {
 }
 
 func (b *RDSBroker) dbInstanceIdentifierToServiceInstanceID(serviceInstanceID string) string {
-	return strings.TrimLeft(serviceInstanceID, b.dbPrefix+"-")
+	return strings.TrimPrefix(serviceInstanceID, strings.Replace(b.dbPrefix, "_", "-", -1)+"-")
 }
 
 func (b *RDSBroker) masterUsername() string {

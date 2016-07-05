@@ -43,5 +43,10 @@ var _ = Describe("RDS Broker internals", func() {
 			actual := broker.dbInstanceIdentifierToServiceInstanceID("with-dash-underscore-123")
 			Expect(actual).To(Equal("123"))
 		})
+
+		It("doesn't strip characters in the ID that are included in the prefix", func() {
+			actual := broker.dbInstanceIdentifierToServiceInstanceID("cf-fc051869-696b-4031-a290-8f45588f308c")
+			Expect(actual).To(Equal("fc051869-696b-4031-a290-8f45588f308c"))
+		})
 	})
 })
