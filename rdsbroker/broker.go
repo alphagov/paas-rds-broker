@@ -185,7 +185,8 @@ func (b *RDSBroker) Deprovision(instanceID string, details brokerapi.Deprovision
 
 	if err := b.dbInstance.Delete(b.dbInstanceIdentifier(instanceID), skipDBInstanceFinalSnapshot); err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
-			return false, brokerapi.ErrInstanceDoesNotExist
+			b.logger.Info(fmt.Sprintf("Database %v had already been deleted when deprovisioning.", instanceID))
+			return false, nil
 		}
 		return false, err
 	}
