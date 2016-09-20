@@ -201,6 +201,103 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 	})
 
+	var _ = Describe("GetTag", func() {
+		var (
+			properDBInstanceDetails DBInstanceDetails
+
+			describeDBInstances []*rds.DBInstance
+			describeDBInstance  *rds.DBInstance
+
+			describeDBInstancesInput *rds.DescribeDBInstancesInput
+			describeDBInstanceError  error
+			expectedTag              string = "true"
+		)
+
+		BeforeEach(func() {
+			properDBInstanceDetails = DBInstanceDetails{
+				Identifier:       dbInstanceIdentifier,
+				Status:           "available",
+				Engine:           "test-engine",
+				EngineVersion:    "1.2.3",
+				DBName:           "test-dbname",
+				MasterUsername:   "test-master-username",
+				AllocatedStorage: int64(100),
+				Tags: map[string]string{
+					"SkipFinalSnapshot": "true",
+				},
+			}
+
+			describeDBInstance = &rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBInstanceStatus:     aws.String("available"),
+				Engine:               aws.String("test-engine"),
+				EngineVersion:        aws.String("1.2.3"),
+				DBName:               aws.String("test-dbname"),
+				MasterUsername:       aws.String("test-master-username"),
+				AllocatedStorage:     aws.Int64(100),
+			}
+			describeDBInstances = []*rds.DBInstance{describeDBInstance}
+
+			describeDBInstancesInput = &rds.DescribeDBInstancesInput{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+			}
+			describeDBInstanceError = nil
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				switch r.Operation.Name {
+				case "DescribeDBInstances":
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.DescribeDBInstancesInput{}))
+					Expect(r.Params).To(Equal(describeDBInstancesInput))
+					data := r.Data.(*rds.DescribeDBInstancesOutput)
+					data.DBInstances = describeDBInstances
+					r.Error = describeDBInstanceError
+
+				case "ListTagsForResource":
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
+
+					var (
+						tagKey   string = "SkipFinalSnapshot"
+						tagValue string = "true"
+					)
+
+					data := r.Data.(*rds.ListTagsForResourceOutput)
+
+					data.TagList = []*rds.Tag{
+						&rds.Tag{
+							Key:   &tagKey,
+							Value: &tagValue,
+						},
+					}
+				default:
+					Fail(fmt.Sprintf("Unexpected call to AWS RDS API: '%s'", r.Operation.Name))
+				}
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+
+			// Configure STS api mock to return an account ID
+			stssvc.Handlers.Clear()
+
+			stsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("GetCallerIdentity"))
+				Expect(r.Params).To(BeAssignableToTypeOf(&sts.GetCallerIdentityInput{}))
+				data := r.Data.(*sts.GetCallerIdentityOutput)
+				data.Account = aws.String("123456789012")
+			}
+
+			stssvc.Handlers.Send.PushBack(stsCall)
+		})
+
+		It("returns the proper Tag", func() {
+			tagValue, err := rdsDBInstance.GetTag(dbInstanceIdentifier, "SkipFinalSnapshot")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tagValue).To(Equal(expectedTag))
+		})
+	})
+
 	var _ = Describe("DescribeByTag", func() {
 		var (
 			expectedDBInstanceDetails []*DBInstanceDetails
