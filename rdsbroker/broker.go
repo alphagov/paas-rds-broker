@@ -3,6 +3,7 @@ package rdsbroker
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,6 +108,9 @@ func (b *RDSBroker) Provision(instanceID string, details brokerapi.ProvisionDeta
 		if err := mapstructure.Decode(details.Parameters, &provisionParameters); err != nil {
 			return provisioningResponse, false, err
 		}
+		if err := provisionParameters.Validate(); err != nil {
+			return provisioningResponse, false, err
+		}
 	}
 
 	servicePlan, ok := b.catalog.FindServicePlan(details.PlanID)
@@ -136,6 +140,9 @@ func (b *RDSBroker) Update(instanceID string, details brokerapi.UpdateDetails, a
 	updateParameters := UpdateParameters{}
 	if b.allowUserUpdateParameters {
 		if err := mapstructure.Decode(details.Parameters, &updateParameters); err != nil {
+			return false, err
+		}
+		if err := updateParameters.Validate(); err != nil {
 			return false, err
 		}
 	}
@@ -182,6 +189,18 @@ func (b *RDSBroker) Deprovision(instanceID string, details brokerapi.Deprovision
 	}
 
 	skipDBInstanceFinalSnapshot := servicePlan.RDSProperties.SkipFinalSnapshot
+
+	skipFinalSnapshot, err := b.dbInstance.GetTag(b.dbInstanceIdentifier(instanceID), "SkipFinalSnapshot")
+	if err != nil {
+		return false, err
+	}
+
+	if skipFinalSnapshot != "" {
+		skipDBInstanceFinalSnapshot, err = strconv.ParseBool(skipFinalSnapshot)
+		if err != nil {
+			return false, err
+		}
+	}
 
 	if err := b.dbInstance.Delete(b.dbInstanceIdentifier(instanceID), skipDBInstanceFinalSnapshot); err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
@@ -442,7 +461,12 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		dbInstanceDetails.PreferredMaintenanceWindow = provisionParameters.PreferredMaintenanceWindow
 	}
 
-	dbInstanceDetails.Tags = b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID)
+	skipFinalSnapshot := strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot)
+	if provisionParameters.SkipFinalSnapshot != "" {
+		skipFinalSnapshot = provisionParameters.SkipFinalSnapshot
+	}
+
+	dbInstanceDetails.Tags = b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshot)
 
 	return dbInstanceDetails
 }
@@ -462,7 +486,12 @@ func (b *RDSBroker) modifyDBInstance(instanceID string, servicePlan ServicePlan,
 		dbInstanceDetails.PreferredMaintenanceWindow = updateParameters.PreferredMaintenanceWindow
 	}
 
-	dbInstanceDetails.Tags = b.dbTags("Updated", details.ServiceID, details.PlanID, "", "")
+	skipFinalSnapshot := strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot)
+	if updateParameters.SkipFinalSnapshot != "" {
+		skipFinalSnapshot = updateParameters.SkipFinalSnapshot
+	}
+
+	dbInstanceDetails.Tags = b.dbTags("Updated", details.ServiceID, details.PlanID, "", "", skipFinalSnapshot)
 
 	return dbInstanceDetails
 }
@@ -552,7 +581,7 @@ func (b *RDSBroker) dbInstanceFromPlan(servicePlan ServicePlan) *awsrds.DBInstan
 	return dbInstanceDetails
 }
 
-func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID string) map[string]string {
+func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID, skipFinalSnapshot string) map[string]string {
 	tags := make(map[string]string)
 
 	tags["Owner"] = "Cloud Foundry"
@@ -577,6 +606,10 @@ func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID st
 
 	if spaceID != "" {
 		tags["Space ID"] = spaceID
+	}
+
+	if skipFinalSnapshot != "" {
+		tags["SkipFinalSnapshot"] = skipFinalSnapshot
 	}
 
 	return tags

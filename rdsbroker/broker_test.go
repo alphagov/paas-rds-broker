@@ -23,10 +23,13 @@ var _ = Describe("RDS Broker", func() {
 	var (
 		rdsProperties1 RDSProperties
 		rdsProperties2 RDSProperties
+		rdsProperties3 RDSProperties
 		plan1          ServicePlan
 		plan2          ServicePlan
+		plan3          ServicePlan
 		service1       Service
 		service2       Service
+		service3       Service
 		catalog        Catalog
 
 		config Config
@@ -92,6 +95,14 @@ var _ = Describe("RDS Broker", func() {
 			AllocatedStorage:  200,
 			SkipFinalSnapshot: skipFinalSnapshot,
 		}
+
+		rdsProperties3 = RDSProperties{
+			DBInstanceClass:   "db.m3.test",
+			Engine:            "test-engine-3",
+			EngineVersion:     "4.5.6",
+			AllocatedStorage:  300,
+			SkipFinalSnapshot: false,
+		}
 	})
 
 	JustBeforeEach(func() {
@@ -106,6 +117,12 @@ var _ = Describe("RDS Broker", func() {
 			Name:          "Plan 2",
 			Description:   "This is the Plan 2",
 			RDSProperties: rdsProperties2,
+		}
+		plan3 = ServicePlan{
+			ID:            "Plan-3",
+			Name:          "Plan 3",
+			Description:   "This is the Plan 3",
+			RDSProperties: rdsProperties3,
 		}
 
 		service1 = Service{
@@ -124,9 +141,17 @@ var _ = Describe("RDS Broker", func() {
 			PlanUpdateable: planUpdateable,
 			Plans:          []ServicePlan{plan2},
 		}
+		service3 = Service{
+			ID:             "Service-3",
+			Name:           "Service 3",
+			Description:    "This is the Service 3",
+			Bindable:       serviceBindable,
+			PlanUpdateable: planUpdateable,
+			Plans:          []ServicePlan{plan3},
+		}
 
 		catalog = Catalog{
-			Services: []Service{service1, service2},
+			Services: []Service{service1, service2, service3},
 		}
 
 		config = Config{
@@ -180,6 +205,20 @@ var _ = Describe("RDS Broker", func() {
 								ID:          "Plan-2",
 								Name:        "Plan 2",
 								Description: "This is the Plan 2",
+							},
+						},
+					},
+					brokerapi.Service{
+						ID:             "Service-3",
+						Name:           "Service 3",
+						Description:    "This is the Service 3",
+						Bindable:       serviceBindable,
+						PlanUpdateable: planUpdateable,
+						Plans: []brokerapi.ServicePlan{
+							brokerapi.ServicePlan{
+								ID:          "Plan-3",
+								Name:        "Plan 3",
+								Description: "This is the Plan 3",
 							},
 						},
 					},
@@ -239,6 +278,44 @@ var _ = Describe("RDS Broker", func() {
 			Expect(dbInstance.CreateDBInstanceDetails.Tags["Organization ID"]).To(Equal("organization-id"))
 			Expect(dbInstance.CreateDBInstanceDetails.Tags["Space ID"]).To(Equal("space-id"))
 			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("creates a SkipFinalSnapshot tag", func() {
+
+			Context("given there are no provision parameters set", func() {
+
+				BeforeEach(func() {
+					provisionDetails = brokerapi.ProvisionDetails{
+						OrganizationGUID: "organization-id",
+						PlanID:           "Plan-3",
+						ServiceID:        "Service-3",
+						SpaceGUID:        "space-id",
+						Parameters:       map[string]interface{}{},
+					}
+				})
+
+				It("sets the tag to false (default behaviour)", func() {
+					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
+					Expect(dbInstance.CreateDBInstanceDetails.Tags["SkipFinalSnapshot"]).To(Equal("false"))
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+
+			Context("given there are provision parameters set", func() {
+
+				BeforeEach(func() {
+					params := make(map[string]interface{})
+					params["SkipFinalSnapshot"] = "true"
+					provisionDetails.Parameters = params
+				})
+
+				It("the parameters override the default", func() {
+					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
+					Expect(dbInstance.CreateDBInstanceDetails.Tags["SkipFinalSnapshot"]).To(Equal("true"))
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+
 		})
 
 		Context("with a db prefix including - and _", func() {
@@ -303,7 +380,8 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("but has BackupRetentionPeriod Parameter", func() {
+			//FIXME: These tests are pending until we allow this user provided parameter
+			PContext("but has BackupRetentionPeriod Parameter", func() {
 				BeforeEach(func() {
 					provisionDetails.Parameters = map[string]interface{}{"backup_retention_period": 12}
 				})
@@ -335,7 +413,8 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("but has CharacterSetName Parameter", func() {
+			//FIXME: These tests are pending until we allow this user provided parameter
+			PContext("but has CharacterSetName Parameter", func() {
 				BeforeEach(func() {
 					provisionDetails.Parameters = map[string]interface{}{"character_set_name": "test-characterset-name-parameter"}
 				})
@@ -360,7 +439,8 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
-		Context("when has DBName parameter", func() {
+		//FIXME: These tests are pending until we allow this user provided parameter
+		PContext("when has DBName parameter", func() {
 			BeforeEach(func() {
 				provisionDetails.Parameters = map[string]interface{}{"dbname": "test-dbname"}
 			})
@@ -503,7 +583,8 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("but has PreferredBackupWindow Parameter", func() {
+			//FIXME: These tests are pending until we allow this user provided parameter
+			PContext("but has PreferredBackupWindow Parameter", func() {
 				BeforeEach(func() {
 					provisionDetails.Parameters = map[string]interface{}{"preferred_backup_window": "test-preferred-backup-window-parameter"}
 				})
@@ -527,7 +608,8 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("but has PreferredMaintenanceWindow Parameter", func() {
+			//FIXME: These tests are pending until we allow this user provided parameter
+			PContext("but has PreferredMaintenanceWindow Parameter", func() {
 				BeforeEach(func() {
 					provisionDetails.Parameters = map[string]interface{}{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}
 				})
@@ -599,16 +681,15 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).To(Equal(brokerapi.ErrAsyncRequired))
 			})
 		})
-
 		Context("when Parameters are not valid", func() {
 			BeforeEach(func() {
-				provisionDetails.Parameters = map[string]interface{}{"backup_retention_period": "invalid"}
+				provisionDetails.Parameters = map[string]interface{}{"skip_final_snapshot": "invalid"}
 			})
 
 			It("returns the proper error", func() {
 				_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("'backup_retention_period' expected type 'int64', got unconvertible type 'string'"))
+				Expect(err.Error()).To(ContainSubstring("skip_final_snapshot must be set to true or false, or not set at all"))
 			})
 
 			Context("and user provision parameters are not allowed", func() {
@@ -737,7 +818,8 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("but has BackupRetentionPeriod Parameter", func() {
+			//FIXME: These tests are pending until we allow this user provided parameter
+			PContext("but has BackupRetentionPeriod Parameter", func() {
 				BeforeEach(func() {
 					updateDetails.Parameters = map[string]interface{}{"backup_retention_period": 12}
 				})
@@ -905,7 +987,8 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("but has PreferredBackupWindow Parameter", func() {
+			//FIXME: These tests are pending until we allow this user provided parameter
+			PContext("but has PreferredBackupWindow Parameter", func() {
 				BeforeEach(func() {
 					updateDetails.Parameters = map[string]interface{}{"preferred_backup_window": "test-preferred-backup-window-parameter"}
 				})
@@ -929,7 +1012,8 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("but has PreferredMaintenanceWindow Parameter", func() {
+			//FIXME: These tests are pending until we allow this user provided parameter
+			PContext("but has PreferredMaintenanceWindow Parameter", func() {
 				BeforeEach(func() {
 					updateDetails.Parameters = map[string]interface{}{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}
 				})
@@ -1004,13 +1088,13 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when Parameters are not valid", func() {
 			BeforeEach(func() {
-				updateDetails.Parameters = map[string]interface{}{"backup_retention_period": "invalid"}
+				updateDetails.Parameters = map[string]interface{}{"skip_final_snapshot": "invalid"}
 			})
 
 			It("returns the proper error", func() {
 				_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("'backup_retention_period' expected type 'int64', got unconvertible type 'string'"))
+				Expect(err.Error()).To(ContainSubstring("skip_final_snapshot must be set to true or false, or not set at all"))
 			})
 
 			Context("and user update parameters are not allowed", func() {
