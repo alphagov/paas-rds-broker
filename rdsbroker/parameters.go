@@ -6,6 +6,7 @@ type ProvisionParameters struct {
 	DBName                     string `mapstructure:"dbname"`
 	PreferredBackupWindow      string `mapstructure:"preferred_backup_window"`
 	PreferredMaintenanceWindow string `mapstructure:"preferred_maintenance_window"`
+	SkipFinalSnapshot          bool `mapstructure:"skip_final_snapshot"`
 }
 
 type UpdateParameters struct {
@@ -13,6 +14,7 @@ type UpdateParameters struct {
 	BackupRetentionPeriod      int64  `mapstructure:"backup_retention_period"`
 	PreferredBackupWindow      string `mapstructure:"preferred_backup_window"`
 	PreferredMaintenanceWindow string `mapstructure:"preferred_maintenance_window"`
+	SkipFinalSnapshot          bool `mapstructure:"skip_final_snapshot"`
 }
 
 type BindParameters struct {

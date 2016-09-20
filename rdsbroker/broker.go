@@ -183,6 +183,19 @@ func (b *RDSBroker) Deprovision(instanceID string, details brokerapi.Deprovision
 
 	skipDBInstanceFinalSnapshot := servicePlan.RDSProperties.SkipFinalSnapshot
 
+	skipFinalSnapshot, err := b.dbInstance.GetTag(b.dbInstanceIdentifier(instanceID), "SkipFinalSnapshot")
+	if err != nil {
+		return false, err
+	}
+
+	if skipFinalSnapshot != "" {
+		if skipFinalSnapshot == "true" {
+			skipDBInstanceFinalSnapshot = true
+		} else {
+			skipDBInstanceFinalSnapshot = false
+		}
+	}
+
 	if err := b.dbInstance.Delete(b.dbInstanceIdentifier(instanceID), skipDBInstanceFinalSnapshot); err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			return false, brokerapi.ErrInstanceDoesNotExist
@@ -441,8 +454,12 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 	if provisionParameters.PreferredMaintenanceWindow != "" {
 		dbInstanceDetails.PreferredMaintenanceWindow = provisionParameters.PreferredMaintenanceWindow
 	}
+	var skipFinalSnapshot string
+	if provisionParameters.SkipFinalSnapshot {
+		skipFinalSnapshot = "true"
+	}
 
-	dbInstanceDetails.Tags = b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID)
+	dbInstanceDetails.Tags = b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshot)
 
 	return dbInstanceDetails
 }
@@ -462,7 +479,12 @@ func (b *RDSBroker) modifyDBInstance(instanceID string, servicePlan ServicePlan,
 		dbInstanceDetails.PreferredMaintenanceWindow = updateParameters.PreferredMaintenanceWindow
 	}
 
-	dbInstanceDetails.Tags = b.dbTags("Updated", details.ServiceID, details.PlanID, "", "")
+	var skipFinalSnapshot string
+	if updateParameters.SkipFinalSnapshot {
+		skipFinalSnapshot = "true"
+	}
+
+	dbInstanceDetails.Tags = b.dbTags("Updated", details.ServiceID, details.PlanID, "", "", skipFinalSnapshot)
 
 	return dbInstanceDetails
 }
@@ -552,7 +574,7 @@ func (b *RDSBroker) dbInstanceFromPlan(servicePlan ServicePlan) *awsrds.DBInstan
 	return dbInstanceDetails
 }
 
-func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID string) map[string]string {
+func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID, skipFinalSnapshot string) map[string]string {
 	tags := make(map[string]string)
 
 	tags["Owner"] = "Cloud Foundry"
@@ -577,6 +599,10 @@ func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID st
 
 	if spaceID != "" {
 		tags["Space ID"] = spaceID
+	}
+
+	if skipFinalSnapshot != "" {
+		tags["SkipFinalSnapshot"] = skipFinalSnapshot
 	}
 
 	return tags
