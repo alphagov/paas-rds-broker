@@ -1250,7 +1250,7 @@ var _ = Describe("RDS DB Instance", func() {
 		Context("when does not skip the final snapshot", func() {
 			BeforeEach(func() {
 				skipFinalSnapshot = false
-				finalDBSnapshotIdentifier = "rds-broker-" + dbInstanceIdentifier
+				finalDBSnapshotIdentifier = dbInstanceIdentifier + "-final-snapshot"
 			})
 
 			It("returns the proper DB Instance", func() {

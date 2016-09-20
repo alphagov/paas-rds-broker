@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -455,7 +454,7 @@ func (r *RDSDBInstance) buildDeleteDBInstanceInput(ID string, skipFinalSnapshot 
 }
 
 func (r *RDSDBInstance) dbSnapshotName(ID string) string {
-	return fmt.Sprintf("rds-broker-%s-%s", ID, time.Now().Format("2006-01-02-15-04-05"))
+	return fmt.Sprintf("%s-final-snapshot", ID)
 }
 
 func (r *RDSDBInstance) dbInstanceARN(ID string) (string, error) {
