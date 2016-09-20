@@ -302,18 +302,19 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(7)))
 				Expect(err).ToNot(HaveOccurred())
 			})
+			/*
+				Context("but has BackupRetentionPeriod Parameter", func() {
+					BeforeEach(func() {
+						provisionDetails.Parameters = map[string]interface{}{"backup_retention_period": 12}
+					})
 
-			Context("but has BackupRetentionPeriod Parameter", func() {
-				BeforeEach(func() {
-					provisionDetails.Parameters = map[string]interface{}{"backup_retention_period": 12}
+					It("makes the proper calls", func() {
+						_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
+						Expect(dbInstance.CreateDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(12)))
+						Expect(err).ToNot(HaveOccurred())
+					})
 				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(12)))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
+			*/
 		})
 
 		Context("when has default BackupRetentionPeriod", func() {
@@ -334,18 +335,19 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.CharacterSetName).To(Equal("test-characterset-name"))
 				Expect(err).ToNot(HaveOccurred())
 			})
+			/*
+				Context("but has CharacterSetName Parameter", func() {
+					BeforeEach(func() {
+						provisionDetails.Parameters = map[string]interface{}{"character_set_name": "test-characterset-name-parameter"}
+					})
 
-			Context("but has CharacterSetName Parameter", func() {
-				BeforeEach(func() {
-					provisionDetails.Parameters = map[string]interface{}{"character_set_name": "test-characterset-name-parameter"}
+					It("makes the proper calls", func() {
+						_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
+						Expect(dbInstance.CreateDBInstanceDetails.CharacterSetName).To(Equal("test-characterset-name-parameter"))
+						Expect(err).ToNot(HaveOccurred())
+					})
 				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.CharacterSetName).To(Equal("test-characterset-name-parameter"))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
+			*/
 		})
 
 		Context("when has CopyTagsToSnapshot", func() {
@@ -359,19 +361,19 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 		})
+		/*
+			Context("when has DBName parameter", func() {
+				BeforeEach(func() {
+					provisionDetails.Parameters = map[string]interface{}{"dbname": "test-dbname"}
+				})
 
-		Context("when has DBName parameter", func() {
-			BeforeEach(func() {
-				provisionDetails.Parameters = map[string]interface{}{"dbname": "test-dbname"}
+				It("makes the proper calls", func() {
+					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
+					Expect(dbInstance.CreateDBInstanceDetails.DBName).To(Equal("test-dbname"))
+					Expect(err).ToNot(HaveOccurred())
+				})
 			})
-
-			It("makes the proper calls", func() {
-				_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-				Expect(dbInstance.CreateDBInstanceDetails.DBName).To(Equal("test-dbname"))
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
+		*/
 		Context("when has DBParameterGroupName", func() {
 			BeforeEach(func() {
 				rdsProperties1.DBParameterGroupName = "test-db-parameter-group-name"
@@ -502,18 +504,19 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window"))
 				Expect(err).ToNot(HaveOccurred())
 			})
+			/*
+				Context("but has PreferredBackupWindow Parameter", func() {
+					BeforeEach(func() {
+						provisionDetails.Parameters = map[string]interface{}{"preferred_backup_window": "test-preferred-backup-window-parameter"}
+					})
 
-			Context("but has PreferredBackupWindow Parameter", func() {
-				BeforeEach(func() {
-					provisionDetails.Parameters = map[string]interface{}{"preferred_backup_window": "test-preferred-backup-window-parameter"}
+					It("makes the proper calls", func() {
+						_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
+						Expect(dbInstance.CreateDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window-parameter"))
+						Expect(err).ToNot(HaveOccurred())
+					})
 				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window-parameter"))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
+			*/
 		})
 
 		Context("when has PreferredMaintenanceWindow", func() {
@@ -526,18 +529,19 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.CreateDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window"))
 				Expect(err).ToNot(HaveOccurred())
 			})
+			/*
+				Context("but has PreferredMaintenanceWindow Parameter", func() {
+					BeforeEach(func() {
+						provisionDetails.Parameters = map[string]interface{}{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}
+					})
 
-			Context("but has PreferredMaintenanceWindow Parameter", func() {
-				BeforeEach(func() {
-					provisionDetails.Parameters = map[string]interface{}{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}
+					It("makes the proper calls", func() {
+						_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
+						Expect(dbInstance.CreateDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window-parameter"))
+						Expect(err).ToNot(HaveOccurred())
+					})
 				})
-
-				It("makes the proper calls", func() {
-					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window-parameter"))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
+			*/
 		})
 
 		Context("when has PubliclyAccessible", func() {
@@ -599,16 +603,15 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).To(Equal(brokerapi.ErrAsyncRequired))
 			})
 		})
-
 		Context("when Parameters are not valid", func() {
 			BeforeEach(func() {
-				provisionDetails.Parameters = map[string]interface{}{"backup_retention_period": "invalid"}
+				provisionDetails.Parameters = map[string]interface{}{"skip_final_snapshot": "invalid"}
 			})
 
 			It("returns the proper error", func() {
 				_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("'backup_retention_period' expected type 'int64', got unconvertible type 'string'"))
+				Expect(err.Error()).To(ContainSubstring("'skip_final_snapshot' expected type 'bool', got unconvertible type 'string'"))
 			})
 
 			Context("and user provision parameters are not allowed", func() {
@@ -736,18 +739,19 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.ModifyDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(7)))
 				Expect(err).ToNot(HaveOccurred())
 			})
+			/*
+				Context("but has BackupRetentionPeriod Parameter", func() {
+					BeforeEach(func() {
+						updateDetails.Parameters = map[string]interface{}{"backup_retention_period": 12}
+					})
 
-			Context("but has BackupRetentionPeriod Parameter", func() {
-				BeforeEach(func() {
-					updateDetails.Parameters = map[string]interface{}{"backup_retention_period": 12}
+					It("makes the proper calls", func() {
+						_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
+						Expect(dbInstance.ModifyDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(12)))
+						Expect(err).ToNot(HaveOccurred())
+					})
 				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(12)))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
+			*/
 		})
 
 		Context("when has CharacterSetName", func() {
@@ -904,18 +908,19 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.ModifyDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window"))
 				Expect(err).ToNot(HaveOccurred())
 			})
+			/*
+				Context("but has PreferredBackupWindow Parameter", func() {
+					BeforeEach(func() {
+						updateDetails.Parameters = map[string]interface{}{"preferred_backup_window": "test-preferred-backup-window-parameter"}
+					})
 
-			Context("but has PreferredBackupWindow Parameter", func() {
-				BeforeEach(func() {
-					updateDetails.Parameters = map[string]interface{}{"preferred_backup_window": "test-preferred-backup-window-parameter"}
+					It("makes the proper calls", func() {
+						_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
+						Expect(dbInstance.ModifyDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window-parameter"))
+						Expect(err).ToNot(HaveOccurred())
+					})
 				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window-parameter"))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
+			*/
 		})
 
 		Context("when has PreferredMaintenanceWindow", func() {
@@ -928,18 +933,19 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.ModifyDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window"))
 				Expect(err).ToNot(HaveOccurred())
 			})
+			/*
+				Context("but has PreferredMaintenanceWindow Parameter", func() {
+					BeforeEach(func() {
+						updateDetails.Parameters = map[string]interface{}{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}
+					})
 
-			Context("but has PreferredMaintenanceWindow Parameter", func() {
-				BeforeEach(func() {
-					updateDetails.Parameters = map[string]interface{}{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}
+					It("makes the proper calls", func() {
+						_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
+						Expect(dbInstance.ModifyDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window-parameter"))
+						Expect(err).ToNot(HaveOccurred())
+					})
 				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window-parameter"))
-					Expect(err).ToNot(HaveOccurred())
-				})
-			})
+			*/
 		})
 
 		Context("when has PubliclyAccessible", func() {
@@ -1004,13 +1010,13 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when Parameters are not valid", func() {
 			BeforeEach(func() {
-				updateDetails.Parameters = map[string]interface{}{"backup_retention_period": "invalid"}
+				updateDetails.Parameters = map[string]interface{}{"skip_final_snapshot": "invalid"}
 			})
 
 			It("returns the proper error", func() {
 				_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("'backup_retention_period' expected type 'int64', got unconvertible type 'string'"))
+				Expect(err.Error()).To(ContainSubstring("'skip_final_snapshot' expected type 'bool', got unconvertible type 'string'"))
 			})
 
 			Context("and user update parameters are not allowed", func() {
