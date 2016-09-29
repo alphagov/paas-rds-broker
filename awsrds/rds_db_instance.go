@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -99,6 +98,51 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string) ([]*DBInstanceDet
 	}
 
 	return dbInstanceDetails, nil
+}
+
+func (r *RDSDBInstance) GetTag(ID, tagKey string) (string, error) {
+
+	describeDBInstancesInput := &rds.DescribeDBInstancesInput{
+		DBInstanceIdentifier: aws.String(ID),
+	}
+
+	r.logger.Debug("get-tag", lager.Data{"input": describeDBInstancesInput})
+
+	myInstance, err := r.rdssvc.DescribeDBInstances(describeDBInstancesInput)
+	if err != nil {
+		r.logger.Error("aws-rds-error", err)
+		if awsErr, ok := err.(awserr.Error); ok {
+			if reqErr, ok := err.(awserr.RequestFailure); ok {
+				if reqErr.StatusCode() == 404 {
+					return "", ErrDBInstanceDoesNotExist
+				}
+			}
+			return "", errors.New(awsErr.Code() + ": " + awsErr.Message())
+		}
+		return "", err
+	}
+
+	dbArn, err := r.dbInstanceARN(*myInstance.DBInstances[0].DBInstanceIdentifier)
+	if err != nil {
+		return "", err
+	}
+
+	listTagsForResourceInput := &rds.ListTagsForResourceInput{
+		ResourceName: aws.String(dbArn),
+	}
+
+	listTagsForResourceOutput, err := r.rdssvc.ListTagsForResource(listTagsForResourceInput)
+	if err != nil {
+		return "", err
+	}
+
+	for _, t := range listTagsForResourceOutput.TagList {
+		if *t.Key == tagKey {
+			return *t.Value, nil
+		}
+	}
+
+	return "", nil
 }
 
 func (r *RDSDBInstance) Create(ID string, dbInstanceDetails DBInstanceDetails) error {
@@ -406,7 +450,7 @@ func (r *RDSDBInstance) buildDeleteDBInstanceInput(ID string, skipFinalSnapshot 
 }
 
 func (r *RDSDBInstance) dbSnapshotName(ID string) string {
-	return fmt.Sprintf("rds-broker-%s-%s", ID, time.Now().Format("2006-01-02-15-04-05"))
+	return fmt.Sprintf("%s-final-snapshot", ID)
 }
 
 func (r *RDSDBInstance) dbInstanceARN(ID string) (string, error) {
