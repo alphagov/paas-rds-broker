@@ -23,6 +23,9 @@ const instanceIDLogKey = "instance-id"
 const bindingIDLogKey = "binding-id"
 const detailsLogKey = "details"
 const acceptsIncompleteLogKey = "acceptsIncomplete"
+const updateParametersLogKey = "updateParameters"
+const servicePlanLogKey = "servicePlan"
+const dbInstanceDetailsLogKey = "dbInstanceDetails"
 
 var rdsStatus2State = map[string]string{
 	"available":                    brokerapi.LastOperationSucceeded,
@@ -145,6 +148,7 @@ func (b *RDSBroker) Update(instanceID string, details brokerapi.UpdateDetails, a
 		if err := updateParameters.Validate(); err != nil {
 			return false, err
 		}
+		b.logger.Debug("update-parsed-params", lager.Data{updateParametersLogKey: updateParameters,})
 	}
 
 	service, ok := b.catalog.FindService(details.ServiceID)
@@ -473,6 +477,14 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 
 func (b *RDSBroker) modifyDBInstance(instanceID string, servicePlan ServicePlan, updateParameters UpdateParameters, details brokerapi.UpdateDetails) *awsrds.DBInstanceDetails {
 	dbInstanceDetails := b.dbInstanceFromPlan(servicePlan)
+
+	b.logger.Debug("modifyDBInstance", lager.Data{
+		instanceIDLogKey:        instanceID,
+		detailsLogKey:           details,
+		updateParametersLogKey:  updateParameters,
+		servicePlanLogKey:       servicePlan,
+		dbInstanceDetailsLogKey: dbInstanceDetails,
+	})
 
 	if updateParameters.BackupRetentionPeriod > 0 {
 		dbInstanceDetails.BackupRetentionPeriod = updateParameters.BackupRetentionPeriod
