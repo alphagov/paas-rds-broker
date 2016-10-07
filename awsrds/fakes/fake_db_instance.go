@@ -31,6 +31,10 @@ type FakeDBInstance struct {
 	DeleteID                string
 	DeleteSkipFinalSnapshot bool
 	DeleteError             error
+
+	GetTagKey   string
+	GetTagValue string
+	GetTagError error
 }
 
 func (f *FakeDBInstance) Describe(ID string) (awsrds.DBInstanceDetails, error) {
@@ -38,6 +42,14 @@ func (f *FakeDBInstance) Describe(ID string) (awsrds.DBInstanceDetails, error) {
 	f.DescribeID = ID
 
 	return f.DescribeDBInstanceDetails, f.DescribeError
+}
+
+func (f *FakeDBInstance) GetTag(ID, tagKey string) (string, error) {
+	f.DescribeCalled = true
+	f.GetTagKey = tagKey
+	f.DescribeID = ID
+
+	return f.GetTagValue, f.GetTagError
 }
 
 func (f *FakeDBInstance) DescribeByTag(tagKey, tagValue string) ([]*awsrds.DBInstanceDetails, error) {
