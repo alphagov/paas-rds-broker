@@ -3,8 +3,8 @@ package sqlengine
 import (
 	"database/sql"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/lib/pq"
-	"github.com/pivotal-golang/lager"
 )
 
 const stateDBName = "broker_state"
