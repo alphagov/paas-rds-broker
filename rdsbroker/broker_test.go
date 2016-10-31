@@ -1158,8 +1158,9 @@ var _ = Describe("RDS Broker", func() {
 
 		It("returns the proper response", func() {
 			spec, err := rdsBroker.Deprovision(instanceID, deprovisionDetails, acceptsIncomplete)
-			Expect(spec.IsAsync).To(BeTrue())
 			Expect(err).ToNot(HaveOccurred())
+			Expect(spec.IsAsync).To(BeTrue())
+			Expect(spec.OperationData).To(Equal("deprovision"))
 		})
 
 		It("makes the proper calls", func() {
@@ -1539,6 +1540,12 @@ var _ = Describe("RDS Broker", func() {
 			Context("when the DB Instance does not exists", func() {
 				BeforeEach(func() {
 					dbInstance.DescribeError = awsrds.ErrDBInstanceDoesNotExist
+				})
+
+				It("returns success for a deprovision operation", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(instanceID, "deprovision")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(lastOperationResponse.State).To(Equal(brokerapi.Succeeded))
 				})
 
 				It("returns the proper error", func() {
