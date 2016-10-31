@@ -26,6 +26,9 @@ const acceptsIncompleteLogKey = "acceptsIncomplete"
 const updateParametersLogKey = "updateParameters"
 const servicePlanLogKey = "servicePlan"
 const dbInstanceDetailsLogKey = "dbInstanceDetails"
+const operationDataLogKey = "operation"
+
+const deprovisionOperationData = "deprovision"
 
 var rdsStatus2State = map[string]brokerapi.LastOperationState{
 	"available":                    brokerapi.Succeeded,
@@ -208,7 +211,7 @@ func (b *RDSBroker) Deprovision(instanceID string, details brokerapi.Deprovision
 		return brokerapi.DeprovisionServiceSpec{}, err
 	}
 
-	return brokerapi.DeprovisionServiceSpec{IsAsync: true}, nil
+	return brokerapi.DeprovisionServiceSpec{IsAsync: true, OperationData: deprovisionOperationData}, nil
 }
 
 func (b *RDSBroker) Bind(instanceID, bindingID string, details brokerapi.BindDetails) (brokerapi.Binding, error) {
@@ -321,7 +324,8 @@ func (b *RDSBroker) Unbind(instanceID, bindingID string, details brokerapi.Unbin
 
 func (b *RDSBroker) LastOperation(instanceID, operationData string) (brokerapi.LastOperation, error) {
 	b.logger.Debug("last-operation", lager.Data{
-		instanceIDLogKey: instanceID,
+		instanceIDLogKey:    instanceID,
+		operationDataLogKey: operationData,
 	})
 
 	lastOperationResponse := brokerapi.LastOperation{State: brokerapi.Failed}
@@ -329,7 +333,12 @@ func (b *RDSBroker) LastOperation(instanceID, operationData string) (brokerapi.L
 	dbInstanceDetails, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
-			return lastOperationResponse, brokerapi.ErrInstanceDoesNotExist
+			if operationData == deprovisionOperationData {
+				lastOperationResponse.State = brokerapi.Succeeded
+				return lastOperationResponse, nil
+			} else {
+				return lastOperationResponse, brokerapi.ErrInstanceDoesNotExist
+			}
 		}
 		return lastOperationResponse, err
 	}
