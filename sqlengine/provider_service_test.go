@@ -6,7 +6,7 @@ import (
 
 	. "github.com/alphagov/paas-rds-broker/sqlengine"
 
-	"code.cloudfoundry.org/lager"
+	"github.com/pivotal-golang/lager"
 )
 
 var _ = Describe("Provider Service", func() {

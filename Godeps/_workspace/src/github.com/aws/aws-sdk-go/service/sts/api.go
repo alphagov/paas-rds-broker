@@ -12,28 +12,7 @@ import (
 
 const opAssumeRole = "AssumeRole"
 
-// AssumeRoleRequest generates a "aws/request.Request" representing the
-// client's request for the AssumeRole operation. The "output" return
-// value can be used to capture response data after the request's "Send" method
-// is called.
-//
-// Creating a request object using this method should be used when you want to inject
-// custom logic into the request's lifecycle using a custom handler, or if you want to
-// access properties on the request object before or after sending the request. If
-// you just want the service response, call the AssumeRole method directly
-// instead.
-//
-// Note: You must call the "Send" method on the returned request object in order
-// to execute the request.
-//
-//    // Example sending a request using the AssumeRoleRequest method.
-//    req, resp := client.AssumeRoleRequest(params)
-//
-//    err := req.Send()
-//    if err == nil { // resp is now filled
-//        fmt.Println(resp)
-//    }
-//
+// AssumeRoleRequest generates a request for the AssumeRole operation.
 func (c *STS) AssumeRoleRequest(input *AssumeRoleInput) (req *request.Request, output *AssumeRoleOutput) {
 	op := &request.Operation{
 		Name:       opAssumeRole,
@@ -148,28 +127,7 @@ func (c *STS) AssumeRole(input *AssumeRoleInput) (*AssumeRoleOutput, error) {
 
 const opAssumeRoleWithSAML = "AssumeRoleWithSAML"
 
-// AssumeRoleWithSAMLRequest generates a "aws/request.Request" representing the
-// client's request for the AssumeRoleWithSAML operation. The "output" return
-// value can be used to capture response data after the request's "Send" method
-// is called.
-//
-// Creating a request object using this method should be used when you want to inject
-// custom logic into the request's lifecycle using a custom handler, or if you want to
-// access properties on the request object before or after sending the request. If
-// you just want the service response, call the AssumeRoleWithSAML method directly
-// instead.
-//
-// Note: You must call the "Send" method on the returned request object in order
-// to execute the request.
-//
-//    // Example sending a request using the AssumeRoleWithSAMLRequest method.
-//    req, resp := client.AssumeRoleWithSAMLRequest(params)
-//
-//    err := req.Send()
-//    if err == nil { // resp is now filled
-//        fmt.Println(resp)
-//    }
-//
+// AssumeRoleWithSAMLRequest generates a request for the AssumeRoleWithSAML operation.
 func (c *STS) AssumeRoleWithSAMLRequest(input *AssumeRoleWithSAMLInput) (req *request.Request, output *AssumeRoleWithSAMLOutput) {
 	op := &request.Operation{
 		Name:       opAssumeRoleWithSAML,
@@ -215,14 +173,13 @@ func (c *STS) AssumeRoleWithSAMLRequest(input *AssumeRoleWithSAMLInput) (req *re
 // returned by the operation have the permissions that are defined in the access
 // policy of the role that is being assumed. If you pass a policy to this operation,
 // the temporary security credentials that are returned by the operation have
-// the permissions that are allowed by the intersection of both the access policy
-// of the role that is being assumed,  and  the policy that you pass. This means
-// that both policies must grant the permission for the action to be allowed.
-// This gives you a way to further restrict the permissions for the resulting
-// temporary security credentials. You cannot use the passed policy to grant
-// permissions that are in excess of those allowed by the access policy of the
-// role that is being assumed. For more information, see Permissions for AssumeRole,
-// AssumeRoleWithSAML, and AssumeRoleWithWebIdentity (http://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_control-access_assumerole.html)
+// the permissions that are allowed by both the access policy of the role that
+// is being assumed,  and  the policy that you pass. This gives you a way to
+// further restrict the permissions for the resulting temporary security credentials.
+// You cannot use the passed policy to grant permissions that are in excess
+// of those allowed by the access policy of the role that is being assumed.
+// For more information, see Permissions for AssumeRole, AssumeRoleWithSAML,
+// and AssumeRoleWithWebIdentity (http://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_control-access_assumerole.html)
 // in the IAM User Guide.
 //
 // Before your application can call AssumeRoleWithSAML, you must configure
@@ -262,28 +219,7 @@ func (c *STS) AssumeRoleWithSAML(input *AssumeRoleWithSAMLInput) (*AssumeRoleWit
 
 const opAssumeRoleWithWebIdentity = "AssumeRoleWithWebIdentity"
 
-// AssumeRoleWithWebIdentityRequest generates a "aws/request.Request" representing the
-// client's request for the AssumeRoleWithWebIdentity operation. The "output" return
-// value can be used to capture response data after the request's "Send" method
-// is called.
-//
-// Creating a request object using this method should be used when you want to inject
-// custom logic into the request's lifecycle using a custom handler, or if you want to
-// access properties on the request object before or after sending the request. If
-// you just want the service response, call the AssumeRoleWithWebIdentity method directly
-// instead.
-//
-// Note: You must call the "Send" method on the returned request object in order
-// to execute the request.
-//
-//    // Example sending a request using the AssumeRoleWithWebIdentityRequest method.
-//    req, resp := client.AssumeRoleWithWebIdentityRequest(params)
-//
-//    err := req.Send()
-//    if err == nil { // resp is now filled
-//        fmt.Println(resp)
-//    }
-//
+// AssumeRoleWithWebIdentityRequest generates a request for the AssumeRoleWithWebIdentity operation.
 func (c *STS) AssumeRoleWithWebIdentityRequest(input *AssumeRoleWithWebIdentityInput) (req *request.Request, output *AssumeRoleWithWebIdentityOutput) {
 	op := &request.Operation{
 		Name:       opAssumeRoleWithWebIdentity,
@@ -394,28 +330,7 @@ func (c *STS) AssumeRoleWithWebIdentity(input *AssumeRoleWithWebIdentityInput) (
 
 const opDecodeAuthorizationMessage = "DecodeAuthorizationMessage"
 
-// DecodeAuthorizationMessageRequest generates a "aws/request.Request" representing the
-// client's request for the DecodeAuthorizationMessage operation. The "output" return
-// value can be used to capture response data after the request's "Send" method
-// is called.
-//
-// Creating a request object using this method should be used when you want to inject
-// custom logic into the request's lifecycle using a custom handler, or if you want to
-// access properties on the request object before or after sending the request. If
-// you just want the service response, call the DecodeAuthorizationMessage method directly
-// instead.
-//
-// Note: You must call the "Send" method on the returned request object in order
-// to execute the request.
-//
-//    // Example sending a request using the DecodeAuthorizationMessageRequest method.
-//    req, resp := client.DecodeAuthorizationMessageRequest(params)
-//
-//    err := req.Send()
-//    if err == nil { // resp is now filled
-//        fmt.Println(resp)
-//    }
-//
+// DecodeAuthorizationMessageRequest generates a request for the DecodeAuthorizationMessage operation.
 func (c *STS) DecodeAuthorizationMessageRequest(input *DecodeAuthorizationMessageInput) (req *request.Request, output *DecodeAuthorizationMessageOutput) {
 	op := &request.Operation{
 		Name:       opDecodeAuthorizationMessage,
@@ -473,28 +388,7 @@ func (c *STS) DecodeAuthorizationMessage(input *DecodeAuthorizationMessageInput)
 
 const opGetCallerIdentity = "GetCallerIdentity"
 
-// GetCallerIdentityRequest generates a "aws/request.Request" representing the
-// client's request for the GetCallerIdentity operation. The "output" return
-// value can be used to capture response data after the request's "Send" method
-// is called.
-//
-// Creating a request object using this method should be used when you want to inject
-// custom logic into the request's lifecycle using a custom handler, or if you want to
-// access properties on the request object before or after sending the request. If
-// you just want the service response, call the GetCallerIdentity method directly
-// instead.
-//
-// Note: You must call the "Send" method on the returned request object in order
-// to execute the request.
-//
-//    // Example sending a request using the GetCallerIdentityRequest method.
-//    req, resp := client.GetCallerIdentityRequest(params)
-//
-//    err := req.Send()
-//    if err == nil { // resp is now filled
-//        fmt.Println(resp)
-//    }
-//
+// GetCallerIdentityRequest generates a request for the GetCallerIdentity operation.
 func (c *STS) GetCallerIdentityRequest(input *GetCallerIdentityInput) (req *request.Request, output *GetCallerIdentityOutput) {
 	op := &request.Operation{
 		Name:       opGetCallerIdentity,
@@ -522,28 +416,7 @@ func (c *STS) GetCallerIdentity(input *GetCallerIdentityInput) (*GetCallerIdenti
 
 const opGetFederationToken = "GetFederationToken"
 
-// GetFederationTokenRequest generates a "aws/request.Request" representing the
-// client's request for the GetFederationToken operation. The "output" return
-// value can be used to capture response data after the request's "Send" method
-// is called.
-//
-// Creating a request object using this method should be used when you want to inject
-// custom logic into the request's lifecycle using a custom handler, or if you want to
-// access properties on the request object before or after sending the request. If
-// you just want the service response, call the GetFederationToken method directly
-// instead.
-//
-// Note: You must call the "Send" method on the returned request object in order
-// to execute the request.
-//
-//    // Example sending a request using the GetFederationTokenRequest method.
-//    req, resp := client.GetFederationTokenRequest(params)
-//
-//    err := req.Send()
-//    if err == nil { // resp is now filled
-//        fmt.Println(resp)
-//    }
-//
+// GetFederationTokenRequest generates a request for the GetFederationToken operation.
 func (c *STS) GetFederationTokenRequest(input *GetFederationTokenInput) (req *request.Request, output *GetFederationTokenOutput) {
 	op := &request.Operation{
 		Name:       opGetFederationToken,
@@ -647,28 +520,7 @@ func (c *STS) GetFederationToken(input *GetFederationTokenInput) (*GetFederation
 
 const opGetSessionToken = "GetSessionToken"
 
-// GetSessionTokenRequest generates a "aws/request.Request" representing the
-// client's request for the GetSessionToken operation. The "output" return
-// value can be used to capture response data after the request's "Send" method
-// is called.
-//
-// Creating a request object using this method should be used when you want to inject
-// custom logic into the request's lifecycle using a custom handler, or if you want to
-// access properties on the request object before or after sending the request. If
-// you just want the service response, call the GetSessionToken method directly
-// instead.
-//
-// Note: You must call the "Send" method on the returned request object in order
-// to execute the request.
-//
-//    // Example sending a request using the GetSessionTokenRequest method.
-//    req, resp := client.GetSessionTokenRequest(params)
-//
-//    err := req.Send()
-//    if err == nil { // resp is now filled
-//        fmt.Println(resp)
-//    }
-//
+// GetSessionTokenRequest generates a request for the GetSessionToken operation.
 func (c *STS) GetSessionTokenRequest(input *GetSessionTokenInput) (req *request.Request, output *GetSessionTokenOutput) {
 	op := &request.Operation{
 		Name:       opGetSessionToken,
@@ -744,14 +596,6 @@ type AssumeRoleInput struct {
 	// The duration, in seconds, of the role session. The value can range from 900
 	// seconds (15 minutes) to 3600 seconds (1 hour). By default, the value is set
 	// to 3600 seconds.
-	//
-	//  This is separate from the duration of a console session that you might
-	// request using the returned credentials. The request to the federation endpoint
-	// for a console sign-in token takes a SessionDuration parameter that specifies
-	// the maximum length of the console session, separately from the DurationSeconds
-	// parameter on this API. For more information, see Creating a URL that Enables
-	// Federated Users to Access the AWS Management Console (http://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html)
-	// in the IAM User Guide.
 	DurationSeconds *int64 `min:"900" type:"integer"`
 
 	// A unique identifier that is used by third parties when assuming roles in
@@ -766,8 +610,7 @@ type AssumeRoleInput struct {
 	//
 	// The format for this parameter, as described by its regex pattern, is a string
 	// of characters consisting of upper- and lower-case alphanumeric characters
-	// with no spaces. You can also include underscores or any of the following
-	// characters: =,.@:\/-
+	// with no spaces. You can also include any of the following characters: =,.@:\/-
 	ExternalId *string `min:"2" type:"string"`
 
 	// An IAM policy in JSON format.
@@ -797,8 +640,6 @@ type AssumeRoleInput struct {
 	Policy *string `min:"1" type:"string"`
 
 	// The Amazon Resource Name (ARN) of the role to assume.
-	//
-	// RoleArn is a required field
 	RoleArn *string `min:"20" type:"string" required:"true"`
 
 	// An identifier for the assumed role session.
@@ -813,10 +654,7 @@ type AssumeRoleInput struct {
 	//
 	// The format for this parameter, as described by its regex pattern, is a string
 	// of characters consisting of upper- and lower-case alphanumeric characters
-	// with no spaces. You can also include underscores or any of the following
-	// characters: =,.@-
-	//
-	// RoleSessionName is a required field
+	// with no spaces. You can also include any of the following characters: =,.@-
 	RoleSessionName *string `min:"2" type:"string" required:"true"`
 
 	// The identification number of the MFA device that is associated with the user
@@ -827,8 +665,7 @@ type AssumeRoleInput struct {
 	//
 	// The format for this parameter, as described by its regex pattern, is a string
 	// of characters consisting of upper- and lower-case alphanumeric characters
-	// with no spaces. You can also include underscores or any of the following
-	// characters: =,.@-
+	// with no spaces. You can also include any of the following characters: =,.@-
 	SerialNumber *string `min:"9" type:"string"`
 
 	// The value provided by the MFA device, if the trust policy of the role being
@@ -934,13 +771,8 @@ type AssumeRoleWithSAMLInput struct {
 	// response's SessionNotOnOrAfter value. The actual expiration time is whichever
 	// value is shorter.
 	//
-	//  This is separate from the duration of a console session that you might
-	// request using the returned credentials. The request to the federation endpoint
-	// for a console sign-in token takes a SessionDuration parameter that specifies
-	// the maximum length of the console session, separately from the DurationSeconds
-	// parameter on this API. For more information, see Enabling SAML 2.0 Federated
-	// Users to Access the AWS Management Console (http://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-saml.html)
-	// in the IAM User Guide.
+	//  The maximum duration for a session is 1 hour, and the minimum duration
+	// is 15 minutes, even if values outside this range are specified.
 	DurationSeconds *int64 `min:"900" type:"integer"`
 
 	// An IAM policy in JSON format.
@@ -971,13 +803,9 @@ type AssumeRoleWithSAMLInput struct {
 
 	// The Amazon Resource Name (ARN) of the SAML provider in IAM that describes
 	// the IdP.
-	//
-	// PrincipalArn is a required field
 	PrincipalArn *string `min:"20" type:"string" required:"true"`
 
 	// The Amazon Resource Name (ARN) of the role that the caller is assuming.
-	//
-	// RoleArn is a required field
 	RoleArn *string `min:"20" type:"string" required:"true"`
 
 	// The base-64 encoded SAML authentication response provided by the IdP.
@@ -985,8 +813,6 @@ type AssumeRoleWithSAMLInput struct {
 	// For more information, see Configuring a Relying Party and Adding Claims
 	// (http://docs.aws.amazon.com/IAM/latest/UserGuide/create-role-saml-IdP-tasks.html)
 	// in the Using IAM guide.
-	//
-	// SAMLAssertion is a required field
 	SAMLAssertion *string `min:"4" type:"string" required:"true"`
 }
 
@@ -1105,14 +931,6 @@ type AssumeRoleWithWebIdentityInput struct {
 	// The duration, in seconds, of the role session. The value can range from 900
 	// seconds (15 minutes) to 3600 seconds (1 hour). By default, the value is set
 	// to 3600 seconds.
-	//
-	//  This is separate from the duration of a console session that you might
-	// request using the returned credentials. The request to the federation endpoint
-	// for a console sign-in token takes a SessionDuration parameter that specifies
-	// the maximum length of the console session, separately from the DurationSeconds
-	// parameter on this API. For more information, see Creating a URL that Enables
-	// Federated Users to Access the AWS Management Console (http://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html)
-	// in the IAM User Guide.
 	DurationSeconds *int64 `min:"900" type:"integer"`
 
 	// An IAM policy in JSON format.
@@ -1150,8 +968,6 @@ type AssumeRoleWithWebIdentityInput struct {
 	ProviderId *string `min:"4" type:"string"`
 
 	// The Amazon Resource Name (ARN) of the role that the caller is assuming.
-	//
-	// RoleArn is a required field
 	RoleArn *string `min:"20" type:"string" required:"true"`
 
 	// An identifier for the assumed role session. Typically, you pass the name
@@ -1162,18 +978,13 @@ type AssumeRoleWithWebIdentityInput struct {
 	//
 	// The format for this parameter, as described by its regex pattern, is a string
 	// of characters consisting of upper- and lower-case alphanumeric characters
-	// with no spaces. You can also include underscores or any of the following
-	// characters: =,.@-
-	//
-	// RoleSessionName is a required field
+	// with no spaces. You can also include any of the following characters: =,.@-
 	RoleSessionName *string `min:"2" type:"string" required:"true"`
 
 	// The OAuth 2.0 access token or OpenID Connect ID token that is provided by
 	// the identity provider. Your application must get this token by authenticating
 	// the user who is using your application with a web identity provider before
 	// the application makes an AssumeRoleWithWebIdentity call.
-	//
-	// WebIdentityToken is a required field
 	WebIdentityToken *string `min:"4" type:"string" required:"true"`
 }
 
@@ -1289,15 +1100,11 @@ type AssumedRoleUser struct {
 	// AssumeRole action. For more information about ARNs and how to use them in
 	// policies, see IAM Identifiers (http://docs.aws.amazon.com/IAM/latest/UserGuide/reference_identifiers.html)
 	// in Using IAM.
-	//
-	// Arn is a required field
 	Arn *string `min:"20" type:"string" required:"true"`
 
 	// A unique identifier that contains the role ID and the role session name of
 	// the role that is being assumed. The role ID is generated by AWS when the
 	// role is created.
-	//
-	// AssumedRoleId is a required field
 	AssumedRoleId *string `min:"2" type:"string" required:"true"`
 }
 
@@ -1316,23 +1123,15 @@ type Credentials struct {
 	_ struct{} `type:"structure"`
 
 	// The access key ID that identifies the temporary security credentials.
-	//
-	// AccessKeyId is a required field
 	AccessKeyId *string `min:"16" type:"string" required:"true"`
 
 	// The date on which the current credentials expire.
-	//
-	// Expiration is a required field
 	Expiration *time.Time `type:"timestamp" timestampFormat:"iso8601" required:"true"`
 
 	// The secret access key that can be used to sign requests.
-	//
-	// SecretAccessKey is a required field
 	SecretAccessKey *string `type:"string" required:"true"`
 
 	// The token that users must pass to the service API to use the temporary credentials.
-	//
-	// SessionToken is a required field
 	SessionToken *string `type:"string" required:"true"`
 }
 
@@ -1350,8 +1149,6 @@ type DecodeAuthorizationMessageInput struct {
 	_ struct{} `type:"structure"`
 
 	// The encoded message that was returned with the response.
-	//
-	// EncodedMessage is a required field
 	EncodedMessage *string `min:"1" type:"string" required:"true"`
 }
 
@@ -1409,14 +1206,10 @@ type FederatedUser struct {
 	// For more information about ARNs and how to use them in policies, see IAM
 	// Identifiers (http://docs.aws.amazon.com/IAM/latest/UserGuide/reference_identifiers.html)
 	// in Using IAM.
-	//
-	// Arn is a required field
 	Arn *string `min:"20" type:"string" required:"true"`
 
 	// The string that identifies the federated user associated with the credentials,
 	// similar to the unique ID of an IAM user.
-	//
-	// FederatedUserId is a required field
 	FederatedUserId *string `min:"2" type:"string" required:"true"`
 }
 
@@ -1492,10 +1285,7 @@ type GetFederationTokenInput struct {
 	//
 	// The format for this parameter, as described by its regex pattern, is a string
 	// of characters consisting of upper- and lower-case alphanumeric characters
-	// with no spaces. You can also include underscores or any of the following
-	// characters: =,.@-
-	//
-	// Name is a required field
+	// with no spaces. You can also include any of the following characters: =,.@-
 	Name *string `min:"2" type:"string" required:"true"`
 
 	// An IAM policy in JSON format that is passed with the GetFederationToken call
@@ -1619,8 +1409,7 @@ type GetSessionTokenInput struct {
 	//
 	// The format for this parameter, as described by its regex pattern, is a string
 	// of characters consisting of upper- and lower-case alphanumeric characters
-	// with no spaces. You can also include underscores or any of the following
-	// characters: =,.@-
+	// with no spaces. You can also include any of the following characters: =,.@-
 	SerialNumber *string `min:"9" type:"string"`
 
 	// The value provided by the MFA device, if MFA is required. If any policy requires

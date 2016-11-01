@@ -6,7 +6,7 @@ import (
 
 	"github.com/lib/pq" // PostgreSQL Driver
 
-	"code.cloudfoundry.org/lager"
+	"github.com/pivotal-golang/lager"
 )
 
 type PostgresEngine struct {

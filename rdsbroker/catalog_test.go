@@ -1,8 +1,6 @@
 package rdsbroker_test
 
 import (
-	"github.com/pivotal-cf/brokerapi"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -91,11 +89,11 @@ var _ = Describe("Service", func() {
 			Description:     "Service 1 description",
 			Bindable:        true,
 			Tags:            []string{"service"},
-			Metadata:        &brokerapi.ServiceMetadata{},
-			Requires:        []brokerapi.RequiredPermission{"syslog"},
-			PlanUpdatable:   true,
+			Metadata:        &ServiceMetadata{},
+			Requires:        []string{"syslog"},
+			PlanUpdateable:  true,
 			Plans:           []ServicePlan{},
-			DashboardClient: &brokerapi.ServiceDashboardClient{},
+			DashboardClient: &DashboardClient{},
 		}
 	)
 
@@ -153,7 +151,8 @@ var _ = Describe("ServicePlan", func() {
 			ID:          "Plan-1",
 			Name:        "Plan 1",
 			Description: "Plan-1 description",
-			Metadata:    &brokerapi.ServicePlanMetadata{},
+			Metadata:    &ServicePlanMetadata{},
+			Free:        true,
 			RDSProperties: RDSProperties{
 				DBInstanceClass:  "db.m3.medium",
 				Engine:           "MySQL",

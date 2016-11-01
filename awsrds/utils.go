@@ -3,11 +3,11 @@ package awsrds
 import (
 	"errors"
 
-	"code.cloudfoundry.org/lager"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/pivotal-golang/lager"
 )
 
 func UserAccount(stssvc *sts.STS) (string, error) {

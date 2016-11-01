@@ -48,9 +48,6 @@ var endpointsMap = endpointStruct{
 		"*/s3": {
 			Endpoint: "s3-{region}.amazonaws.com",
 		},
-		"*/s3/dualstack": {
-			Endpoint: "s3.dualstack.{region}.amazonaws.com",
-		},
 		"*/sts": {
 			Endpoint:      "sts.amazonaws.com",
 			SigningRegion: "us-east-1",

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -38,15 +39,8 @@ type Request struct {
 	RetryDelay       time.Duration
 	NotHoist         bool
 	SignedHeaderVals http.Header
-	LastSignedAt     time.Time
 
 	built bool
-
-	// Need to persist an intermideant body betweend the input Body and HTTP
-	// request body because the HTTP Client's transport can maintain a reference
-	// to the HTTP request's body after the client has returned. This value is
-	// safe to use concurrently and rewraps the input Body for each HTTP request.
-	safeBody *offsetReader
 }
 
 // An Operation is the service API operation to be made.
@@ -78,11 +72,15 @@ func New(cfg aws.Config, clientInfo metadata.ClientInfo, handlers Handlers,
 	if method == "" {
 		method = "POST"
 	}
+	p := operation.HTTPPath
+	if p == "" {
+		p = "/"
+	}
 
 	httpReq, _ := http.NewRequest(method, "", nil)
 
 	var err error
-	httpReq.URL, err = url.Parse(clientInfo.Endpoint + operation.HTTPPath)
+	httpReq.URL, err = url.Parse(clientInfo.Endpoint + p)
 	if err != nil {
 		httpReq.URL = &url.URL{}
 		err = awserr.New("InvalidEndpointURL", "invalid endpoint uri", err)
@@ -140,8 +138,8 @@ func (r *Request) SetStringBody(s string) {
 
 // SetReaderBody will set the request's body reader.
 func (r *Request) SetReaderBody(reader io.ReadSeeker) {
+	r.HTTPRequest.Body = newOffsetReader(reader, 0)
 	r.Body = reader
-	r.ResetBody()
 }
 
 // Presign returns the request's signed URL. Error will be returned
@@ -225,24 +223,6 @@ func (r *Request) Sign() error {
 	return r.Error
 }
 
-// ResetBody rewinds the request body backto its starting position, and
-// set's the HTTP Request body reference. When the body is read prior
-// to being sent in the HTTP request it will need to be rewound.
-func (r *Request) ResetBody() {
-	if r.safeBody != nil {
-		r.safeBody.Close()
-	}
-
-	r.safeBody = newOffsetReader(r.Body, r.BodyStart)
-	r.HTTPRequest.Body = r.safeBody
-}
-
-// GetBody will return an io.ReadSeeker of the Request's underlying
-// input body with a concurrency safe wrapper.
-func (r *Request) GetBody() io.ReadSeeker {
-	return r.safeBody
-}
-
 // Send will send the request returning error if errors are encountered.
 //
 // Send will sign the request prior to sending. All Send Handlers will
@@ -254,8 +234,6 @@ func (r *Request) GetBody() io.ReadSeeker {
 //
 // readLoop() and getConn(req *Request, cm connectMethod)
 // https://github.com/golang/go/blob/master/src/net/http/transport.go
-//
-// Send will not close the request.Request's body.
 func (r *Request) Send() error {
 	for {
 		if aws.BoolValue(r.Retryable) {
@@ -264,15 +242,21 @@ func (r *Request) Send() error {
 					r.ClientInfo.ServiceName, r.Operation.Name, r.RetryCount))
 			}
 
-			// The previous http.Request will have a reference to the r.Body
-			// and the HTTP Client's Transport may still be reading from
-			// the request's body even though the Client's Do returned.
-			r.HTTPRequest = copyHTTPRequest(r.HTTPRequest, nil)
-			r.ResetBody()
+			var body io.ReadCloser
+			if reader, ok := r.HTTPRequest.Body.(*offsetReader); ok {
+				body = reader.CloseAndCopy(r.BodyStart)
+			} else {
+				if r.Config.Logger != nil {
+					r.Config.Logger.Log("Request body type has been overwritten. May cause race conditions")
+				}
+				r.Body.Seek(r.BodyStart, 0)
+				body = ioutil.NopCloser(r.Body)
+			}
 
-			// Closing response body to ensure that no response body is leaked
-			// between retry attempts.
+			r.HTTPRequest = copyHTTPRequest(r.HTTPRequest, body)
 			if r.HTTPResponse != nil && r.HTTPResponse.Body != nil {
+				// Closing response body. Since we are setting a new request to send off, this
+				// response will get squashed and leaked.
 				r.HTTPResponse.Body.Close()
 			}
 		}
@@ -300,6 +284,7 @@ func (r *Request) Send() error {
 			debugLogReqError(r, "Send Request", true, err)
 			continue
 		}
+
 		r.Handlers.UnmarshalMeta.Run(r)
 		r.Handlers.ValidateResponse.Run(r)
 		if r.Error != nil {

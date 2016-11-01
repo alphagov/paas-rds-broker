@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"code.cloudfoundry.org/lager"
 	"github.com/alphagov/paas-rds-broker/rdsbroker"
+	"github.com/pivotal-golang/lager"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

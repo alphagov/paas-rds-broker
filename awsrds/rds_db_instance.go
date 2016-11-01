@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"code.cloudfoundry.org/lager"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/pivotal-golang/lager"
 )
 
 type RDSDBInstance struct {

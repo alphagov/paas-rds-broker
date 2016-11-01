@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"code.cloudfoundry.org/lager"
+	"github.com/pivotal-golang/lager"
 )
 
 type ProviderService struct {
