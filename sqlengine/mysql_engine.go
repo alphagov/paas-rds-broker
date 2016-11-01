@@ -6,7 +6,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql" // MySQL Driver
 
-	"code.cloudfoundry.org/lager"
+	"github.com/pivotal-golang/lager"
 )
 
 type MySQLEngine struct {

@@ -10,7 +10,7 @@ type ProvisionParameters struct {
 	DBName                     string
 	PreferredBackupWindow      string
 	PreferredMaintenanceWindow string
-	SkipFinalSnapshot          string `json:"skip_final_snapshot"`
+	SkipFinalSnapshot          string `mapstructure:"skip_final_snapshot"`
 }
 
 type UpdateParameters struct {
