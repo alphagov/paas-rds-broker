@@ -22,6 +22,7 @@ var _ = Describe("Config", func() {
 				Region:             "rds-region",
 				DBPrefix:           "cf",
 				BrokerName:         "mybroker",
+				AWSPartition:       "rds-partition",
 				MasterPasswordSeed: "secret",
 			},
 		}

@@ -16,6 +16,7 @@ var _ = Describe("Config", func() {
 			DBPrefix:           "cf",
 			MasterPasswordSeed: "secret",
 			BrokerName:         "mybroker",
+			AWSPartition:       "rds-partition",
 			Catalog: Catalog{
 				[]Service{
 					Service{
