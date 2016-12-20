@@ -1,0 +1,7 @@
+package: github.com/alphagov/paas-rds-broker/ci/acceptance
+import:
+- package: github.com/cloudfoundry-community/go-cfenv
+  version: ~1.14.0
+- package: github.com/go-sql-driver/mysql
+  version: ~1.3.0
+- package: github.com/lib/pq
