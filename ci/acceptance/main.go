@@ -38,30 +38,26 @@ func mysqlHandler(w http.ResponseWriter, r *http.Request) {
 
 	db, err := sql.Open(u.Scheme, dsn)
 	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(err, w)
 		return
 	}
 
 	// Write and read data
 	_, err = db.Exec("drop table if exists acceptance")
 	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(err, w)
 		return
 	}
 
 	_, err = db.Exec("create table acceptance (id integer, value text)")
 	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(err, w)
 		return
 	}
 
 	_, err = db.Exec("insert into acceptance values (1, 'acceptance')")
 	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(err, w)
 		return
 	}
 
@@ -69,21 +65,18 @@ func mysqlHandler(w http.ResponseWriter, r *http.Request) {
 	row := db.QueryRow("select value from acceptance where id = ?", 1)
 	err = row.Scan(&value)
 	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(err, w)
 		return
 	}
 
 	if value != "acceptance" {
-		log.Println(fmt.Sprintf("incorrect value: %s", value))
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(fmt.Errorf("incorrect value: %s", value), w)
 		return
 	}
 
 	_, err = db.Exec("drop table acceptance")
 	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(err, w)
 		return
 	}
 
@@ -94,30 +87,26 @@ func postgresHandler(w http.ResponseWriter, r *http.Request) {
 	u, _ := url.Parse(creds["uri"].(string))
 	db, err := sql.Open(u.Scheme, creds["uri"].(string))
 	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(err, w)
 		return
 	}
 
 	// Write and read data
 	_, err = db.Exec("drop table if exists acceptance")
 	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(err, w)
 		return
 	}
 
 	_, err = db.Exec("create table acceptance (id integer, value text)")
 	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(err, w)
 		return
 	}
 
 	_, err = db.Exec("insert into acceptance values (1, 'acceptance')")
 	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(err, w)
 		return
 	}
 
@@ -125,23 +114,25 @@ func postgresHandler(w http.ResponseWriter, r *http.Request) {
 	row := db.QueryRow("select value from acceptance where id = $1", 1)
 	err = row.Scan(&value)
 	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(err, w)
 		return
 	}
 
 	if value != "acceptance" {
-		log.Println(fmt.Sprintf("incorrect value: %s", value))
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(fmt.Errorf("incorrect value: %s", value), w)
 		return
 	}
 
 	_, err = db.Exec("drop table acceptance")
 	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		reportError(err, w)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func reportError(err error, w http.ResponseWriter) {
+	log.Println(err.Error())
+	w.WriteHeader(http.StatusInternalServerError)
 }
