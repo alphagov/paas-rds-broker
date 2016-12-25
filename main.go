@@ -82,7 +82,7 @@ func main() {
 
 	dbInstance := awsrds.NewRDSDBInstance(config.RDSConfig.Region, rdssvc, stssvc, logger)
 
-	sqlProvider := sqlengine.NewProviderService(logger, config.StateEncryptionKey)
+	sqlProvider := sqlengine.NewProviderService(logger, config.GroupName)
 
 	serviceBroker := rdsbroker.New(config.RDSConfig, dbInstance, sqlProvider, logger)
 

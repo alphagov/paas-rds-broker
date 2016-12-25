@@ -148,7 +148,7 @@ func (b *RDSBroker) Update(instanceID string, details brokerapi.UpdateDetails, a
 		if err := updateParameters.Validate(); err != nil {
 			return false, err
 		}
-		b.logger.Debug("update-parsed-params", lager.Data{updateParametersLogKey: updateParameters,})
+		b.logger.Debug("update-parsed-params", lager.Data{updateParametersLogKey: updateParameters})
 	}
 
 	service, ok := b.catalog.FindService(details.ServiceID)

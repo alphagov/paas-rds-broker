@@ -11,11 +11,11 @@ import (
 )
 
 type Config struct {
-	LogLevel           string           `json:"log_level"`
-	Username           string           `json:"username"`
-	Password           string           `json:"password"`
-	StateEncryptionKey string           `json:"state_encryption_key"`
-	RDSConfig          rdsbroker.Config `json:"rds_config"`
+	LogLevel  string           `json:"log_level"`
+	Username  string           `json:"username"`
+	Password  string           `json:"password"`
+	GroupName string           `json:"group_name"`
+	RDSConfig rdsbroker.Config `json:"rds_config"`
 }
 
 func LoadConfig(configFile string) (config *Config, err error) {
@@ -38,6 +38,7 @@ func LoadConfig(configFile string) (config *Config, err error) {
 		return config, err
 	}
 
+	config.FillDefaults()
 	if err = config.Validate(); err != nil {
 		return config, fmt.Errorf("Validating config contents: %s", err)
 	}
@@ -45,7 +46,7 @@ func LoadConfig(configFile string) (config *Config, err error) {
 	return config, nil
 }
 
-func (c Config) Validate() error {
+func (c *Config) Validate() error {
 	if c.LogLevel == "" {
 		return errors.New("Must provide a non-empty LogLevel")
 	}
@@ -58,13 +59,15 @@ func (c Config) Validate() error {
 		return errors.New("Must provide a non-empty Password")
 	}
 
-	if c.StateEncryptionKey == "" {
-		return errors.New("Must provide a non-empty StateEncryptionKey")
-	}
-
 	if err := c.RDSConfig.Validate(); err != nil {
 		return fmt.Errorf("Validating RDS configuration: %s", err)
 	}
 
 	return nil
+}
+
+func (c *Config) FillDefaults() {
+	if c.GroupName == "" {
+		c.GroupName = "rds_broker"
+	}
 }
