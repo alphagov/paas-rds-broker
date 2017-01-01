@@ -1,13 +1,38 @@
 package sqlengine
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
+	"text/template"
 
 	"github.com/lib/pq" // PostgreSQL Driver
-
 	"github.com/pivotal-golang/lager"
 )
+
+var ensureTriggerPattern = `
+create or replace function reassign_owned() returns event_trigger language plpgsql as $$
+begin
+	if pg_has_role(current_user, '{{.role}}', 'member') then
+		execute 'reassign owned by "' || current_user || '" to "{{.role}}"';
+	end if;
+end
+$$;
+`
+var ensureGroupPattern = `
+do
+$body$
+begin
+	if not exists (select * from pg_catalog.pg_roles where rolname = '{{.role}}') then
+		create role "{{.role}}";
+	end if;
+	grant all privileges on database "{{.database}}" to "{{.role}}";
+end
+$body$
+`
+
+var ensureTriggerTemplate = template.Must(template.New("ensureTrigger").Parse(ensureTriggerPattern))
+var ensureGroupTemplate = template.Must(template.New("ensureGroup").Parse(ensureGroupPattern))
 
 type PostgresEngine struct {
 	logger    lager.Logger
@@ -107,27 +132,17 @@ func (d *PostgresEngine) JDBCURI(address string, port int64, dbname string, user
 	return fmt.Sprintf("jdbc:postgresql://%s:%d/%s?user=%s&password=%s", address, port, dbname, username, password)
 }
 
-// generatePostgresUsername produces a deterministic user name. This is because the role
-// will be persisted across multiple application bindings
-func generatePostgresUsername(dbname string) string {
-	return dbname + "_owner"
-}
-
 func (d *PostgresEngine) ensureGroup(dbname string) error {
-	ensureGroupStatement := fmt.Sprintf(`
-		do
-		$body$
-		begin
-			if not exists (select * from pg_catalog.pg_roles where rolname = '%s') then
-				create role "%s";
-			end if;
-			grant all privileges on database "%s" to "%s";
-		end
-		$body$
-	`, d.groupName, d.groupName, dbname, d.groupName)
-	d.logger.Debug("ensure-group", lager.Data{"statement": ensureGroupStatement})
+	var ensureGroupStatement bytes.Buffer
+	if err := ensureGroupTemplate.Execute(&ensureGroupStatement, map[string]string{
+		"role":     d.groupName,
+		"database": dbname,
+	}); err != nil {
+		return err
+	}
+	d.logger.Debug("ensure-group", lager.Data{"statement": ensureGroupStatement.String()})
 
-	if _, err := d.db.Exec(ensureGroupStatement); err != nil {
+	if _, err := d.db.Exec(ensureGroupStatement.String()); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
@@ -148,16 +163,15 @@ func (d *PostgresEngine) ensureTrigger() error {
 		}
 	}()
 
+	var ensureTriggerStatement bytes.Buffer
+	if err := ensureTriggerTemplate.Execute(&ensureTriggerStatement, map[string]string{
+		"role": d.groupName,
+	}); err != nil {
+		return err
+	}
+
 	cmds := []string{
-		fmt.Sprintf(`
-			create or replace function reassign_owned() returns event_trigger language plpgsql as $$
-			begin
-				if pg_has_role(current_user, '%s', 'member') then
-					execute 'reassign owned by "' || current_user || '" to "%s"';
-				end if;
-			end
-			$$;
-		`, d.groupName, d.groupName),
+		ensureTriggerStatement.String(),
 		`drop event trigger if exists reassign_owned;`,
 		`create event trigger reassign_owned on ddl_command_end execute procedure reassign_owned();`,
 	}
