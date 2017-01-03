@@ -17,6 +17,12 @@ type Config struct {
 	Catalog                      Catalog `json:"catalog"`
 }
 
+func (c *Config) FillDefaults() {
+	if c.AWSPartition == "" {
+		c.AWSPartition = "aws"
+	}
+}
+
 func (c Config) Validate() error {
 	if c.Region == "" {
 		return errors.New("Must provide a non-empty Region")
@@ -28,10 +34,6 @@ func (c Config) Validate() error {
 
 	if c.BrokerName == "" {
 		return errors.New("Must provide a non-empty BrokerName")
-	}
-
-	if c.AWSPartition == "" {
-		c.AWSPartition = "aws"
 	}
 
 	if c.MasterPasswordSeed == "" {

@@ -62,6 +62,7 @@ func (c Config) Validate() error {
 		return errors.New("Must provide a non-empty StateEncryptionKey")
 	}
 
+	c.RDSConfig.FillDefaults()
 	if err := c.RDSConfig.Validate(); err != nil {
 		return fmt.Errorf("Validating RDS configuration: %s", err)
 	}

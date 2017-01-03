@@ -29,6 +29,24 @@ var _ = Describe("Config", func() {
 		}
 	)
 
+	Describe("FillDefaults", func() {
+		BeforeEach(func() {
+			config = validConfig
+		})
+
+		It("sets default aws partition if empty", func() {
+			config.AWSPartition = ""
+			config.FillDefaults()
+			Expect(config.AWSPartition).To(Equal("aws"))
+		})
+
+		It("preserves aws partition if not empty", func() {
+			config.AWSPartition = "not-empty-partition"
+			config.FillDefaults()
+			Expect(config.AWSPartition).To(Equal("not-empty-partition"))
+		})
+	})
+
 	Describe("Validate", func() {
 		BeforeEach(func() {
 			config = validConfig
