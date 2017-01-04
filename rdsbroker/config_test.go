@@ -41,9 +41,8 @@ var _ = Describe("Config", func() {
 		})
 
 		It("preserves aws partition if not empty", func() {
-			config.AWSPartition = "not-empty-partition"
 			config.FillDefaults()
-			Expect(config.AWSPartition).To(Equal("not-empty-partition"))
+			Expect(config.AWSPartition).To(Equal("rds-partition"))
 		})
 	})
 

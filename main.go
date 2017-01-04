@@ -84,7 +84,7 @@ func main() {
 
 	sqlProvider := sqlengine.NewProviderService(logger, config.StateEncryptionKey)
 
-	serviceBroker := rdsbroker.New(config.RDSConfig, dbInstance, sqlProvider, logger)
+	serviceBroker := rdsbroker.New(*config.RDSConfig, dbInstance, sqlProvider, logger)
 
 	go serviceBroker.CheckAndRotateCredentials()
 
