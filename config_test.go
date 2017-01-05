@@ -18,10 +18,11 @@ var _ = Describe("Config", func() {
 			Username:           "broker-username",
 			Password:           "broker-password",
 			StateEncryptionKey: "key",
-			RDSConfig: rdsbroker.Config{
+			RDSConfig: &rdsbroker.Config{
 				Region:             "rds-region",
 				DBPrefix:           "cf",
 				BrokerName:         "mybroker",
+				AWSPartition:       "rds-partition",
 				MasterPasswordSeed: "secret",
 			},
 		}
@@ -70,7 +71,7 @@ var _ = Describe("Config", func() {
 		})
 
 		It("returns error if RDS configuration is not valid", func() {
-			config.RDSConfig = rdsbroker.Config{}
+			config.RDSConfig = &rdsbroker.Config{}
 
 			err := config.Validate()
 			Expect(err).To(HaveOccurred())

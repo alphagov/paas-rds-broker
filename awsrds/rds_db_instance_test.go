@@ -23,6 +23,7 @@ import (
 var _ = Describe("RDS DB Instance", func() {
 	var (
 		region               string
+		partition            string
 		dbInstanceIdentifier string
 
 		awsSession *session.Session
@@ -41,6 +42,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 	BeforeEach(func() {
 		region = "rds-region"
+		partition = "rds-partition"
 		dbInstanceIdentifier = "cf-instance-id"
 	})
 
@@ -54,7 +56,7 @@ var _ = Describe("RDS DB Instance", func() {
 		testSink = lagertest.NewTestSink()
 		logger.RegisterSink(testSink)
 
-		rdsDBInstance = NewRDSDBInstance(region, rdssvc, stssvc, logger)
+		rdsDBInstance = NewRDSDBInstance(region, partition, rdssvc, stssvc, logger)
 	})
 
 	var _ = Describe("Describe", func() {
@@ -368,7 +370,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 					listTagsForResourceInput := r.Params.(*rds.ListTagsForResourceInput)
 					gotARN := *listTagsForResourceInput.ResourceName
-					expectedARN := fmt.Sprintf("arn:aws:rds:%s:123456789012:db:%s", region, dbInstanceIdentifier)
+					expectedARN := fmt.Sprintf("arn:%s:rds:%s:123456789012:db:%s", partition, region, dbInstanceIdentifier)
 					Expect(gotARN).To(HavePrefix(expectedARN))
 
 					data := r.Data.(*rds.ListTagsForResourceOutput)
@@ -854,7 +856,7 @@ var _ = Describe("RDS DB Instance", func() {
 			modifyDBInstanceError = nil
 
 			addTagsToResourceInput = &rds.AddTagsToResourceInput{
-				ResourceName: aws.String("arn:aws:rds:rds-region:" + account + ":db:" + dbInstanceIdentifier),
+				ResourceName: aws.String("arn:" + partition + ":rds:rds-region:" + account + ":db:" + dbInstanceIdentifier),
 				Tags: []*rds.Tag{
 					&rds.Tag{
 						Key:   aws.String("Owner"),

@@ -16,6 +16,7 @@ var _ = Describe("Config", func() {
 			DBPrefix:           "cf",
 			MasterPasswordSeed: "secret",
 			BrokerName:         "mybroker",
+			AWSPartition:       "rds-partition",
 			Catalog: Catalog{
 				[]Service{
 					Service{
@@ -27,6 +28,23 @@ var _ = Describe("Config", func() {
 			},
 		}
 	)
+
+	Describe("FillDefaults", func() {
+		BeforeEach(func() {
+			config = validConfig
+		})
+
+		It("sets default aws partition if empty", func() {
+			config.AWSPartition = ""
+			config.FillDefaults()
+			Expect(config.AWSPartition).To(Equal("aws"))
+		})
+
+		It("preserves aws partition if not empty", func() {
+			config.FillDefaults()
+			Expect(config.AWSPartition).To(Equal("rds-partition"))
+		})
+	})
 
 	Describe("Validate", func() {
 		BeforeEach(func() {
