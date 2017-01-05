@@ -1,8 +1,10 @@
 package acceptance_test
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os/exec"
 	"regexp"
 	"time"
@@ -11,8 +13,10 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/cloudfoundry-incubator/cf-test-helpers/cf"
+	cfg "github.com/cloudfoundry-incubator/cf-test-helpers/config"
 	"github.com/cloudfoundry-incubator/cf-test-helpers/generator"
 	"github.com/cloudfoundry-incubator/cf-test-helpers/helpers"
+	"github.com/kelseyhightower/envconfig"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
@@ -23,30 +27,52 @@ const (
 	DB_CREATE_TIMEOUT = 30 * time.Minute
 )
 
-var _ = Describe("RDS broker", func() {
-	const (
-		serviceName              = "postgres"
-		testPlanName             = "Free"
-		testPlanNameWithSnapshot = "S-dedicated-9.5"
-		region                   = "eu-west-1"
-	)
+type Config struct {
+	DefaultTimeout int `envconfig:"default_timeout" default:"30"`
+	CFPushTimeout  int `envconfig:"cf_push_timeout" default:"120"`
 
-	It("should have registered the postgres service", func() {
-		plans := cf.Cf("marketplace").Wait(DEFAULT_TIMEOUT)
+	Service          string   `envconfig:"service" required:"true"`
+	Plans            []string `envconfig:"plans" required:"true"`
+	TestPlan         string   `envconfig:"test_plan" required:"true"`
+	TestPlanSnapshot string   `envconfig:"test_plan_snapshot" required:"true"`
+	Region           string   `envconfig:"region" required:"true"`
+}
+
+var (
+	config         Config
+	cfConfig       *cfg.Config
+	httpClient     *http.Client
+	defaultTimeout time.Duration
+	cfPushTimeout  time.Duration
+)
+
+var _ = Describe("RDS broker", func() {
+	err := envconfig.Process("", &config)
+	Expect(err).NotTo(HaveOccurred())
+
+	cfConfig = cfg.LoadConfig()
+
+	defaultTimeout = time.Duration(config.DefaultTimeout) * time.Second
+	cfPushTimeout = time.Duration(config.CFPushTimeout) * time.Second
+
+	httpClient = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: cfConfig.SkipSSLValidation},
+		},
+	}
+
+	It("should have registered the service", func() {
+		plans := cf.Cf("marketplace").Wait(defaultTimeout)
 		Expect(plans).To(Exit(0))
-		Expect(plans).To(Say(serviceName))
+		Expect(plans).To(Say(config.Service))
 	})
 
 	It("has the expected plans available", func() {
-		plans := cf.Cf("marketplace", "-s", serviceName).Wait(DEFAULT_TIMEOUT)
+		plans := cf.Cf("marketplace", "-s", config.Service).Wait(defaultTimeout)
 		Expect(plans).To(Exit(0))
-		Expect(plans.Out.Contents()).To(ContainSubstring("Free"))
-		Expect(plans.Out.Contents()).To(ContainSubstring("S-dedicated-9.5"))
-		Expect(plans.Out.Contents()).To(ContainSubstring("S-HA-dedicated-9.5"))
-		Expect(plans.Out.Contents()).To(ContainSubstring("M-dedicated-9.5"))
-		Expect(plans.Out.Contents()).To(ContainSubstring("M-HA-dedicated-9.5"))
-		Expect(plans.Out.Contents()).To(ContainSubstring("L-dedicated-9.5"))
-		Expect(plans.Out.Contents()).To(ContainSubstring("L-HA-dedicated-9.5"))
+		for _, plan := range config.Plans {
+			Expect(plans.Out.Contents()).To(ContainSubstring(plan))
+		}
 	})
 
 	Context("creating a database instance", func() {
@@ -59,9 +85,9 @@ var _ = Describe("RDS broker", func() {
 			rdsInstanceName string
 		)
 		BeforeEach(func() {
-			appName = generator.PrefixedRandomName("CATS-APP-")
-			dbInstanceName = generator.PrefixedRandomName("test-db-")
-			Expect(cf.Cf("create-service", serviceName, testPlanName, dbInstanceName).Wait(DEFAULT_TIMEOUT)).To(Exit(0))
+			appName = generator.PrefixedRandomName("CATS", "APP")
+			dbInstanceName = generator.PrefixedRandomName("test", "db")
+			Expect(cf.Cf("create-service", config.Service, config.TestPlan, dbInstanceName).Wait(defaultTimeout)).To(Exit(0))
 
 			pollForRDSCreationCompletion(dbInstanceName)
 
@@ -71,21 +97,21 @@ var _ = Describe("RDS broker", func() {
 			Expect(cf.Cf(
 				"push", appName,
 				"--no-start",
-				"-b", config.GoBuildpackName,
+				"-b", cfConfig.GoBuildpackName,
 				"-p", "../../example-apps/healthcheck",
 				"-f", "../../example-apps/healthcheck/manifest.yml",
-				"-d", config.AppsDomain,
-			).Wait(CF_PUSH_TIMEOUT)).To(Exit(0))
+				"-d", cfConfig.AppsDomain,
+			).Wait(cfPushTimeout)).To(Exit(0))
 
-			Expect(cf.Cf("bind-service", appName, dbInstanceName).Wait(DEFAULT_TIMEOUT)).To(Exit(0))
+			Expect(cf.Cf("bind-service", appName, dbInstanceName).Wait(defaultTimeout)).To(Exit(0))
 
-			Expect(cf.Cf("start", appName).Wait(CF_PUSH_TIMEOUT)).To(Exit(0))
+			Expect(cf.Cf("start", appName).Wait(cfPushTimeout)).To(Exit(0))
 		})
 
 		AfterEach(func() {
-			cf.Cf("delete", appName, "-f").Wait(DEFAULT_TIMEOUT)
+			cf.Cf("delete", appName, "-f").Wait(defaultTimeout)
 
-			Expect(cf.Cf("delete-service", dbInstanceName, "-f").Wait(DEFAULT_TIMEOUT)).To(Exit(0))
+			Expect(cf.Cf("delete-service", dbInstanceName, "-f").Wait(defaultTimeout)).To(Exit(0))
 
 			// Poll until destruction is complete, otherwise the org cleanup (in AfterSuite) fails.
 			pollForRDSDeletionCompletion(dbInstanceName)
@@ -93,14 +119,14 @@ var _ = Describe("RDS broker", func() {
 
 		It("can connect to the DB instance from the app", func() {
 			By("Sending request to DB Healthcheck app")
-			resp, err := httpClient.Get(helpers.AppUri(appName, "/db"))
+			resp, err := httpClient.Get(helpers.AppUri(appName, "/db", cfConfig))
 			Expect(err).NotTo(HaveOccurred())
 			body, err := ioutil.ReadAll(resp.Body)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(200), "Got %d response from healthcheck app. Response body:\n%s\n", resp.StatusCode, string(body))
 
 			By("Sending request to DB Healthcheck app without TLS")
-			resp, err = httpClient.Get(helpers.AppUri(appName, "/db?ssl=false"))
+			resp, err = httpClient.Get(helpers.AppUri(appName, "/db?ssl=false", cfConfig))
 			Expect(err).NotTo(HaveOccurred())
 			body, err = ioutil.ReadAll(resp.Body)
 			Expect(err).NotTo(HaveOccurred())
@@ -108,18 +134,18 @@ var _ = Describe("RDS broker", func() {
 			Expect(body).To(MatchRegexp("no pg_hba.conf entry for .* SSL off"), "Connection without TLS did not report a TLS error")
 
 			By("Testing permissions after unbind and rebind")
-			resp, err = httpClient.Get(helpers.AppUri(appName, "/db/permissions-check?phase=setup"))
+			resp, err = httpClient.Get(helpers.AppUri(appName, "/db/permissions-check?phase=setup", cfConfig))
 			Expect(err).NotTo(HaveOccurred())
 			body, err = ioutil.ReadAll(resp.Body)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(200), "Got %d response setting up multi-user test table. Response body:\n%s\n", resp.StatusCode, string(body))
 
-			Expect(cf.Cf("stop", appName).Wait(DEFAULT_TIMEOUT)).To(Exit(0))
-			Expect(cf.Cf("unbind-service", appName, dbInstanceName).Wait(DEFAULT_TIMEOUT)).To(Exit(0))
-			Expect(cf.Cf("bind-service", appName, dbInstanceName).Wait(DEFAULT_TIMEOUT)).To(Exit(0))
-			Expect(cf.Cf("start", appName).Wait(CF_PUSH_TIMEOUT)).To(Exit(0))
+			Expect(cf.Cf("stop", appName).Wait(defaultTimeout)).To(Exit(0))
+			Expect(cf.Cf("unbind-service", appName, dbInstanceName).Wait(defaultTimeout)).To(Exit(0))
+			Expect(cf.Cf("bind-service", appName, dbInstanceName).Wait(defaultTimeout)).To(Exit(0))
+			Expect(cf.Cf("start", appName).Wait(cfPushTimeout)).To(Exit(0))
 
-			resp, err = httpClient.Get(helpers.AppUri(appName, "/db/permissions-check?phase=test"))
+			resp, err = httpClient.Get(helpers.AppUri(appName, "/db/permissions-check?phase=test", cfConfig))
 			Expect(err).NotTo(HaveOccurred())
 			body, err = ioutil.ReadAll(resp.Body)
 			Expect(err).NotTo(HaveOccurred())
@@ -135,8 +161,8 @@ var _ = Describe("RDS broker", func() {
 		)
 
 		BeforeEach(func() {
-			dbInstanceName = generator.PrefixedRandomName("test-db-")
-			Expect(cf.Cf("create-service", serviceName, testPlanNameWithSnapshot, dbInstanceName).Wait(DEFAULT_TIMEOUT)).To(Exit(0))
+			dbInstanceName = generator.PrefixedRandomName("test", "db")
+			Expect(cf.Cf("create-service", config.Service, config.TestPlanSnapshot, dbInstanceName).Wait(defaultTimeout)).To(Exit(0))
 
 			pollForRDSCreationCompletion(dbInstanceName)
 
@@ -145,12 +171,12 @@ var _ = Describe("RDS broker", func() {
 		})
 
 		It("should create a final snapshot by default", func() {
-			Expect(cf.Cf("delete-service", dbInstanceName, "-f").Wait(DEFAULT_TIMEOUT)).To(Exit(0))
+			Expect(cf.Cf("delete-service", dbInstanceName, "-f").Wait(defaultTimeout)).To(Exit(0))
 
 			// Poll until destruction is complete, and the snapshot will therefore have been created.
 			pollForRDSDeletionCompletion(dbInstanceName)
 
-			rdsClient, err := NewRDSClient(region)
+			rdsClient, err := NewRDSClient(config.Region)
 			Expect(err).NotTo(HaveOccurred())
 			snapshots, err := rdsClient.GetDBFinalSnapshots(rdsInstanceName)
 			fmt.Fprintf(GinkgoWriter, "Final snapshots for %s:\n", rdsInstanceName)
@@ -165,14 +191,14 @@ var _ = Describe("RDS broker", func() {
 		})
 
 		It("should not create a final snapshot when `skip_final_snapshot` is set to true", func() {
-			Expect(cf.Cf("update-service", dbInstanceName, "-c", `{"skip_final_snapshot": "true"}`).Wait(DEFAULT_TIMEOUT)).To(Exit(0))
+			Expect(cf.Cf("update-service", dbInstanceName, "-c", `{"skip_final_snapshot": "true"}`).Wait(defaultTimeout)).To(Exit(0))
 			pollForRDSUpdateCompletion(dbInstanceName)
-			Expect(cf.Cf("delete-service", dbInstanceName, "-f").Wait(DEFAULT_TIMEOUT)).To(Exit(0))
+			Expect(cf.Cf("delete-service", dbInstanceName, "-f").Wait(defaultTimeout)).To(Exit(0))
 
 			// Poll until destruction is complete, and the snapshot would therefore have been created.
 			pollForRDSDeletionCompletion(dbInstanceName)
 
-			rdsClient, err := NewRDSClient(region)
+			rdsClient, err := NewRDSClient(config.Region)
 			Expect(err).NotTo(HaveOccurred())
 			snapshots, err := rdsClient.GetDBFinalSnapshots(rdsInstanceName)
 			fmt.Fprintf(GinkgoWriter, "Final snapshots for %s:\n", rdsInstanceName)
@@ -193,7 +219,7 @@ func pollForRDSCreationCompletion(dbInstanceName string) {
 	fmt.Fprint(GinkgoWriter, "Polling for RDS creation to complete")
 	Eventually(func() *Buffer {
 		fmt.Fprint(GinkgoWriter, ".")
-		command := quietCf("cf", "service", dbInstanceName).Wait(DEFAULT_TIMEOUT)
+		command := quietCf("cf", "service", dbInstanceName).Wait(defaultTimeout)
 		Expect(command).To(Exit(0))
 		return command.Out
 	}, DB_CREATE_TIMEOUT, 15*time.Second).Should(Say("create succeeded"))
@@ -204,7 +230,7 @@ func pollForRDSDeletionCompletion(dbInstanceName string) {
 	fmt.Fprint(GinkgoWriter, "Polling for RDS destruction to complete")
 	Eventually(func() *Buffer {
 		fmt.Fprint(GinkgoWriter, ".")
-		command := quietCf("cf", "services").Wait(DEFAULT_TIMEOUT)
+		command := quietCf("cf", "services").Wait(defaultTimeout)
 		Expect(command).To(Exit(0))
 		return command.Out
 	}, DB_CREATE_TIMEOUT, 15*time.Second).ShouldNot(Say(dbInstanceName))
@@ -215,7 +241,7 @@ func pollForRDSUpdateCompletion(dbInstanceName string) {
 	fmt.Fprint(GinkgoWriter, "Polling for RDS update to complete")
 	Eventually(func() *Buffer {
 		fmt.Fprint(GinkgoWriter, ".")
-		command := quietCf("cf", "service", dbInstanceName).Wait(DEFAULT_TIMEOUT)
+		command := quietCf("cf", "service", dbInstanceName).Wait(defaultTimeout)
 		Expect(command).To(Exit(0))
 		return command.Out
 	}, DB_CREATE_TIMEOUT, 15*time.Second).Should(Say("update succeeded"))
@@ -223,7 +249,7 @@ func pollForRDSUpdateCompletion(dbInstanceName string) {
 }
 
 func getRDSInstanceName(dbInstanceName string) string {
-	serviceOutput := cf.Cf("service", dbInstanceName).Wait(DEFAULT_TIMEOUT)
+	serviceOutput := cf.Cf("service", dbInstanceName).Wait(defaultTimeout)
 	Expect(serviceOutput).To(Exit(0))
 	rxp, _ := regexp.Compile("rdsbroker-([a-z0-9-]+)")
 	return string(rxp.Find(serviceOutput.Out.Contents()))
