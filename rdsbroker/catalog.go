@@ -2,6 +2,7 @@ package rdsbroker
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -9,7 +10,13 @@ const minAllocatedStorage = 5
 const maxAllocatedStorage = 6144
 
 type Catalog struct {
-	Services []Service `json:"services,omitempty"`
+	Services       []Service `json:"services,omitempty"`
+	ExcludeEngines []Engine  `json:"exclude_engines"`
+}
+
+type Engine struct {
+	Engine        string `json:"engine"`
+	EngineVersion string `json:"engine_version"`
 }
 
 type Service struct {
@@ -90,7 +97,7 @@ type RDSProperties struct {
 
 func (c Catalog) Validate() error {
 	for _, service := range c.Services {
-		if err := service.Validate(); err != nil {
+		if err := service.Validate(c); err != nil {
 			return fmt.Errorf("Validating Services configuration: %s", err)
 		}
 	}
@@ -120,7 +127,7 @@ func (c Catalog) FindServicePlan(planID string) (plan ServicePlan, found bool) {
 	return plan, false
 }
 
-func (s Service) Validate() error {
+func (s Service) Validate(c Catalog) error {
 	if s.ID == "" {
 		return fmt.Errorf("Must provide a non-empty ID (%+v)", s)
 	}
@@ -134,7 +141,7 @@ func (s Service) Validate() error {
 	}
 
 	for _, servicePlan := range s.Plans {
-		if err := servicePlan.Validate(); err != nil {
+		if err := servicePlan.Validate(c); err != nil {
 			return fmt.Errorf("Validating Plans configuration: %s", err)
 		}
 	}
@@ -142,7 +149,7 @@ func (s Service) Validate() error {
 	return nil
 }
 
-func (sp ServicePlan) Validate() error {
+func (sp ServicePlan) Validate(c Catalog) error {
 	if sp.ID == "" {
 		return fmt.Errorf("Must provide a non-empty ID (%+v)", sp)
 	}
@@ -155,14 +162,14 @@ func (sp ServicePlan) Validate() error {
 		return fmt.Errorf("Must provide a non-empty Description (%+v)", sp)
 	}
 
-	if err := sp.RDSProperties.Validate(); err != nil {
+	if err := sp.RDSProperties.Validate(c); err != nil {
 		return fmt.Errorf("Validating RDS Properties configuration: %s", err)
 	}
 
 	return nil
 }
 
-func (rp RDSProperties) Validate() error {
+func (rp RDSProperties) Validate(c Catalog) error {
 	if rp.DBInstanceClass == "" {
 		return fmt.Errorf("Must provide a non-empty DBInstanceClass (%+v)", rp)
 	}
@@ -177,6 +184,18 @@ func (rp RDSProperties) Validate() error {
 	case "postgres":
 	default:
 		return fmt.Errorf("This broker does not support RDS engine '%s' (%+v)", rp.Engine, rp)
+	}
+
+	for _, engine := range c.ExcludeEngines {
+		if strings.ToLower(engine.Engine) == strings.ToLower(rp.Engine) {
+			match, err := regexp.MatchString(engine.EngineVersion, rp.EngineVersion)
+			if err != nil {
+				return err
+			}
+			if match {
+				return fmt.Errorf("This broker does not support version '%s' of engine '%s'", rp.Engine, rp.EngineVersion)
+			}
+		}
 	}
 
 	return nil

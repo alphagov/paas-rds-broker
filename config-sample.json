@@ -474,6 +474,11 @@
             }
           ]
         }
+      ],
+      "exclude_engines": [
+        {"engine": "postgres", "engine_version": "^9\\.3\\."},
+        {"engine": "postgres", "engine_version": "^9\\.4\\.[0-8]$"},
+        {"engine": "postgres", "engine_version": "^9\\.5\\.[0-4]$"}
       ]
     }
   }
