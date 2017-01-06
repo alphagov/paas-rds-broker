@@ -18,13 +18,14 @@ var _ = Describe("Config", func() {
 			BrokerName:         "mybroker",
 			AWSPartition:       "rds-partition",
 			Catalog: Catalog{
-				[]Service{
+				Services: []Service{
 					Service{
 						ID:          "service-1",
 						Name:        "Service 1",
 						Description: "Service 1 description",
 					},
 				},
+				ExcludeEngines: []Engine{},
 			},
 		}
 	)
@@ -90,9 +91,10 @@ var _ = Describe("Config", func() {
 
 		It("returns error if Catalog is not valid", func() {
 			config.Catalog = Catalog{
-				[]Service{
+				Services: []Service{
 					Service{},
 				},
+				ExcludeEngines: []Engine{},
 			}
 
 			err := config.Validate()
