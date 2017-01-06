@@ -11,11 +11,10 @@ import (
 )
 
 type Config struct {
-	LogLevel  string           `json:"log_level"`
-	Username  string           `json:"username"`
-	Password  string           `json:"password"`
-	GroupName string           `json:"group_name"`
-	RDSConfig rdsbroker.Config `json:"rds_config"`
+	LogLevel  string            `json:"log_level"`
+	Username  string            `json:"username"`
+	Password  string            `json:"password"`
+	RDSConfig *rdsbroker.Config `json:"rds_config"`
 }
 
 func LoadConfig(configFile string) (config *Config, err error) {
@@ -39,6 +38,7 @@ func LoadConfig(configFile string) (config *Config, err error) {
 	}
 
 	config.FillDefaults()
+
 	if err = config.Validate(); err != nil {
 		return config, fmt.Errorf("Validating config contents: %s", err)
 	}
@@ -46,7 +46,11 @@ func LoadConfig(configFile string) (config *Config, err error) {
 	return config, nil
 }
 
-func (c *Config) Validate() error {
+func (c Config) FillDefaults() {
+	c.RDSConfig.FillDefaults()
+}
+
+func (c Config) Validate() error {
 	if c.LogLevel == "" {
 		return errors.New("Must provide a non-empty LogLevel")
 	}
@@ -64,10 +68,4 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
-}
-
-func (c *Config) FillDefaults() {
-	if c.GroupName == "" {
-		c.GroupName = "rds_broker"
-	}
 }

@@ -8,14 +8,12 @@ import (
 )
 
 type ProviderService struct {
-	logger    lager.Logger
-	groupName string
+	logger lager.Logger
 }
 
-func NewProviderService(logger lager.Logger, groupName string) *ProviderService {
+func NewProviderService(logger lager.Logger) *ProviderService {
 	return &ProviderService{
-		logger:    logger,
-		groupName: groupName,
+		logger: logger,
 	}
 }
 
@@ -24,7 +22,7 @@ func (p *ProviderService) GetSQLEngine(engine string) (SQLEngine, error) {
 	case "mariadb", "mysql":
 		return NewMySQLEngine(p.logger), nil
 	case "postgres", "postgresql":
-		return NewPostgresEngine(p.logger, p.groupName), nil
+		return NewPostgresEngine(p.logger), nil
 	}
 
 	return nil, fmt.Errorf("SQL Engine '%s' not supported", engine)

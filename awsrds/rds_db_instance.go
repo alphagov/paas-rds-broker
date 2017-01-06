@@ -13,23 +13,26 @@ import (
 )
 
 type RDSDBInstance struct {
-	region string
-	rdssvc *rds.RDS
-	stssvc *sts.STS
-	logger lager.Logger
+	region    string
+	partition string
+	rdssvc    *rds.RDS
+	stssvc    *sts.STS
+	logger    lager.Logger
 }
 
 func NewRDSDBInstance(
 	region string,
+	partition string,
 	rdssvc *rds.RDS,
 	stssvc *sts.STS,
 	logger lager.Logger,
 ) *RDSDBInstance {
 	return &RDSDBInstance{
-		region: region,
-		rdssvc: rdssvc,
-		stssvc: stssvc,
-		logger: logger.Session("db-instance"),
+		region:    region,
+		partition: partition,
+		rdssvc:    rdssvc,
+		stssvc:    stssvc,
+		logger:    logger.Session("db-instance"),
 	}
 }
 
@@ -459,7 +462,7 @@ func (r *RDSDBInstance) dbInstanceARN(ID string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("arn:aws:rds:%s:%s:db:%s", r.region, userAccount, ID), nil
+	return fmt.Sprintf("arn:%s:rds:%s:%s:db:%s", r.partition, r.region, userAccount, ID), nil
 }
 
 func (r *RDSDBInstance) allowMajorVersionUpgrade(newEngineVersion, oldEngineVersion string) bool {

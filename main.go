@@ -80,11 +80,11 @@ func main() {
 	rdssvc := rds.New(awsSession)
 	stssvc := sts.New(awsSession)
 
-	dbInstance := awsrds.NewRDSDBInstance(config.RDSConfig.Region, rdssvc, stssvc, logger)
+	dbInstance := awsrds.NewRDSDBInstance(config.RDSConfig.Region, config.RDSConfig.AWSPartition, rdssvc, stssvc, logger)
 
-	sqlProvider := sqlengine.NewProviderService(logger, config.GroupName)
+	sqlProvider := sqlengine.NewProviderService(logger)
 
-	serviceBroker := rdsbroker.New(config.RDSConfig, dbInstance, sqlProvider, logger)
+	serviceBroker := rdsbroker.New(*config.RDSConfig, dbInstance, sqlProvider, logger)
 
 	go serviceBroker.CheckAndRotateCredentials()
 

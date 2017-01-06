@@ -10,15 +10,6 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
-var ensureTriggerPattern = `
-create or replace function reassign_owned() returns event_trigger language plpgsql as $$
-begin
-	if pg_has_role(current_user, '{{.role}}', 'member') then
-		execute 'reassign owned by "' || current_user || '" to "{{.role}}"';
-	end if;
-end
-$$;
-`
 var ensureGroupPattern = `
 do
 $body$
@@ -30,20 +21,27 @@ begin
 end
 $body$
 `
+var ensureTriggerPattern = `
+create or replace function reassign_owned() returns event_trigger language plpgsql as $$
+begin
+	if pg_has_role(current_user, '{{.role}}', 'member') then
+		execute 'reassign owned by "' || current_user || '" to "{{.role}}"';
+	end if;
+end
+$$;
+`
 
 var ensureTriggerTemplate = template.Must(template.New("ensureTrigger").Parse(ensureTriggerPattern))
 var ensureGroupTemplate = template.Must(template.New("ensureGroup").Parse(ensureGroupPattern))
 
 type PostgresEngine struct {
-	logger    lager.Logger
-	db        *sql.DB
-	groupName string
+	logger lager.Logger
+	db     *sql.DB
 }
 
-func NewPostgresEngine(logger lager.Logger, groupName string) *PostgresEngine {
+func NewPostgresEngine(logger lager.Logger) *PostgresEngine {
 	return &PostgresEngine{
-		logger:    logger.Session("postgres-engine"),
-		groupName: groupName,
+		logger: logger.Session("postgres-engine"),
 	}
 }
 
@@ -82,11 +80,9 @@ func (d *PostgresEngine) Close() {
 }
 
 func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
-	if err := d.ensureGroup(dbname); err != nil {
-		return "", "", err
-	}
+	groupname := d.generatePostgresGroup(dbname)
 
-	if err := d.ensureTrigger(); err != nil {
+	if err := d.ensureTrigger(dbname, groupname); err != nil {
 		return "", "", err
 	}
 
@@ -101,7 +97,7 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, passwor
 		return "", "", err
 	}
 
-	grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, d.groupName, username)
+	grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, username)
 	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
@@ -132,25 +128,35 @@ func (d *PostgresEngine) JDBCURI(address string, port int64, dbname string, user
 	return fmt.Sprintf("jdbc:postgresql://%s:%d/%s?user=%s&password=%s", address, port, dbname, username, password)
 }
 
-func (d *PostgresEngine) ensureGroup(dbname string) error {
+// generatePostgresGroup produces a deterministic group name. This is because the role
+// will be persisted across all application bindings
+func (d *PostgresEngine) generatePostgresGroup(dbname string) string {
+	return dbname + "_manager"
+}
+
+func (d *PostgresEngine) ensureTrigger(dbname, groupname string) error {
 	var ensureGroupStatement bytes.Buffer
 	if err := ensureGroupTemplate.Execute(&ensureGroupStatement, map[string]string{
-		"role":     d.groupName,
+		"role":     groupname,
 		"database": dbname,
 	}); err != nil {
 		return err
 	}
-	d.logger.Debug("ensure-group", lager.Data{"statement": ensureGroupStatement.String()})
 
-	if _, err := d.db.Exec(ensureGroupStatement.String()); err != nil {
-		d.logger.Error("sql-error", err)
+	var ensureTriggerStatement bytes.Buffer
+	if err := ensureTriggerTemplate.Execute(&ensureTriggerStatement, map[string]string{
+		"role": groupname,
+	}); err != nil {
 		return err
 	}
 
-	return nil
-}
+	statements := []string{
+		ensureGroupStatement.String(),
+		ensureTriggerStatement.String(),
+		`drop event trigger if exists reassign_owned;`,
+		`create event trigger reassign_owned on ddl_command_end execute procedure reassign_owned();`,
+	}
 
-func (d *PostgresEngine) ensureTrigger() error {
 	tx, err := d.db.Begin()
 	if err != nil {
 		return err
@@ -163,22 +169,9 @@ func (d *PostgresEngine) ensureTrigger() error {
 		}
 	}()
 
-	var ensureTriggerStatement bytes.Buffer
-	if err := ensureTriggerTemplate.Execute(&ensureTriggerStatement, map[string]string{
-		"role": d.groupName,
-	}); err != nil {
-		return err
-	}
-
-	cmds := []string{
-		ensureTriggerStatement.String(),
-		`drop event trigger if exists reassign_owned;`,
-		`create event trigger reassign_owned on ddl_command_end execute procedure reassign_owned();`,
-	}
-
-	for _, cmd := range cmds {
-		d.logger.Debug("ensure-trigger", lager.Data{"statement": cmd})
-		_, err = tx.Exec(cmd)
+	for _, statement := range statements {
+		d.logger.Debug("ensure-trigger", lager.Data{"statement": statement})
+		_, err = tx.Exec(statement)
 		if err != nil {
 			d.logger.Error("sql-error", err)
 			return err
