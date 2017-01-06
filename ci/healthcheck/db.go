@@ -6,15 +6,19 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 
+	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 )
 
 func dbHandler(w http.ResponseWriter, r *http.Request) {
 	ssl := r.FormValue("ssl") != "false"
+	driver := r.FormValue("driver")
 
-	err := testDBConnection(ssl)
+	err := testDBConnection(ssl, driver)
 	if err != nil {
+		fmt.Println("Error: " + err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -24,18 +28,35 @@ func dbHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func testDBConnection(ssl bool) error {
+func getDSN(ssl bool, driver string) (string, error) {
 	dbURL, err := url.Parse(os.Getenv("DATABASE_URL"))
+	if err != nil {
+		return "", err
+	}
+
+	switch driver {
+	case "postgres":
+		if ssl {
+			dbURL.RawQuery = dbURL.RawQuery + "&sslmode=verify-full"
+		} else {
+			dbURL.RawQuery = dbURL.RawQuery + "&sslmode=disable"
+		}
+		return dbURL.String(), nil
+	case "mysql":
+		dbURL.Host = fmt.Sprintf("tcp(%s)", dbURL.Host)
+		dbURL.RawQuery = ""
+		return strings.Replace(dbURL.String(), "mysql2://", "", -1), nil
+	default:
+		return "", fmt.Errorf("Unknown driver: %s", driver)
+	}
+}
+
+func testDBConnection(ssl bool, driver string) error {
+	dsn, err := getDSN(ssl, driver)
 	if err != nil {
 		return err
 	}
-	if ssl {
-		dbURL.RawQuery = dbURL.RawQuery + "&sslmode=verify-full"
-	} else {
-		dbURL.RawQuery = dbURL.RawQuery + "&sslmode=disable"
-	}
-
-	db, err := sql.Open("postgres", dbURL.String())
+	db, err := sql.Open(driver, dsn)
 	if err != nil {
 		return err
 	}

@@ -4,9 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"net/url"
-	"os"
 
+	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 )
 
@@ -18,11 +17,21 @@ func dbPermissionsCheckHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	phase := r.FormValue("phase")
+	ssl := r.FormValue("ssl") != "false"
+	driver := r.FormValue("driver")
+
+	dsn, err := getDSN(ssl, driver)
+	if err != nil {
+		fmt.Println("Error: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	switch phase {
 	case "setup":
-		err = setupPermissionsCheck()
+		err = setupPermissionsCheck(driver, dsn)
 	case "test":
-		err = testPermissionsCheck()
+		err = testPermissionsCheck(driver, dsn)
 	default:
 		http.Error(w, fmt.Sprintf("Invalid phase '%s' in request.", phase), http.StatusBadRequest)
 		return
@@ -37,12 +46,8 @@ func dbPermissionsCheckHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func setupPermissionsCheck() error {
-	dbURL, err := url.Parse(os.Getenv("DATABASE_URL"))
-	if err != nil {
-		return err
-	}
-	db, err := sql.Open("postgres", dbURL.String())
+func setupPermissionsCheck(driver, dsn string) error {
+	db, err := sql.Open(driver, dsn)
 	if err != nil {
 		return err
 	}
@@ -60,12 +65,8 @@ func setupPermissionsCheck() error {
 	return nil
 }
 
-func testPermissionsCheck() error {
-	dbURL, err := url.Parse(os.Getenv("DATABASE_URL"))
-	if err != nil {
-		return err
-	}
-	db, err := sql.Open("postgres", dbURL.String())
+func testPermissionsCheck(driver, dsn string) error {
+	db, err := sql.Open(driver, dsn)
 	if err != nil {
 		return err
 	}

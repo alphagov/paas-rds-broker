@@ -30,6 +30,8 @@ type Config struct {
 	TestPlan         string   `envconfig:"test_plan" required:"true"`
 	TestPlanSnapshot string   `envconfig:"test_plan_snapshot" required:"true"`
 	Region           string   `envconfig:"region" required:"true"`
+	Driver           string   `envconfig:"driver" required:"true"`
+	ForceSSL         bool     `envconfig:"force_ssl" default:"false"`
 	InstancePrefix   string   `envconfig:"instance_prefix" required:"true"`
 }
 
@@ -96,22 +98,24 @@ var _ = Describe("RDS broker", func() {
 
 		It("can connect to the DB instance from the app", func() {
 			By("Sending request to DB Healthcheck app")
-			resp, err := httpClient.Get(helpers.AppUri(appName, "/db", cfConfig))
-			Expect(err).NotTo(HaveOccurred())
+			resp, err := httpClient.Get(helpers.AppUri(appName, "/db?driver="+config.Driver, cfConfig))
 			body, err := ioutil.ReadAll(resp.Body)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(200), "Got %d response from healthcheck app. Response body:\n%s\n", resp.StatusCode, string(body))
 
 			By("Sending request to DB Healthcheck app without TLS")
-			resp, err = httpClient.Get(helpers.AppUri(appName, "/db?ssl=false", cfConfig))
-			Expect(err).NotTo(HaveOccurred())
+			resp, err = httpClient.Get(helpers.AppUri(appName, "/db?ssl=false&driver="+config.Driver, cfConfig))
 			body, err = ioutil.ReadAll(resp.Body)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(resp.StatusCode).NotTo(Equal(200), "Got %d response from healthcheck app. Response body:\n%s\n", resp.StatusCode, string(body))
-			Expect(body).To(MatchRegexp("no pg_hba.conf entry for .* SSL off"), "Connection without TLS did not report a TLS error")
+			if config.ForceSSL {
+				Expect(resp.StatusCode).NotTo(Equal(200), "Got %d response from healthcheck app. Response body:\n%s\n", resp.StatusCode, string(body))
+				Expect(body).To(MatchRegexp("no pg_hba.conf entry for .* SSL off"), "Connection without TLS did not report a TLS error")
+			} else {
+				Expect(resp.StatusCode).To(Equal(200), "Got %d response from healthcheck app. Response body:\n%s\n", resp.StatusCode, string(body))
+			}
 
 			By("Testing permissions after unbind and rebind")
-			resp, err = httpClient.Get(helpers.AppUri(appName, "/db/permissions-check?phase=setup", cfConfig))
+			resp, err = httpClient.Get(helpers.AppUri(appName, "/db/permissions-check?phase=setup&driver="+config.Driver, cfConfig))
 			Expect(err).NotTo(HaveOccurred())
 			body, err = ioutil.ReadAll(resp.Body)
 			Expect(err).NotTo(HaveOccurred())
@@ -122,7 +126,7 @@ var _ = Describe("RDS broker", func() {
 			Expect(cf.Cf("bind-service", appName, dbInstanceName).Wait(cfConfig.DefaultTimeoutDuration())).To(Exit(0))
 			Expect(cf.Cf("start", appName).Wait(cfConfig.CfPushTimeoutDuration())).To(Exit(0))
 
-			resp, err = httpClient.Get(helpers.AppUri(appName, "/db/permissions-check?phase=test", cfConfig))
+			resp, err = httpClient.Get(helpers.AppUri(appName, "/db/permissions-check?phase=test&driver="+config.Driver, cfConfig))
 			Expect(err).NotTo(HaveOccurred())
 			body, err = ioutil.ReadAll(resp.Body)
 			Expect(err).NotTo(HaveOccurred())

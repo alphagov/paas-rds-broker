@@ -1,0 +1,8 @@
+package: github.com/alphagov/paas-rds-broker/ci/healthcheck
+import:
+- package: github.com/lib/pq
+  version: dd3290b2f71a8b30bee8e4e75a337a825263d26f
+  subpackages:
+  - oid
+- package: github.com/go-sql-driver/mysql
+  version: ~1.3.0
