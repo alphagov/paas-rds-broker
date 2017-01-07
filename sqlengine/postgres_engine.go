@@ -14,10 +14,9 @@ var ensureGroupPattern = `
 do
 $body$
 begin
-	if not exists (select * from pg_catalog.pg_roles where rolname = '{{.role}}') then
+	if not exists (select 1 from pg_catalog.pg_roles where rolname = '{{.role}}') then
 		create role "{{.role}}";
 	end if;
-	grant all privileges on database "{{.database}}" to "{{.role}}";
 end
 $body$
 `
@@ -137,8 +136,7 @@ func (d *PostgresEngine) generatePostgresGroup(dbname string) string {
 func (d *PostgresEngine) ensureTrigger(dbname, groupname string) error {
 	var ensureGroupStatement bytes.Buffer
 	if err := ensureGroupTemplate.Execute(&ensureGroupStatement, map[string]string{
-		"role":     groupname,
-		"database": dbname,
+		"role": groupname,
 	}); err != nil {
 		return err
 	}
@@ -153,6 +151,7 @@ func (d *PostgresEngine) ensureTrigger(dbname, groupname string) error {
 	statements := []string{
 		ensureGroupStatement.String(),
 		ensureTriggerStatement.String(),
+		fmt.Sprintf(`grant all privileges on database "%s" to "%s";`, dbname, groupname),
 		`drop event trigger if exists reassign_owned;`,
 		`create event trigger reassign_owned on ddl_command_end execute procedure reassign_owned();`,
 	}
