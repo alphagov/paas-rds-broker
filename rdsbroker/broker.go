@@ -329,7 +329,10 @@ func (b *RDSBroker) LastOperation(instanceID, operationData string) (brokerapi.L
 	dbInstanceDetails, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
-			return lastOperationResponse, brokerapi.ErrInstanceDoesNotExist
+			return brokerapi.LastOperation{
+				State:       brokerapi.Succeeded,
+				Description: fmt.Sprintf("DB Instance '%s' is deleted", b.dbInstanceIdentifier(instanceID)),
+			}, nil
 		}
 		return lastOperationResponse, err
 	}

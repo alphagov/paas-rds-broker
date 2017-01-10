@@ -1536,15 +1536,26 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err.Error()).To(Equal("operation failed"))
 			})
 
-			Context("when the DB Instance does not exists", func() {
+			Context("when the DB Instance does not exist", func() {
 				BeforeEach(func() {
 					dbInstance.DescribeError = awsrds.ErrDBInstanceDoesNotExist
 				})
 
 				It("returns the proper error", func() {
 					_, err := rdsBroker.LastOperation(instanceID, "")
+					Expect(err).NotTo(HaveOccurred())
+				})
+			})
+
+			Context("when another error occurs", func() {
+				BeforeEach(func() {
+					dbInstance.DescribeError = errors.New("it-blew-up")
+				})
+
+				It("returns the proper error", func() {
+					_, err := rdsBroker.LastOperation(instanceID, "")
 					Expect(err).To(HaveOccurred())
-					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+					Expect(err).To(Equal(dbInstance.DescribeError))
 				})
 			})
 		})
