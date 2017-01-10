@@ -69,6 +69,43 @@ func (r *RDSDBInstance) Describe(ID string) (DBInstanceDetails, error) {
 	return dbInstanceDetails, ErrDBInstanceDoesNotExist
 }
 
+func (r *RDSDBInstance) DescribeMany(IDs []string) ([]DBInstanceDetails, error) {
+	instances := []DBInstanceDetails{}
+
+	values := make([]*string, len(IDs))
+	for idx, value := range IDs {
+		values[idx] = aws.String(value)
+	}
+	describeDBInstancesInput := &rds.DescribeDBInstancesInput{
+		Filters: []*rds.Filter{{
+			Name:   aws.String("db-instance-id"),
+			Values: values,
+		}},
+	}
+
+	r.logger.Debug("describe-db-instances", lager.Data{"input": describeDBInstancesInput})
+
+	dbInstances, err := r.rdssvc.DescribeDBInstances(describeDBInstancesInput)
+	if err != nil {
+		r.logger.Error("aws-rds-error", err)
+		if awsErr, ok := err.(awserr.Error); ok {
+			if reqErr, ok := err.(awserr.RequestFailure); ok {
+				if reqErr.StatusCode() == 404 {
+					return instances, ErrDBInstanceDoesNotExist
+				}
+			}
+			return instances, errors.New(awsErr.Code() + ": " + awsErr.Message())
+		}
+		return instances, err
+	}
+
+	for _, dbInstance := range dbInstances.DBInstances {
+		instances = append(instances, r.buildDBInstance(dbInstance))
+	}
+
+	return instances, nil
+}
+
 func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string) ([]*DBInstanceDetails, error) {
 	dbInstanceDetails := []*DBInstanceDetails{}
 

@@ -21,13 +21,16 @@ type BindingResponse struct {
 }
 
 type CredentialsHash struct {
-	Host     string `json:"host,omitempty"`
-	Port     int64  `json:"port,omitempty"`
-	Name     string `json:"name,omitempty"`
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
-	URI      string `json:"uri,omitempty"`
-	JDBCURI  string `json:"jdbcUrl,omitempty"`
+	Host            string   `json:"host,omitempty"`
+	Port            int64    `json:"port,omitempty"`
+	Name            string   `json:"name,omitempty"`
+	Username        string   `json:"username,omitempty"`
+	Password        string   `json:"password,omitempty"`
+	URI             string   `json:"uri,omitempty"`
+	JDBCURI         string   `json:"jdbcUrl,omitempty"`
+	Replicas        []string `json:"replicas,omitempty"`
+	ReplicaURIs     []string `json:"replica_uris,omitempty"`
+	ReplicaJDBCURIs []string `json:"replica_uris,omitempty"`
 }
 
 type LastOperationResponse struct {
