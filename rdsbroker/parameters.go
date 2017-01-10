@@ -39,6 +39,12 @@ func (pp *ProvisionParameters) Validate() error {
 	return Validate_SkipFinalSnapshot(pp.SkipFinalSnapshot)
 }
 
-func (pp *UpdateParameters) Validate() error {
-	return Validate_SkipFinalSnapshot(pp.SkipFinalSnapshot)
+func (pp *UpdateParameters) Validate(rp RDSProperties) error {
+	if err := Validate_SkipFinalSnapshot(pp.SkipFinalSnapshot); err != nil {
+		return err
+	}
+	if pp.ReadReplicaCount > 0 && !rp.AllowReadReplicas {
+		return errors.New("plan does not allow read replicas")
+	}
+	return nil
 }

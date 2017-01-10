@@ -86,6 +86,7 @@ type RDSProperties struct {
 	VpcSecurityGroupIds        []string `json:"vpc_security_group_ids,omitempty"`
 	CopyTagsToSnapshot         bool     `json:"copy_tags_to_snapshot,omitempty"`
 	SkipFinalSnapshot          bool     `json:"skip_final_snapshot,omitempty"`
+	AllowReadReplicas          bool     `json:"allow_read_replicas,omitempty"`
 }
 
 func (c Catalog) Validate() error {
