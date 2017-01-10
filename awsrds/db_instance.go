@@ -46,6 +46,8 @@ type DBInstanceDetails struct {
 	StorageType                string
 	Tags                       map[string]string
 	VpcSecurityGroupIds        []string
+	ReadReplicaCount           int
+	ReadReplicaIds             []string
 }
 
 var (

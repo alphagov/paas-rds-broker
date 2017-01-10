@@ -168,6 +168,48 @@ func (r *RDSDBInstance) Create(ID string, dbInstanceDetails DBInstanceDetails) e
 	return nil
 }
 
+func (r *RDSDBInstance) listReplicas(ID string) ([]string, error) {
+	details, err := r.Describe(ID)
+	if err != nil {
+		return []string{}, err
+	}
+	return details.ReadReplicaIds, nil
+}
+
+func (r *RDSDBInstance) scaleReplicas(ID string, dbInstanceDetails DBInstanceDetails) error {
+	replicas, err := r.listReplicas(ID)
+	if err != nil {
+		return err
+	}
+
+	count := dbInstanceDetails.ReadReplicaCount
+	if len(replicas) > count {
+		for i := count; i < len(replicas); i++ {
+			err = r.deleteInstance(replicas[i], true)
+			if err != nil {
+				return err
+			}
+		}
+	} else if len(replicas) < count {
+		for i := len(replicas); i < count; i++ {
+			instanceID := fmt.Sprintf("%s-rr%d", ID, i)
+			createReplicaInput := r.buildCreateDBInstanceReadReplicaInput(instanceID, ID, dbInstanceDetails)
+			r.logger.Debug("create-replica", lager.Data{"input": createReplicaInput})
+
+			createReplicaOutput, err := r.rdssvc.CreateDBInstanceReadReplica(createReplicaInput)
+			if err != nil {
+				if awsErr, ok := err.(awserr.Error); ok {
+					return errors.New(awsErr.Code() + ": " + awsErr.Message())
+				}
+				return err
+			}
+			r.logger.Debug("create-replica", lager.Data{"output": createReplicaOutput})
+		}
+	}
+
+	return nil
+}
+
 func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, applyImmediately bool) error {
 	oldDBInstanceDetails, err := r.Describe(ID)
 	if err != nil {
@@ -200,6 +242,10 @@ func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, a
 
 	r.logger.Debug("modify-db-instance", lager.Data{"output": modifyDBInstanceOutput})
 
+	if err := r.scaleReplicas(ID, dbInstanceDetails); err != nil {
+		return err
+	}
+
 	if len(dbInstanceDetails.Tags) > 0 {
 		dbInstanceARN, err := r.dbInstanceARN(ID)
 		if err != nil {
@@ -214,6 +260,21 @@ func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, a
 }
 
 func (r *RDSDBInstance) Delete(ID string, skipFinalSnapshot bool) error {
+	replicas, err := r.listReplicas(ID)
+	if err != nil {
+		return err
+	}
+
+	for _, replica := range replicas {
+		if err := r.deleteInstance(replica, true); err != nil {
+			return err
+		}
+	}
+
+	return r.deleteInstance(ID, skipFinalSnapshot)
+}
+
+func (r *RDSDBInstance) deleteInstance(ID string, skipFinalSnapshot bool) error {
 	deleteDBInstanceInput := r.buildDeleteDBInstanceInput(ID, skipFinalSnapshot)
 	r.logger.Debug("delete-db-instance", lager.Data{"input": deleteDBInstanceInput})
 
@@ -257,6 +318,10 @@ func (r *RDSDBInstance) buildDBInstance(dbInstance *rds.DBInstance) DBInstanceDe
 		if *dbInstance.PendingModifiedValues != *emptyPendingModifiedValues {
 			dbInstanceDetails.PendingModifications = true
 		}
+	}
+
+	for _, id := range dbInstance.ReadReplicaDBInstanceIdentifiers {
+		dbInstanceDetails.ReadReplicaIds = append(dbInstanceDetails.ReadReplicaIds, aws.StringValue(id))
 	}
 
 	return dbInstanceDetails
@@ -358,6 +423,49 @@ func (r *RDSDBInstance) buildCreateDBInstanceInput(ID string, dbInstanceDetails 
 
 	if len(dbInstanceDetails.VpcSecurityGroupIds) > 0 {
 		createDBInstanceInput.VpcSecurityGroupIds = aws.StringSlice(dbInstanceDetails.VpcSecurityGroupIds)
+	}
+
+	if len(dbInstanceDetails.Tags) > 0 {
+		createDBInstanceInput.Tags = BuilRDSTags(dbInstanceDetails.Tags)
+	}
+
+	return createDBInstanceInput
+}
+
+func (r *RDSDBInstance) buildCreateDBInstanceReadReplicaInput(ID, sourceID string, dbInstanceDetails DBInstanceDetails) *rds.CreateDBInstanceReadReplicaInput {
+	createDBInstanceInput := &rds.CreateDBInstanceReadReplicaInput{
+		DBInstanceIdentifier:       aws.String(ID),
+		SourceDBInstanceIdentifier: aws.String(sourceID),
+	}
+
+	createDBInstanceInput.AutoMinorVersionUpgrade = aws.Bool(dbInstanceDetails.AutoMinorVersionUpgrade)
+
+	if dbInstanceDetails.AvailabilityZone != "" {
+		createDBInstanceInput.AvailabilityZone = aws.String(dbInstanceDetails.AvailabilityZone)
+	}
+
+	createDBInstanceInput.CopyTagsToSnapshot = aws.Bool(dbInstanceDetails.CopyTagsToSnapshot)
+
+	if dbInstanceDetails.DBInstanceClass != "" {
+		createDBInstanceInput.DBInstanceClass = aws.String(dbInstanceDetails.DBInstanceClass)
+	}
+
+	if dbInstanceDetails.OptionGroupName != "" {
+		createDBInstanceInput.OptionGroupName = aws.String(dbInstanceDetails.OptionGroupName)
+	}
+
+	if dbInstanceDetails.Port > 0 {
+		createDBInstanceInput.Port = aws.Int64(dbInstanceDetails.Port)
+	}
+
+	createDBInstanceInput.PubliclyAccessible = aws.Bool(dbInstanceDetails.PubliclyAccessible)
+
+	if dbInstanceDetails.StorageType != "" {
+		createDBInstanceInput.StorageType = aws.String(dbInstanceDetails.StorageType)
+	}
+
+	if dbInstanceDetails.Iops > 0 {
+		createDBInstanceInput.Iops = aws.Int64(dbInstanceDetails.Iops)
 	}
 
 	if len(dbInstanceDetails.Tags) > 0 {

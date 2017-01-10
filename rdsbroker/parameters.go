@@ -19,6 +19,7 @@ type UpdateParameters struct {
 	PreferredBackupWindow      string
 	PreferredMaintenanceWindow string
 	SkipFinalSnapshot          string `mapstructure:"skip_final_snapshot"`
+	ReadReplicaCount           int    `mapstructure:"read_replica_count"`
 }
 
 type BindParameters struct {
