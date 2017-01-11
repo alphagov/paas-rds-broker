@@ -1,6 +1,7 @@
 package rdsbroker
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -22,7 +23,7 @@ const masterPasswordLength = 32
 const instanceIDLogKey = "instance-id"
 const bindingIDLogKey = "binding-id"
 const detailsLogKey = "details"
-const acceptsIncompleteLogKey = "acceptsIncomplete"
+const asyncAllowedLogKey = "acceptsIncomplete"
 const updateParametersLogKey = "updateParameters"
 const servicePlanLogKey = "servicePlan"
 const dbInstanceDetailsLogKey = "dbInstanceDetails"
@@ -83,7 +84,7 @@ func New(
 	}
 }
 
-func (b *RDSBroker) Services() []brokerapi.Service {
+func (b *RDSBroker) Services(ctx context.Context) []brokerapi.Service {
 	brokerCatalog, err := json.Marshal(b.catalog)
 	if err != nil {
 		b.logger.Error("marshal-error", err)
@@ -99,14 +100,19 @@ func (b *RDSBroker) Services() []brokerapi.Service {
 	return apiCatalog.Services
 }
 
-func (b *RDSBroker) Provision(instanceID string, details brokerapi.ProvisionDetails, acceptsIncomplete bool) (brokerapi.ProvisionedServiceSpec, error) {
+func (b *RDSBroker) Provision(
+	ctx context.Context,
+	instanceID string,
+	details brokerapi.ProvisionDetails,
+	asyncAllowed bool,
+) (brokerapi.ProvisionedServiceSpec, error) {
 	b.logger.Debug("provision", lager.Data{
-		instanceIDLogKey:        instanceID,
-		detailsLogKey:           details,
-		acceptsIncompleteLogKey: acceptsIncomplete,
+		instanceIDLogKey:   instanceID,
+		detailsLogKey:      details,
+		asyncAllowedLogKey: asyncAllowed,
 	})
 
-	if !acceptsIncomplete {
+	if !asyncAllowed {
 		return brokerapi.ProvisionedServiceSpec{}, brokerapi.ErrAsyncRequired
 	}
 
@@ -133,14 +139,19 @@ func (b *RDSBroker) Provision(instanceID string, details brokerapi.ProvisionDeta
 	return brokerapi.ProvisionedServiceSpec{IsAsync: true}, nil
 }
 
-func (b *RDSBroker) Update(instanceID string, details brokerapi.UpdateDetails, acceptsIncomplete bool) (brokerapi.UpdateServiceSpec, error) {
+func (b *RDSBroker) Update(
+	ctx context.Context,
+	instanceID string,
+	details brokerapi.UpdateDetails,
+	asyncAllowed bool,
+) (brokerapi.UpdateServiceSpec, error) {
 	b.logger.Debug("update", lager.Data{
-		instanceIDLogKey:        instanceID,
-		detailsLogKey:           details,
-		acceptsIncompleteLogKey: acceptsIncomplete,
+		instanceIDLogKey:   instanceID,
+		detailsLogKey:      details,
+		asyncAllowedLogKey: asyncAllowed,
 	})
 
-	if !acceptsIncomplete {
+	if !asyncAllowed {
 		return brokerapi.UpdateServiceSpec{}, brokerapi.ErrAsyncRequired
 	}
 
@@ -171,14 +182,19 @@ func (b *RDSBroker) Update(instanceID string, details brokerapi.UpdateDetails, a
 	return brokerapi.UpdateServiceSpec{IsAsync: true}, nil
 }
 
-func (b *RDSBroker) Deprovision(instanceID string, details brokerapi.DeprovisionDetails, acceptsIncomplete bool) (brokerapi.DeprovisionServiceSpec, error) {
+func (b *RDSBroker) Deprovision(
+	ctx context.Context,
+	instanceID string,
+	details brokerapi.DeprovisionDetails,
+	asyncAllowed bool,
+) (brokerapi.DeprovisionServiceSpec, error) {
 	b.logger.Debug("deprovision", lager.Data{
-		instanceIDLogKey:        instanceID,
-		detailsLogKey:           details,
-		acceptsIncompleteLogKey: acceptsIncomplete,
+		instanceIDLogKey:   instanceID,
+		detailsLogKey:      details,
+		asyncAllowedLogKey: asyncAllowed,
 	})
 
-	if !acceptsIncomplete {
+	if !asyncAllowed {
 		return brokerapi.DeprovisionServiceSpec{}, brokerapi.ErrAsyncRequired
 	}
 
@@ -211,7 +227,11 @@ func (b *RDSBroker) Deprovision(instanceID string, details brokerapi.Deprovision
 	return brokerapi.DeprovisionServiceSpec{IsAsync: true}, nil
 }
 
-func (b *RDSBroker) Bind(instanceID, bindingID string, details brokerapi.BindDetails) (brokerapi.Binding, error) {
+func (b *RDSBroker) Bind(
+	ctx context.Context,
+	instanceID, bindingID string,
+	details brokerapi.BindDetails,
+) (brokerapi.Binding, error) {
 	b.logger.Debug("bind", lager.Data{
 		instanceIDLogKey: instanceID,
 		bindingIDLogKey:  bindingID,
@@ -263,19 +283,23 @@ func (b *RDSBroker) Bind(instanceID, bindingID string, details brokerapi.BindDet
 	}
 
 	bindingResponse.Credentials = Credentials{
-		dbAddress,
-		dbPort,
-		dbName,
-		dbUsername,
-		dbPassword,
-		sqlEngine.URI(dbAddress, dbPort, dbName, dbUsername, dbPassword),
-		sqlEngine.JDBCURI(dbAddress, dbPort, dbName, dbUsername, dbPassword),
+		Host:     dbAddress,
+		Port:     dbPort,
+		Name:     dbName,
+		Username: dbUsername,
+		Password: dbPassword,
+		URI:      sqlEngine.URI(dbAddress, dbPort, dbName, dbUsername, dbPassword),
+		JDBCURI:  sqlEngine.JDBCURI(dbAddress, dbPort, dbName, dbUsername, dbPassword),
 	}
 
 	return bindingResponse, nil
 }
 
-func (b *RDSBroker) Unbind(instanceID, bindingID string, details brokerapi.UnbindDetails) error {
+func (b *RDSBroker) Unbind(
+	ctx context.Context,
+	instanceID, bindingID string,
+	details brokerapi.UnbindDetails,
+) error {
 	b.logger.Debug("unbind", lager.Data{
 		instanceIDLogKey: instanceID,
 		bindingIDLogKey:  bindingID,
@@ -319,7 +343,10 @@ func (b *RDSBroker) Unbind(instanceID, bindingID string, details brokerapi.Unbin
 	return nil
 }
 
-func (b *RDSBroker) LastOperation(instanceID, operationData string) (brokerapi.LastOperation, error) {
+func (b *RDSBroker) LastOperation(
+	ctx context.Context,
+	instanceID, operationData string,
+) (brokerapi.LastOperation, error) {
 	b.logger.Debug("last-operation", lager.Data{
 		instanceIDLogKey: instanceID,
 	})
