@@ -54,13 +54,13 @@ type RDSBroker struct {
 }
 
 type Credentials struct {
-	Host     string
-	Port     int64
-	Name     string
-	Username string
-	Password string
-	URI      string
-	JDBCURI  string
+	Host     string `json:"host"`
+	Port     int64  `json:"port"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	URI      string `json:"uri"`
+	JDBCURI  string `json:"jdbcuri"`
 }
 
 func New(
