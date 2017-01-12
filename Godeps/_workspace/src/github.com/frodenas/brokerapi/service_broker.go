@@ -55,13 +55,14 @@ type UnbindDetails struct {
 }
 
 var (
-	ErrInstanceAlreadyExists = errors.New("instance already exists")
-	ErrInstanceDoesNotExist  = errors.New("instance does not exist")
-	ErrInstanceLimitMet      = errors.New("instance limit for this service has been reached")
-	ErrInstanceNotUpdateable = errors.New("instance is not updateable")
-	ErrInstanceNotBindable   = errors.New("instance is not bindable")
-	ErrBindingAlreadyExists  = errors.New("binding already exists")
-	ErrBindingDoesNotExist   = errors.New("binding does not exist")
-	ErrAsyncRequired         = errors.New("This service plan requires client support for asynchronous service operations.")
-	ErrAppGUIDRequired       = errors.New("This service supports generation of credentials through binding an application only.")
+	ErrInstanceAlreadyExists   = errors.New("instance already exists")
+	ErrInstanceDoesNotExist    = errors.New("instance does not exist")
+	ErrInstanceLimitMet        = errors.New("instance limit for this service has been reached")
+	ErrInstanceNotUpdateable   = errors.New("instance is not updateable")
+	ErrInstanceNotBindable     = errors.New("instance is not bindable")
+	ErrBindingAlreadyExists    = errors.New("binding already exists")
+	ErrBindingDoesNotExist     = errors.New("binding does not exist")
+	ErrAsyncRequired           = errors.New("This service plan requires client support for asynchronous service operations.")
+	ErrAppGUIDRequired         = errors.New("This service supports generation of credentials through binding an application only.")
+	ErrEncryptionNotUpdateable = errors.New("intance can not be updated to a plan with different encryption settings")
 )
