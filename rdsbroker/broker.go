@@ -148,7 +148,7 @@ func (b *RDSBroker) Update(instanceID string, details brokerapi.UpdateDetails, a
 		if err := updateParameters.Validate(); err != nil {
 			return false, err
 		}
-		b.logger.Debug("update-parsed-params", lager.Data{updateParametersLogKey: updateParameters})
+		b.logger.Debug("update-parsed-params", lager.Data{updateParametersLogKey: updateParameters,})
 	}
 
 	service, ok := b.catalog.FindService(details.ServiceID)
@@ -163,19 +163,6 @@ func (b *RDSBroker) Update(instanceID string, details brokerapi.UpdateDetails, a
 	servicePlan, ok := b.catalog.FindServicePlan(details.PlanID)
 	if !ok {
 		return false, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
-	}
-
-	previousServicePlan, ok := b.catalog.FindServicePlan(details.PreviousValues.PlanID)
-	if !ok {
-		return false, fmt.Errorf("Service Plan '%s' not found", details.PreviousValues.PlanID)
-	}
-
-	if servicePlan.RDSProperties.StorageEncrypted != previousServicePlan.RDSProperties.StorageEncrypted {
-		return false, brokerapi.ErrEncryptionNotUpdateable
-	}
-
-	if servicePlan.RDSProperties.KmsKeyID != previousServicePlan.RDSProperties.KmsKeyID {
-		return false, brokerapi.ErrEncryptionNotUpdateable
 	}
 
 	modifyDBInstance := b.modifyDBInstance(instanceID, servicePlan, updateParameters, details)
