@@ -916,16 +916,46 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
-		Context("when has KmsKeyID", func() {
-			BeforeEach(func() {
-				rdsProperties2.KmsKeyID = "test-kms-key-id"
+		Context("when storage encryption settings are updated", func() {
+			Context("when tries to enable StorageEncrypted", func() {
+				BeforeEach(func() {
+					rdsProperties1.StorageEncrypted = false
+					rdsProperties2.StorageEncrypted = true
+				})
+
+				It("fails noisily", func() {
+					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(ErrEncryptionNotUpdateable))
+				})
+			})
+			Context("when tries to disable StorageEncrypted", func() {
+				BeforeEach(func() {
+					rdsProperties1.StorageEncrypted = true
+					rdsProperties2.StorageEncrypted = false
+				})
+
+				It("fails noisily", func() {
+					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(ErrEncryptionNotUpdateable))
+				})
+			})
+			Context("when changes KmsKeyID with StorageEncrypted enabled", func() {
+				BeforeEach(func() {
+					rdsProperties1.StorageEncrypted = true
+					rdsProperties2.StorageEncrypted = true
+					rdsProperties2.KmsKeyID = "test-old-kms-key-id"
+					rdsProperties2.KmsKeyID = "test-new-kms-key-id"
+				})
+
+				It("fails noisily", func() {
+					_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(ErrEncryptionNotUpdateable))
+				})
 			})
 
-			It("makes the proper calls", func() {
-				_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.KmsKeyID).To(Equal("test-kms-key-id"))
-				Expect(err).ToNot(HaveOccurred())
-			})
 		})
 
 		Context("when has LicenseModel", func() {
@@ -1034,18 +1064,6 @@ var _ = Describe("RDS Broker", func() {
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
 				Expect(dbInstance.ModifyDBInstanceDetails.PubliclyAccessible).To(BeTrue())
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has StorageEncrypted", func() {
-			BeforeEach(func() {
-				rdsProperties2.StorageEncrypted = true
-			})
-
-			It("makes the proper calls", func() {
-				_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.StorageEncrypted).To(BeTrue())
 				Expect(err).ToNot(HaveOccurred())
 			})
 		})
