@@ -127,6 +127,14 @@ func (b *RDSBroker) Provision(instanceID string, details brokerapi.ProvisionDeta
 	}
 
 	createDBInstance := b.createDBInstance(instanceID, servicePlan, provisionParameters, details)
+
+	if provisionParameters.AllocatedStorage > 0 {
+		if err := b.validateStorage(provisionParameters.AllocatedStorage, servicePlan.RDSProperties); err != nil {
+			return provisioningResponse, false, err
+		}
+		createDBInstance.AllocatedStorage = provisionParameters.AllocatedStorage
+	}
+
 	if err := b.dbInstance.Create(b.dbInstanceIdentifier(instanceID), *createDBInstance); err != nil {
 		return provisioningResponse, false, err
 	}
@@ -184,6 +192,14 @@ func (b *RDSBroker) Update(instanceID string, details brokerapi.UpdateDetails, a
 	}
 
 	modifyDBInstance := b.modifyDBInstance(instanceID, servicePlan, updateParameters, details)
+
+	if servicePlan.RDSProperties.ConfigureAllocatedStorage && updateParameters.AllocatedStorage > 0 {
+		if err := b.validateStorage(updateParameters.AllocatedStorage, servicePlan.RDSProperties); err != nil {
+			return false, err
+		}
+		modifyDBInstance.AllocatedStorage = updateParameters.AllocatedStorage
+	}
+
 	if err := b.dbInstance.Modify(b.dbInstanceIdentifier(instanceID), *modifyDBInstance, updateParameters.ApplyImmediately); err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			return false, brokerapi.ErrInstanceDoesNotExist
@@ -643,4 +659,15 @@ func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID, s
 	}
 
 	return tags
+}
+
+func (b *RDSBroker) validateStorage(storage int64, rp RDSProperties) error {
+	if !rp.ConfigureAllocatedStorage {
+		return errors.New("Plan does not allow configuring storage")
+	}
+	if (rp.MinAllocatedStorage > 0 && storage < rp.MinAllocatedStorage) ||
+		(rp.MaxAllocatedStorage > 0 && storage >= rp.MaxAllocatedStorage) {
+		return fmt.Errorf("%d %d", rp.MinAllocatedStorage, rp.MaxAllocatedStorage)
+	}
+	return nil
 }

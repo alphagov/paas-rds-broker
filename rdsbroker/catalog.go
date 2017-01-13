@@ -5,9 +5,6 @@ import (
 	"strings"
 )
 
-const minAllocatedStorage = 5
-const maxAllocatedStorage = 6144
-
 type Catalog struct {
 	Services []Service `json:"services,omitempty"`
 }
@@ -65,6 +62,9 @@ type RDSProperties struct {
 	Engine                     string   `json:"engine"`
 	EngineVersion              string   `json:"engine_version"`
 	AllocatedStorage           int64    `json:"allocated_storage"`
+	ConfigureAllocatedStorage  bool     `json:"configure_allocated_storage"`
+	MinAllocatedStorage        int64    `json:"min_allocated_storage"`
+	MaxAllocatedStorage        int64    `json:"max_allocated_storage"`
 	AutoMinorVersionUpgrade    bool     `json:"auto_minor_version_upgrade,omitempty"`
 	AvailabilityZone           string   `json:"availability_zone,omitempty"`
 	BackupRetentionPeriod      int64    `json:"backup_retention_period,omitempty"`

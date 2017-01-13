@@ -11,6 +11,7 @@ type ProvisionParameters struct {
 	PreferredBackupWindow      string
 	PreferredMaintenanceWindow string
 	SkipFinalSnapshot          string `mapstructure:"skip_final_snapshot"`
+	AllocatedStorage           int64  `mapstructure:"allocated_storage"`
 }
 
 type UpdateParameters struct {
@@ -19,6 +20,7 @@ type UpdateParameters struct {
 	PreferredBackupWindow      string
 	PreferredMaintenanceWindow string
 	SkipFinalSnapshot          string `mapstructure:"skip_final_snapshot"`
+	AllocatedStorage           int64  `mapstructure:"allocated_storage"`
 }
 
 type BindParameters struct {
