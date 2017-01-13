@@ -11,11 +11,10 @@ import (
 )
 
 type Config struct {
-	LogLevel           string            `json:"log_level"`
-	Username           string            `json:"username"`
-	Password           string            `json:"password"`
-	StateEncryptionKey string            `json:"state_encryption_key"`
-	RDSConfig          *rdsbroker.Config `json:"rds_config"`
+	LogLevel  string            `json:"log_level"`
+	Username  string            `json:"username"`
+	Password  string            `json:"password"`
+	RDSConfig *rdsbroker.Config `json:"rds_config"`
 }
 
 func LoadConfig(configFile string) (config *Config, err error) {
@@ -62,10 +61,6 @@ func (c Config) Validate() error {
 
 	if c.Password == "" {
 		return errors.New("Must provide a non-empty Password")
-	}
-
-	if c.StateEncryptionKey == "" {
-		return errors.New("Must provide a non-empty StateEncryptionKey")
 	}
 
 	if err := c.RDSConfig.Validate(); err != nil {

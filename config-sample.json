@@ -2,7 +2,6 @@
   "log_level": "DEBUG",
   "username": "username",
   "password": "password",
-  "state_encryption_key": "key",
   "rds_config": {
     "region": "us-east-1",
     "db_prefix": "cf",
@@ -475,6 +474,11 @@
             }
           ]
         }
+      ],
+      "exclude_engines": [
+        {"engine": "postgres", "engine_version": "^9\\.3\\."},
+        {"engine": "postgres", "engine_version": "^9\\.4\\.[0-8]$"},
+        {"engine": "postgres", "engine_version": "^9\\.5\\.[0-4]$"}
       ]
     }
   }
