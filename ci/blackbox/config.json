@@ -1,0 +1,84 @@
+{
+  "log_level": "DEBUG",
+  "username": "username",
+  "password": "password",
+  "state_encryption_key": "key",
+  "rds_config": {
+    "region": "eu-west-1",
+    "db_prefix": "rdsbroker-test",
+    "allow_user_provision_parameters": true,
+    "allow_user_update_parameters": true,
+    "allow_user_bind_parameters": true,
+    "master_password_seed": "something-secret",
+    "broker_name": "rdsbroker-integration-test",
+    "catalog" : {
+      "services" : [
+         {
+            "id" : "Service-1",
+            "description" : "This is the Service 1",
+            "name" : "Service 1",
+            "plan_updateable" : true,
+            "bindable" : true,
+            "plans" : [
+               {
+                  "rds_properties" : {
+                     "engine" : "postgres",
+                     "db_instance_class" : "db.t2.micro",
+                     "allocated_storage" : 10,
+                     "skip_final_snapshot" : true,
+                     "engine_version" : "9.5.4"
+                  },
+                  "free" : false,
+                  "name" : "Plan 1",
+                  "description" : "This is the Plan 1",
+                  "id" : "Plan-1"
+               }
+            ]
+         },
+         {
+            "plans" : [
+               {
+                  "name" : "Plan 2",
+                  "rds_properties" : {
+                     "engine_version" : "9.5.4",
+                     "skip_final_snapshot" : true,
+                     "allocated_storage" : 20,
+                     "engine" : "postgres",
+                     "db_instance_class" : "db.t2.small"
+                  },
+                  "free" : false,
+                  "id" : "Plan-2",
+                  "description" : "This is the Plan 2"
+               }
+            ],
+            "plan_updateable" : true,
+            "bindable" : true,
+            "name" : "Service 2",
+            "description" : "This is the Service 2",
+            "id" : "Service-2"
+         },
+         {
+            "plans" : [
+               {
+                  "rds_properties" : {
+                     "allocated_storage" : 30,
+                     "engine" : "postgres",
+                     "db_instance_class" : "db.t2.small",
+                     "engine_version" : "9.5.4"
+                  },
+                  "free" : false,
+                  "name" : "Plan 3",
+                  "id" : "Plan-3",
+                  "description" : "This is the Plan 3"
+               }
+            ],
+            "name" : "Service 3",
+            "plan_updateable" : true,
+            "bindable" : true,
+            "description" : "This is the Service 3",
+            "id" : "Service-3"
+         }
+      ]
+    }
+  }
+}
