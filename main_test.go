@@ -16,7 +16,7 @@ var _ = Describe("Main", func() {
 	Describe("constructing the top-level HTTP handler", func() {
 
 		It("has a healthcheck endpoint that returns 200", func() {
-			handler := buildHTTPHandler(
+			handler := BuildHTTPHandler(
 				&rdsbroker.RDSBroker{},
 				lager.NewLogger("main.test"),
 				&Config{},
