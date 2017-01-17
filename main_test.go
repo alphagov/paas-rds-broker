@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/alphagov/paas-rds-broker/config"
 	"github.com/alphagov/paas-rds-broker/rdsbroker"
 	"github.com/pivotal-golang/lager"
 
@@ -19,7 +20,7 @@ var _ = Describe("Main", func() {
 			handler := buildHTTPHandler(
 				&rdsbroker.RDSBroker{},
 				lager.NewLogger("main.test"),
-				&Config{},
+				&config.Config{},
 			)
 			req, err := http.NewRequest("GET", "http://example.com/healthcheck", nil)
 			Expect(err).NotTo(HaveOccurred())
