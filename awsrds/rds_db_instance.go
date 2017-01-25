@@ -257,6 +257,10 @@ func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, a
 		return fmt.Errorf("Migrating the RDS DB Instance engine from '%s' to '%s' is not supported", oldDBInstanceDetails.Engine, dbInstanceDetails.Engine)
 	}
 
+	if dbInstanceDetails.ReadReplicaCount > 0 && oldDBInstanceDetails.BackupRetentionPeriod == 0 {
+		return ErrCannotCreateReplicaWithoutBackups
+	}
+
 	modifyDBInstanceInput := r.buildModifyDBInstanceInput(ID, dbInstanceDetails, oldDBInstanceDetails, applyImmediately)
 
 	sanitizedDBInstanceInput := *modifyDBInstanceInput

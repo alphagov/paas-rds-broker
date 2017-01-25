@@ -53,5 +53,6 @@ type DBInstanceDetails struct {
 }
 
 var (
-	ErrDBInstanceDoesNotExist = errors.New("rds db instance does not exist")
+	ErrDBInstanceDoesNotExist            = errors.New("rds db instance does not exist")
+	ErrCannotCreateReplicaWithoutBackups = errors.New("cannot create read replicas without automatic backups")
 )

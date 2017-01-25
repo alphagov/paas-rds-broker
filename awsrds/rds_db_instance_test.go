@@ -1208,6 +1208,19 @@ var _ = Describe("RDS DB Instance", func() {
 				})
 			})
 		})
+
+		Context("when backups are not configured", func() {
+			BeforeEach(func() {
+				describeDBInstance.BackupRetentionPeriod = aws.Int64(0)
+				dbInstanceDetails.ReadReplicaCount = 1
+			})
+
+			It("returns an error if replicas requested", func() {
+				err := rdsDBInstance.Modify(dbInstanceIdentifier, dbInstanceDetails, applyImmediately)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(Equal(ErrCannotCreateReplicaWithoutBackups))
+			})
+		})
 	})
 
 	var _ = Describe("Delete", func() {

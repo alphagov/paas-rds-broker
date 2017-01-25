@@ -102,6 +102,7 @@ var _ = Describe("RDS Broker", func() {
 			EngineVersion:     "4.5.6",
 			AllocatedStorage:  300,
 			SkipFinalSnapshot: false,
+			AllowReadReplicas: true,
 		}
 	})
 
@@ -1184,6 +1185,25 @@ var _ = Describe("RDS Broker", func() {
 					Expect(err).To(HaveOccurred())
 					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
 				})
+			})
+		})
+
+		Context("when read replicas are not allowed", func() {
+			It("returns an error if replicas requested", func() {
+				updateDetails.Parameters["read_replica_count"] = 2
+				_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(Equal(ErrReadReplicaNotAllowed))
+			})
+		})
+
+		Context("when read replicas are allowed", func() {
+			It("returns an error if replicas requested", func() {
+				updateDetails.ServiceID = "Service-3"
+				updateDetails.PlanID = "Plan-3"
+				updateDetails.Parameters["read_replica_count"] = 2
+				_, err := rdsBroker.Update(instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 	})

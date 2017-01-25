@@ -44,7 +44,7 @@ func (pp *UpdateParameters) Validate(rp RDSProperties) error {
 		return err
 	}
 	if pp.ReadReplicaCount > 0 && !rp.AllowReadReplicas {
-		return errors.New("plan does not allow read replicas")
+		return ErrReadReplicaNotAllowed
 	}
 	return nil
 }

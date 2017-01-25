@@ -30,6 +30,7 @@ const dbInstanceDetailsLogKey = "dbInstanceDetails"
 
 var (
 	ErrEncryptionNotUpdateable = errors.New("intance can not be updated to a plan with different encryption settings")
+	ErrReadReplicaNotAllowed   = errors.New("plan does not allow read replicas")
 )
 
 var rdsStatus2State = map[string]string{
