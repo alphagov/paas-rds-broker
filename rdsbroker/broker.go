@@ -2,6 +2,7 @@ package rdsbroker
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -26,6 +27,10 @@ const acceptsIncompleteLogKey = "acceptsIncomplete"
 const updateParametersLogKey = "updateParameters"
 const servicePlanLogKey = "servicePlan"
 const dbInstanceDetailsLogKey = "dbInstanceDetails"
+
+var (
+	ErrEncryptionNotUpdateable = errors.New("intance can not be updated to a plan with different encryption settings")
+)
 
 var rdsStatus2State = map[string]string{
 	"available":                    brokerapi.LastOperationSucceeded,
@@ -152,6 +157,19 @@ func (b *RDSBroker) Update(instanceID string, details brokerapi.UpdateDetails, a
 	servicePlan, ok := b.catalog.FindServicePlan(details.PlanID)
 	if !ok {
 		return false, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
+	}
+
+	previousServicePlan, ok := b.catalog.FindServicePlan(details.PreviousValues.PlanID)
+	if !ok {
+		return false, fmt.Errorf("Service Plan '%s' not found", details.PreviousValues.PlanID)
+	}
+
+	if servicePlan.RDSProperties.StorageEncrypted != previousServicePlan.RDSProperties.StorageEncrypted {
+		return false, ErrEncryptionNotUpdateable
+	}
+
+	if servicePlan.RDSProperties.KmsKeyID != previousServicePlan.RDSProperties.KmsKeyID {
+		return false, ErrEncryptionNotUpdateable
 	}
 
 	updateParameters := UpdateParameters{}
