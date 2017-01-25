@@ -19,6 +19,7 @@ type UpdateParameters struct {
 	PreferredBackupWindow      string
 	PreferredMaintenanceWindow string
 	SkipFinalSnapshot          string `mapstructure:"skip_final_snapshot"`
+	ReadReplicaCount           int    `mapstructure:"read_replica_count"`
 }
 
 type BindParameters struct {
@@ -38,6 +39,12 @@ func (pp *ProvisionParameters) Validate() error {
 	return Validate_SkipFinalSnapshot(pp.SkipFinalSnapshot)
 }
 
-func (pp *UpdateParameters) Validate() error {
-	return Validate_SkipFinalSnapshot(pp.SkipFinalSnapshot)
+func (pp *UpdateParameters) Validate(rp RDSProperties) error {
+	if err := Validate_SkipFinalSnapshot(pp.SkipFinalSnapshot); err != nil {
+		return err
+	}
+	if pp.ReadReplicaCount > 0 && !rp.AllowReadReplicas {
+		return ErrReadReplicaNotAllowed
+	}
+	return nil
 }

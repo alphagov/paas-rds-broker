@@ -30,6 +30,7 @@ const dbInstanceDetailsLogKey = "dbInstanceDetails"
 
 var (
 	ErrEncryptionNotUpdateable = errors.New("intance can not be updated to a plan with different encryption settings")
+	ErrReadReplicaNotAllowed   = errors.New("plan does not allow read replicas")
 )
 
 var rdsStatus2State = map[string]string{
@@ -145,17 +146,6 @@ func (b *RDSBroker) Update(instanceID string, details brokerapi.UpdateDetails, a
 		return false, brokerapi.ErrAsyncRequired
 	}
 
-	updateParameters := UpdateParameters{}
-	if b.allowUserUpdateParameters {
-		if err := mapstructure.Decode(details.Parameters, &updateParameters); err != nil {
-			return false, err
-		}
-		if err := updateParameters.Validate(); err != nil {
-			return false, err
-		}
-		b.logger.Debug("update-parsed-params", lager.Data{updateParametersLogKey: updateParameters})
-	}
-
 	service, ok := b.catalog.FindService(details.ServiceID)
 	if !ok {
 		return false, fmt.Errorf("Service '%s' not found", details.ServiceID)
@@ -181,6 +171,17 @@ func (b *RDSBroker) Update(instanceID string, details brokerapi.UpdateDetails, a
 
 	if servicePlan.RDSProperties.KmsKeyID != previousServicePlan.RDSProperties.KmsKeyID {
 		return false, ErrEncryptionNotUpdateable
+	}
+
+	updateParameters := UpdateParameters{}
+	if b.allowUserUpdateParameters {
+		if err := mapstructure.Decode(details.Parameters, &updateParameters); err != nil {
+			return false, err
+		}
+		if err := updateParameters.Validate(servicePlan.RDSProperties); err != nil {
+			return false, err
+		}
+		b.logger.Debug("update-parsed-params", lager.Data{updateParametersLogKey: updateParameters})
 	}
 
 	modifyDBInstance := b.modifyDBInstance(instanceID, servicePlan, updateParameters, details)
@@ -279,6 +280,14 @@ func (b *RDSBroker) Bind(instanceID, bindingID string, details brokerapi.BindDet
 	masterUsername = dbInstanceDetails.MasterUsername
 	dbName = b.dbNameFromDetails(instanceID, dbInstanceDetails)
 
+	var replicas []awsrds.DBInstanceDetails
+	if len(dbInstanceDetails.ReadReplicaIds) > 0 {
+		replicas, err = b.dbInstance.DescribeMany(dbInstanceDetails.ReadReplicaIds)
+		if err != nil {
+			return bindingResponse, err
+		}
+	}
+
 	sqlEngine, err := b.sqlProvider.GetSQLEngine(servicePlan.RDSProperties.Engine)
 	if err != nil {
 		return bindingResponse, err
@@ -294,14 +303,24 @@ func (b *RDSBroker) Bind(instanceID, bindingID string, details brokerapi.BindDet
 		return bindingResponse, err
 	}
 
+	replicaURIs := make([]string, len(replicas))
+	replicaJDBCURIs := make([]string, len(replicas))
+	for idx, replica := range replicas {
+		replicaURIs[idx] = sqlEngine.URI(replica.Address, dbPort, dbName, dbUsername, dbPassword)
+		replicaJDBCURIs[idx] = sqlEngine.JDBCURI(replica.Address, dbPort, dbName, dbUsername, dbPassword)
+	}
+
 	bindingResponse.Credentials = &brokerapi.CredentialsHash{
-		Host:     dbAddress,
-		Port:     dbPort,
-		Name:     dbName,
-		Username: dbUsername,
-		Password: dbPassword,
-		URI:      sqlEngine.URI(dbAddress, dbPort, dbName, dbUsername, dbPassword),
-		JDBCURI:  sqlEngine.JDBCURI(dbAddress, dbPort, dbName, dbUsername, dbPassword),
+		Host:            dbAddress,
+		Port:            dbPort,
+		Name:            dbName,
+		Username:        dbUsername,
+		Password:        dbPassword,
+		URI:             sqlEngine.URI(dbAddress, dbPort, dbName, dbUsername, dbPassword),
+		JDBCURI:         sqlEngine.JDBCURI(dbAddress, dbPort, dbName, dbUsername, dbPassword),
+		Replicas:        dbInstanceDetails.ReadReplicaIds,
+		ReplicaURIs:     replicaURIs,
+		ReplicaJDBCURIs: replicaJDBCURIs,
 	}
 
 	return bindingResponse, nil
@@ -351,6 +370,28 @@ func (b *RDSBroker) Unbind(instanceID, bindingID string, details brokerapi.Unbin
 	return nil
 }
 
+func (b *RDSBroker) getStatus(details awsrds.DBInstanceDetails) (string, string) {
+	var identifier string
+	if details.SourceIdentifier != "" {
+		identifier = fmt.Sprintf("Replica '%s' of DB Instance '%s'", details.Identifier, details.SourceIdentifier)
+	} else {
+		identifier = fmt.Sprintf("DB Instance '%s'", details.Identifier)
+	}
+
+	description := fmt.Sprintf("%s status is '%s'", identifier, details.Status)
+	state, ok := rdsStatus2State[details.Status]
+	if ok {
+		if state == brokerapi.LastOperationSucceeded && details.PendingModifications {
+			state = brokerapi.LastOperationInProgress
+			description = fmt.Sprintf("%s has pending modifications", identifier)
+		}
+	} else {
+		state = brokerapi.LastOperationFailed
+	}
+
+	return state, description
+}
+
 func (b *RDSBroker) LastOperation(instanceID string) (brokerapi.LastOperationResponse, error) {
 	b.logger.Debug("last-operation", lager.Data{
 		instanceIDLogKey: instanceID,
@@ -366,17 +407,22 @@ func (b *RDSBroker) LastOperation(instanceID string) (brokerapi.LastOperationRes
 		return lastOperationResponse, err
 	}
 
-	lastOperationResponse.Description = fmt.Sprintf("DB Instance '%s' status is '%s'", b.dbInstanceIdentifier(instanceID), dbInstanceDetails.Status)
-
-	if state, ok := rdsStatus2State[dbInstanceDetails.Status]; ok {
-		lastOperationResponse.State = state
+	if len(dbInstanceDetails.ReadReplicaIds) > 0 {
+		replicas, err := b.dbInstance.DescribeMany(dbInstanceDetails.ReadReplicaIds)
+		if err != nil {
+			return lastOperationResponse, err
+		}
+		for _, replica := range replicas {
+			state, description := b.getStatus(replica)
+			if state != brokerapi.LastOperationSucceeded {
+				lastOperationResponse.State = state
+				lastOperationResponse.Description = description
+				return lastOperationResponse, nil
+			}
+		}
 	}
 
-	if lastOperationResponse.State == brokerapi.LastOperationSucceeded && dbInstanceDetails.PendingModifications {
-		lastOperationResponse.State = brokerapi.LastOperationInProgress
-		lastOperationResponse.Description = fmt.Sprintf("DB Instance '%s' has pending modifications", b.dbInstanceIdentifier(instanceID))
-	}
-
+	lastOperationResponse.State, lastOperationResponse.Description = b.getStatus(dbInstanceDetails)
 	return lastOperationResponse, nil
 }
 

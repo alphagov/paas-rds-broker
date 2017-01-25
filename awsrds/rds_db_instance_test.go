@@ -1208,6 +1208,19 @@ var _ = Describe("RDS DB Instance", func() {
 				})
 			})
 		})
+
+		Context("when backups are not configured", func() {
+			BeforeEach(func() {
+				describeDBInstance.BackupRetentionPeriod = aws.Int64(0)
+				dbInstanceDetails.ReadReplicaCount = 1
+			})
+
+			It("returns an error if replicas requested", func() {
+				err := rdsDBInstance.Modify(dbInstanceIdentifier, dbInstanceDetails, applyImmediately)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(Equal(ErrCannotCreateReplicaWithoutBackups))
+			})
+		})
 	})
 
 	var _ = Describe("Delete", func() {
@@ -1215,32 +1228,67 @@ var _ = Describe("RDS DB Instance", func() {
 			skipFinalSnapshot         bool
 			finalDBSnapshotIdentifier string
 
-			deleteDBInstanceError error
+			describeDBInstanceError error
+			deleteDBInstanceError   error
+
+			describeDBInstance       *rds.DBInstance
+			describeDBInstances      []*rds.DBInstance
+			describeDBInstancesInput *rds.DescribeDBInstancesInput
 		)
 
 		BeforeEach(func() {
 			skipFinalSnapshot = true
 			finalDBSnapshotIdentifier = ""
 			deleteDBInstanceError = nil
+
+			describeDBInstancesInput = &rds.DescribeDBInstancesInput{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+			}
+
+			describeDBInstance = &rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBInstanceStatus:     aws.String("available"),
+				Engine:               aws.String("test-engine"),
+				EngineVersion:        aws.String("1.2.3"),
+				DBName:               aws.String("test-dbname"),
+				MasterUsername:       aws.String("test-master-username"),
+				AllocatedStorage:     aws.Int64(100),
+			}
+			describeDBInstances = []*rds.DBInstance{describeDBInstance}
 		})
 
 		JustBeforeEach(func() {
 			rdssvc.Handlers.Clear()
 
-			rdsCall = func(r *request.Request) {
-				Expect(r.Operation.Name).To(Equal("DeleteDBInstance"))
-				Expect(r.Params).To(BeAssignableToTypeOf(&rds.DeleteDBInstanceInput{}))
-				params := r.Params.(*rds.DeleteDBInstanceInput)
-				Expect(params.DBInstanceIdentifier).To(Equal(aws.String(dbInstanceIdentifier)))
-				if finalDBSnapshotIdentifier != "" {
-					Expect(*params.FinalDBSnapshotIdentifier).To(ContainSubstring(finalDBSnapshotIdentifier))
-				} else {
-					Expect(params.FinalDBSnapshotIdentifier).To(BeNil())
-				}
-				Expect(params.SkipFinalSnapshot).To(Equal(aws.Bool(skipFinalSnapshot)))
-				r.Error = deleteDBInstanceError
+			handlers := []func(r *request.Request){
+				func(r *request.Request) {
+					Expect(r.Operation.Name).To(Equal("DescribeDBInstances"))
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.DescribeDBInstancesInput{}))
+					Expect(r.Params).To(Equal(describeDBInstancesInput))
+					data := r.Data.(*rds.DescribeDBInstancesOutput)
+					data.DBInstances = describeDBInstances
+					r.Error = describeDBInstanceError
+				},
+				func(r *request.Request) {
+					Expect(r.Operation.Name).To(Equal("DeleteDBInstance"))
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.DeleteDBInstanceInput{}))
+					params := r.Params.(*rds.DeleteDBInstanceInput)
+					Expect(params.DBInstanceIdentifier).To(Equal(aws.String(dbInstanceIdentifier)))
+					if finalDBSnapshotIdentifier != "" {
+						Expect(*params.FinalDBSnapshotIdentifier).To(ContainSubstring(finalDBSnapshotIdentifier))
+					} else {
+						Expect(params.FinalDBSnapshotIdentifier).To(BeNil())
+					}
+					Expect(params.SkipFinalSnapshot).To(Equal(aws.Bool(skipFinalSnapshot)))
+					r.Error = deleteDBInstanceError
+				},
 			}
-			rdssvc.Handlers.Send.PushBack(rdsCall)
+			idx := 0
+
+			rdssvc.Handlers.Send.PushBack(func(r *request.Request) {
+				handlers[idx](r)
+				idx++
+			})
 		})
 
 		It("does not return error", func() {
