@@ -1573,8 +1573,11 @@ var _ = Describe("RDS Broker", func() {
 
 	var _ = Describe("LastOperation", func() {
 		var (
+			dbReplicaIdentifier         string
 			dbInstanceStatus            string
+			dbReplicaStatus             string
 			lastOperationState          string
+			readReplicaIds              []string
 			properLastOperationResponse brokerapi.LastOperationResponse
 		)
 
@@ -1587,12 +1590,56 @@ var _ = Describe("RDS Broker", func() {
 				DBName:         "test-db",
 				MasterUsername: "master-username",
 				Status:         dbInstanceStatus,
+				ReadReplicaIds: readReplicaIds,
 			}
+
+			dbInstance.DescribeManyDBInstanceDetails = []awsrds.DBInstanceDetails{{
+				Identifier:       dbReplicaIdentifier,
+				SourceIdentifier: dbInstanceIdentifier,
+				Status:           dbReplicaStatus,
+			}}
 
 			properLastOperationResponse = brokerapi.LastOperationResponse{
 				State:       lastOperationState,
 				Description: "DB Instance '" + dbInstanceIdentifier + "' status is '" + dbInstanceStatus + "'",
 			}
+		})
+
+		Context("when it has read replicas", func() {
+			BeforeEach(func() {
+				dbReplicaStatus = "available"
+				dbInstanceStatus = "available"
+				dbReplicaIdentifier = "read-replica-id"
+				readReplicaIds = []string{"read-replica-id"}
+				lastOperationState = brokerapi.LastOperationSucceeded
+			})
+
+			Context("when replicas are pending", func() {
+				BeforeEach(func() {
+					dbReplicaStatus = "creating"
+				})
+
+				JustBeforeEach(func() {
+					properLastOperationResponse = brokerapi.LastOperationResponse{
+						State:       brokerapi.LastOperationInProgress,
+						Description: "Replica '" + dbReplicaIdentifier + "' of DB Instance '" + dbInstanceIdentifier + "' status is '" + dbReplicaStatus + "'",
+					}
+				})
+
+				It("returns the proper LastOperationResponse", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
+			})
+
+			Context("when relicas are available", func() {
+				It("returns the proper LastOperationResponse", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
+			})
 		})
 
 		Context("when describing the DB Instance fails", func() {

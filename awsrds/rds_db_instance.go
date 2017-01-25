@@ -337,6 +337,7 @@ func (r *RDSDBInstance) deleteInstance(ID string, skipFinalSnapshot bool) error 
 func (r *RDSDBInstance) buildDBInstance(dbInstance *rds.DBInstance) DBInstanceDetails {
 	dbInstanceDetails := DBInstanceDetails{
 		Identifier:       aws.StringValue(dbInstance.DBInstanceIdentifier),
+		SourceIdentifier: aws.StringValue(dbInstance.ReadReplicaSourceDBInstanceIdentifier),
 		Status:           aws.StringValue(dbInstance.DBInstanceStatus),
 		Engine:           aws.StringValue(dbInstance.Engine),
 		EngineVersion:    aws.StringValue(dbInstance.EngineVersion),

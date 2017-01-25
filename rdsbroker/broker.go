@@ -369,6 +369,28 @@ func (b *RDSBroker) Unbind(instanceID, bindingID string, details brokerapi.Unbin
 	return nil
 }
 
+func (b *RDSBroker) getStatus(details awsrds.DBInstanceDetails) (string, string) {
+	var identifier string
+	if details.SourceIdentifier != "" {
+		identifier = fmt.Sprintf("Replica '%s' of DB Instance '%s'", details.Identifier, details.SourceIdentifier)
+	} else {
+		identifier = fmt.Sprintf("DB Instance '%s'", details.Identifier)
+	}
+
+	description := fmt.Sprintf("%s status is '%s'", identifier, details.Status)
+	state, ok := rdsStatus2State[details.Status]
+	if ok {
+		if state == brokerapi.LastOperationSucceeded && details.PendingModifications {
+			state = brokerapi.LastOperationInProgress
+			description = fmt.Sprintf("%s has pending modifications", identifier)
+		}
+	} else {
+		state = brokerapi.LastOperationFailed
+	}
+
+	return state, description
+}
+
 func (b *RDSBroker) LastOperation(instanceID string) (brokerapi.LastOperationResponse, error) {
 	b.logger.Debug("last-operation", lager.Data{
 		instanceIDLogKey: instanceID,
@@ -384,17 +406,22 @@ func (b *RDSBroker) LastOperation(instanceID string) (brokerapi.LastOperationRes
 		return lastOperationResponse, err
 	}
 
-	lastOperationResponse.Description = fmt.Sprintf("DB Instance '%s' status is '%s'", b.dbInstanceIdentifier(instanceID), dbInstanceDetails.Status)
-
-	if state, ok := rdsStatus2State[dbInstanceDetails.Status]; ok {
-		lastOperationResponse.State = state
+	if len(dbInstanceDetails.ReadReplicaIds) > 0 {
+		replicas, err := b.dbInstance.DescribeMany(dbInstanceDetails.ReadReplicaIds)
+		if err != nil {
+			return lastOperationResponse, err
+		}
+		for _, replica := range replicas {
+			state, description := b.getStatus(replica)
+			if state != brokerapi.LastOperationSucceeded {
+				lastOperationResponse.State = state
+				lastOperationResponse.Description = description
+				return lastOperationResponse, nil
+			}
+		}
 	}
 
-	if lastOperationResponse.State == brokerapi.LastOperationSucceeded && dbInstanceDetails.PendingModifications {
-		lastOperationResponse.State = brokerapi.LastOperationInProgress
-		lastOperationResponse.Description = fmt.Sprintf("DB Instance '%s' has pending modifications", b.dbInstanceIdentifier(instanceID))
-	}
-
+	lastOperationResponse.State, lastOperationResponse.Description = b.getStatus(dbInstanceDetails)
 	return lastOperationResponse, nil
 }
 

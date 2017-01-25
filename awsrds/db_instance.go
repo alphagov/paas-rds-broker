@@ -16,6 +16,7 @@ type DBInstance interface {
 
 type DBInstanceDetails struct {
 	Identifier                 string
+	SourceIdentifier           string
 	Status                     string
 	DBInstanceClass            string
 	Engine                     string
