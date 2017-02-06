@@ -36,6 +36,10 @@ func (c Config) Validate() error {
 		return errors.New("Must provide a non-empty BrokerName")
 	}
 
+	if c.AWSPartition == "" {
+		c.AWSPartition = "aws"
+	}
+
 	if c.MasterPasswordSeed == "" {
 		return errors.New("Must provide a non-empty MasterPasswordSeed")
 	}
