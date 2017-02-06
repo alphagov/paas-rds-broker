@@ -3,6 +3,7 @@ package awsrds
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -103,6 +104,55 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string) ([]*DBInstanceDet
 	return dbInstanceDetails, nil
 }
 
+func (r *RDSDBInstance) DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDetails, error) {
+	dbSnapshotDetails := []*DBSnapshotDetails{}
+
+	describeDBSnapshotsInput := &rds.DescribeDBSnapshotsInput{
+		DBInstanceIdentifier: aws.String(DBInstanceID),
+	}
+
+	r.logger.Debug("describe-db-snapshots", lager.Data{"input": describeDBSnapshotsInput})
+
+	describeDBSnapshotsOutput, err := r.rdssvc.DescribeDBSnapshots(describeDBSnapshotsInput)
+	if err != nil {
+		r.logger.Error("aws-rds-error", err)
+		if awsErr, ok := err.(awserr.Error); ok {
+			if reqErr, ok := err.(awserr.RequestFailure); ok {
+				if reqErr.StatusCode() == 404 {
+					return dbSnapshotDetails, ErrDBInstanceDoesNotExist
+				}
+			}
+			return dbSnapshotDetails, errors.New(awsErr.Code() + ": " + awsErr.Message())
+		}
+		return dbSnapshotDetails, err
+	}
+
+	for _, dbSnapshot := range describeDBSnapshotsOutput.DBSnapshots {
+		s := r.buildDBSnapshot(dbSnapshot)
+		s.Arn, err = r.dbSnapshotARN(s.Identifier)
+		if err != nil {
+			r.logger.Error("aws-rds-error", err)
+			if awsErr, ok := err.(awserr.Error); ok {
+				return dbSnapshotDetails, errors.New(awsErr.Code() + ": " + awsErr.Message())
+			}
+			return dbSnapshotDetails, err
+		}
+		t, err := ListTagsForResource(s.Arn, r.rdssvc, r.logger)
+		if err != nil {
+			r.logger.Error("aws-rds-error", err)
+			if awsErr, ok := err.(awserr.Error); ok {
+				return dbSnapshotDetails, errors.New(awsErr.Code() + ": " + awsErr.Message())
+			}
+			return dbSnapshotDetails, err
+		}
+		s.Tags = RDSTagsValues(t)
+		dbSnapshotDetails = append(dbSnapshotDetails, &s)
+	}
+
+	sort.Sort(ByCreateTime(dbSnapshotDetails))
+	return dbSnapshotDetails, nil
+}
+
 func (r *RDSDBInstance) GetTag(ID, tagKey string) (string, error) {
 
 	describeDBInstancesInput := &rds.DescribeDBInstancesInput{
@@ -164,6 +214,23 @@ func (r *RDSDBInstance) Create(ID string, dbInstanceDetails DBInstanceDetails) e
 		return err
 	}
 	r.logger.Debug("create-db-instance", lager.Data{"output": createDBInstanceOutput})
+
+	return nil
+}
+
+func (r *RDSDBInstance) Restore(ID, snapshotIdentifier string, dbInstanceDetails DBInstanceDetails) error {
+	restoreDBInstanceInput := r.buildRestoreDBInstanceInput(ID, snapshotIdentifier, dbInstanceDetails)
+	r.logger.Debug("restore-db-instance", lager.Data{"input": &restoreDBInstanceInput})
+
+	restoreDBInstanceOutput, err := r.rdssvc.RestoreDBInstanceFromDBSnapshot(restoreDBInstanceInput)
+	if err != nil {
+		r.logger.Error("aws-rds-error", err)
+		if awsErr, ok := err.(awserr.Error); ok {
+			return errors.New(awsErr.Code() + ": " + awsErr.Message())
+		}
+		return err
+	}
+	r.logger.Debug("restore-db-instance", lager.Data{"output": restoreDBInstanceOutput})
 
 	return nil
 }
@@ -260,6 +327,15 @@ func (r *RDSDBInstance) buildDBInstance(dbInstance *rds.DBInstance) DBInstanceDe
 	}
 
 	return dbInstanceDetails
+}
+
+func (r *RDSDBInstance) buildDBSnapshot(dbSnapshot *rds.DBSnapshot) DBSnapshotDetails {
+	dbSnapshotDetails := DBSnapshotDetails{
+		Identifier:         aws.StringValue(dbSnapshot.DBSnapshotIdentifier),
+		InstanceIdentifier: aws.StringValue(dbSnapshot.DBInstanceIdentifier),
+		CreateTime:         aws.TimeValue(dbSnapshot.InstanceCreateTime),
+	}
+	return dbSnapshotDetails
 }
 
 func (r *RDSDBInstance) buildCreateDBInstanceInput(ID string, dbInstanceDetails DBInstanceDetails) *rds.CreateDBInstanceInput {
@@ -367,6 +443,64 @@ func (r *RDSDBInstance) buildCreateDBInstanceInput(ID string, dbInstanceDetails 
 	return createDBInstanceInput
 }
 
+func (r *RDSDBInstance) buildRestoreDBInstanceInput(ID, snapshotIdentifier string, dbInstanceDetails DBInstanceDetails) *rds.RestoreDBInstanceFromDBSnapshotInput {
+	restoreDBInstanceInput := &rds.RestoreDBInstanceFromDBSnapshotInput{
+		DBInstanceIdentifier: aws.String(ID),
+		DBSnapshotIdentifier: aws.String(snapshotIdentifier),
+		Engine:               aws.String(dbInstanceDetails.Engine),
+	}
+
+	restoreDBInstanceInput.AutoMinorVersionUpgrade = aws.Bool(dbInstanceDetails.AutoMinorVersionUpgrade)
+
+	if dbInstanceDetails.AvailabilityZone != "" {
+		restoreDBInstanceInput.AvailabilityZone = aws.String(dbInstanceDetails.AvailabilityZone)
+	}
+
+	restoreDBInstanceInput.CopyTagsToSnapshot = aws.Bool(dbInstanceDetails.CopyTagsToSnapshot)
+
+	if dbInstanceDetails.DBInstanceClass != "" {
+		restoreDBInstanceInput.DBInstanceClass = aws.String(dbInstanceDetails.DBInstanceClass)
+	}
+
+	if dbInstanceDetails.DBName != "" {
+		restoreDBInstanceInput.DBName = aws.String(dbInstanceDetails.DBName)
+	}
+
+	if dbInstanceDetails.DBSubnetGroupName != "" {
+		restoreDBInstanceInput.DBSubnetGroupName = aws.String(dbInstanceDetails.DBSubnetGroupName)
+	}
+
+	if dbInstanceDetails.LicenseModel != "" {
+		restoreDBInstanceInput.LicenseModel = aws.String(dbInstanceDetails.LicenseModel)
+	}
+
+	restoreDBInstanceInput.MultiAZ = aws.Bool(dbInstanceDetails.MultiAZ)
+
+	if dbInstanceDetails.OptionGroupName != "" {
+		restoreDBInstanceInput.OptionGroupName = aws.String(dbInstanceDetails.OptionGroupName)
+	}
+
+	if dbInstanceDetails.Port > 0 {
+		restoreDBInstanceInput.Port = aws.Int64(dbInstanceDetails.Port)
+	}
+
+	restoreDBInstanceInput.PubliclyAccessible = aws.Bool(dbInstanceDetails.PubliclyAccessible)
+
+	if dbInstanceDetails.StorageType != "" {
+		restoreDBInstanceInput.StorageType = aws.String(dbInstanceDetails.StorageType)
+	}
+
+	if dbInstanceDetails.Iops > 0 {
+		restoreDBInstanceInput.Iops = aws.Int64(dbInstanceDetails.Iops)
+	}
+
+	if len(dbInstanceDetails.Tags) > 0 {
+		restoreDBInstanceInput.Tags = BuilRDSTags(dbInstanceDetails.Tags)
+	}
+
+	return restoreDBInstanceInput
+}
+
 func (r *RDSDBInstance) buildModifyDBInstanceInput(ID string, dbInstanceDetails DBInstanceDetails, oldDBInstanceDetails DBInstanceDetails, applyImmediately bool) *rds.ModifyDBInstanceInput {
 	modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
 		DBInstanceIdentifier: aws.String(ID),
@@ -463,6 +597,15 @@ func (r *RDSDBInstance) dbInstanceARN(ID string) (string, error) {
 	}
 
 	return fmt.Sprintf("arn:%s:rds:%s:%s:db:%s", r.partition, r.region, userAccount, ID), nil
+}
+
+func (r *RDSDBInstance) dbSnapshotARN(ID string) (string, error) {
+	userAccount, err := UserAccount(r.stssvc)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("arn:%s:rds:%s:%s:snapshot:%s", r.partition, r.region, userAccount, ID), nil
 }
 
 func (r *RDSDBInstance) allowMajorVersionUpgrade(newEngineVersion, oldEngineVersion string) bool {

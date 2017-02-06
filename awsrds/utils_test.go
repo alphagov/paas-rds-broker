@@ -175,4 +175,79 @@ var _ = Describe("RDS Utils", func() {
 			})
 		})
 	})
+
+	var _ = Describe("ListTagsForResource", func() {
+		var (
+			resourceARN     string
+			expectedRdsTags []*rds.Tag
+
+			listTagsForResourceInput *rds.ListTagsForResourceInput
+			listTagsForResourceError error
+		)
+
+		BeforeEach(func() {
+			resourceARN = "arn:aws:rds:rds-region:account:db:identifier"
+			expectedRdsTags = []*rds.Tag{
+				&rds.Tag{
+					Key:   aws.String("Owner"),
+					Value: aws.String("Cloud Foundry"),
+				},
+			}
+
+			listTagsForResourceInput = &rds.ListTagsForResourceInput{
+				ResourceName: aws.String(resourceARN),
+			}
+			listTagsForResourceError = nil
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("ListTagsForResource"))
+				Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
+				Expect(r.Params).To(Equal(listTagsForResourceInput))
+				data := r.Data.(*rds.ListTagsForResourceOutput)
+				data.TagList = expectedRdsTags
+				r.Error = listTagsForResourceError
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		It("does not return error", func() {
+			_, err := ListTagsForResource(resourceARN, rdssvc, logger)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("returns the expected tags", func() {
+			rdsTags, err := ListTagsForResource(resourceARN, rdssvc, logger)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(rdsTags).To(Equal(expectedRdsTags))
+		})
+
+		Context("when adding tags to a resource fails", func() {
+			BeforeEach(func() {
+				listTagsForResourceError = errors.New("operation failed")
+			})
+
+			It("return error the proper error", func() {
+				_, err := ListTagsForResource(resourceARN, rdssvc, logger)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("operation failed"))
+			})
+
+			Context("and it is an AWS error", func() {
+				BeforeEach(func() {
+					listTagsForResourceError = awserr.New("code", "message", errors.New("operation failed"))
+				})
+
+				It("returns the proper error", func() {
+					_, err := ListTagsForResource(resourceARN, rdssvc, logger)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(Equal("code: message"))
+				})
+			})
+		})
+	})
+
 })

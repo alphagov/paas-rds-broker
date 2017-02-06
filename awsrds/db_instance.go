@@ -2,12 +2,15 @@ package awsrds
 
 import (
 	"errors"
+	"time"
 )
 
 type DBInstance interface {
 	Describe(ID string) (DBInstanceDetails, error)
 	DescribeByTag(TagName, TagValue string) ([]*DBInstanceDetails, error)
+	DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDetails, error)
 	Create(ID string, dbInstanceDetails DBInstanceDetails) error
+	Restore(ID, snapshotIdentifier string, dbInstanceDetails DBInstanceDetails) error
 	Modify(ID string, dbInstanceDetails DBInstanceDetails, applyImmediately bool) error
 	Delete(ID string, skipFinalSnapshot bool) error
 	GetTag(ID, tagKey string) (string, error)
@@ -47,6 +50,20 @@ type DBInstanceDetails struct {
 	Tags                       map[string]string
 	VpcSecurityGroupIds        []string
 }
+
+type DBSnapshotDetails struct {
+	Identifier         string
+	InstanceIdentifier string
+	Arn                string
+	CreateTime         time.Time
+	Tags               map[string]string
+}
+
+type ByCreateTime []*DBSnapshotDetails
+
+func (ct ByCreateTime) Len() int           { return len(ct) }
+func (ct ByCreateTime) Swap(i, j int)      { ct[i], ct[j] = ct[j], ct[i] }
+func (ct ByCreateTime) Less(i, j int) bool { return ct[i].CreateTime.After(ct[j].CreateTime) }
 
 var (
 	ErrDBInstanceDoesNotExist = errors.New("rds db instance does not exist")

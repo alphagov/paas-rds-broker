@@ -5,12 +5,13 @@ import (
 )
 
 type ProvisionParameters struct {
-	BackupRetentionPeriod      int64
-	CharacterSetName           string
-	DBName                     string
-	PreferredBackupWindow      string
-	PreferredMaintenanceWindow string
-	SkipFinalSnapshot          string `mapstructure:"skip_final_snapshot"`
+	BackupRetentionPeriod       int64
+	CharacterSetName            string
+	DBName                      string
+	PreferredBackupWindow       string
+	PreferredMaintenanceWindow  string
+	SkipFinalSnapshot           string `mapstructure:"skip_final_snapshot"`
+	RestoreFromLatestSnapshotOf string `mapstructure:"restore_from_latest_snapshot_of"`
 }
 
 type UpdateParameters struct {

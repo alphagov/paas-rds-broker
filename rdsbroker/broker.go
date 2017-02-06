@@ -126,9 +126,32 @@ func (b *RDSBroker) Provision(instanceID string, details brokerapi.ProvisionDeta
 		return provisioningResponse, false, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
-	createDBInstance := b.createDBInstance(instanceID, servicePlan, provisionParameters, details)
-	if err := b.dbInstance.Create(b.dbInstanceIdentifier(instanceID), *createDBInstance); err != nil {
-		return provisioningResponse, false, err
+	if provisionParameters.RestoreFromLatestSnapshotOf == "" {
+		createDBInstance := b.createDBInstance(instanceID, servicePlan, provisionParameters, details)
+		if err := b.dbInstance.Create(b.dbInstanceIdentifier(instanceID), *createDBInstance); err != nil {
+			return provisioningResponse, false, err
+		}
+	} else {
+		restoreFromDBInstanceID := b.dbInstanceIdentifier(provisionParameters.RestoreFromLatestSnapshotOf)
+		snapshots, err := b.dbInstance.DescribeSnapshots(restoreFromDBInstanceID)
+		if err != nil {
+			return provisioningResponse, false, err
+		}
+		if len(snapshots) == 0 {
+			return provisioningResponse, false, fmt.Errorf("No snapshots found for guid '%s'", provisionParameters.RestoreFromLatestSnapshotOf)
+		}
+		snapshot := snapshots[0]
+		if snapshot.Tags["Space ID"] != details.SpaceGUID || snapshot.Tags["Organization ID"] != details.OrganizationGUID {
+			return provisioningResponse, false, fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
+		}
+		if snapshot.Tags["Plan ID"] != details.PlanID {
+			return provisioningResponse, false, fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
+		}
+		snapshotIdentifier := snapshot.Identifier
+		restoreDBInstance := b.restoreDBInstance(instanceID, snapshotIdentifier, servicePlan, provisionParameters, details)
+		if err := b.dbInstance.Restore(b.dbInstanceIdentifier(instanceID), snapshotIdentifier, *restoreDBInstance); err != nil {
+			return provisioningResponse, false, err
+		}
 	}
 
 	return provisioningResponse, true, nil
@@ -460,6 +483,7 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 	dbInstanceDetails := b.dbInstanceFromPlan(servicePlan)
 
 	dbInstanceDetails.DBName = b.dbName(instanceID)
+
 	dbInstanceDetails.MasterUsername = b.masterUsername()
 	dbInstanceDetails.MasterUserPassword = b.masterPassword(instanceID)
 
@@ -488,8 +512,18 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		skipFinalSnapshot = provisionParameters.SkipFinalSnapshot
 	}
 
-	dbInstanceDetails.Tags = b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshot)
+	dbInstanceDetails.Tags = b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshot, "")
+	return dbInstanceDetails
+}
 
+func (b *RDSBroker) restoreDBInstance(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) *awsrds.DBInstanceDetails {
+	dbInstanceDetails := b.dbInstanceFromPlan(servicePlan)
+	skipFinalSnapshot := strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot)
+	if provisionParameters.SkipFinalSnapshot != "" {
+		skipFinalSnapshot = provisionParameters.SkipFinalSnapshot
+	}
+
+	dbInstanceDetails.Tags = b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshot, snapshotIdentifier)
 	return dbInstanceDetails
 }
 
@@ -521,7 +555,7 @@ func (b *RDSBroker) modifyDBInstance(instanceID string, servicePlan ServicePlan,
 		skipFinalSnapshot = updateParameters.SkipFinalSnapshot
 	}
 
-	dbInstanceDetails.Tags = b.dbTags("Updated", details.ServiceID, details.PlanID, "", "", skipFinalSnapshot)
+	dbInstanceDetails.Tags = b.dbTags("Updated", details.ServiceID, details.PlanID, "", "", skipFinalSnapshot, "")
 
 	return dbInstanceDetails
 }
@@ -611,7 +645,7 @@ func (b *RDSBroker) dbInstanceFromPlan(servicePlan ServicePlan) *awsrds.DBInstan
 	return dbInstanceDetails
 }
 
-func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID, skipFinalSnapshot string) map[string]string {
+func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID, skipFinalSnapshot, originSnapshotIdentifier string) map[string]string {
 	tags := make(map[string]string)
 
 	tags["Owner"] = "Cloud Foundry"
@@ -642,5 +676,8 @@ func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID, s
 		tags["SkipFinalSnapshot"] = skipFinalSnapshot
 	}
 
+	if originSnapshotIdentifier != "" {
+		tags["Restored From Snapshot"] = originSnapshotIdentifier
+	}
 	return tags
 }
