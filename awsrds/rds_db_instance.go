@@ -63,7 +63,25 @@ func (r *RDSDBInstance) Describe(ID string) (DBInstanceDetails, error) {
 	for _, dbInstance := range dbInstances.DBInstances {
 		if aws.StringValue(dbInstance.DBInstanceIdentifier) == ID {
 			r.logger.Debug("describe-db-instances", lager.Data{"db-instance": dbInstance})
-			return r.buildDBInstance(dbInstance), nil
+			dbInstanceDetails = r.buildDBInstance(dbInstance)
+			dbInstanceDetails.Arn, err = r.dbInstanceARN(ID)
+			if err != nil {
+				r.logger.Error("aws-rds-error", err)
+				if awsErr, ok := err.(awserr.Error); ok {
+					return dbInstanceDetails, errors.New(awsErr.Code() + ": " + awsErr.Message())
+				}
+				return dbInstanceDetails, err
+			}
+			t, err := ListTagsForResource(dbInstanceDetails.Arn, r.rdssvc, r.logger)
+			if err != nil {
+				r.logger.Error("aws-rds-error", err)
+				if awsErr, ok := err.(awserr.Error); ok {
+					return dbInstanceDetails, errors.New(awsErr.Code() + ": " + awsErr.Message())
+				}
+				return dbInstanceDetails, err
+			}
+			dbInstanceDetails.Tags = RDSTagsValues(t)
+			return dbInstanceDetails, nil
 		}
 	}
 
@@ -278,6 +296,15 @@ func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, a
 	}
 
 	return nil
+}
+
+func (r *RDSDBInstance) RemoveTag(ID, tagKey string) error {
+	dbArn, err := r.dbInstanceARN(ID)
+	if err != nil {
+		return err
+	}
+
+	return RemoveTagsFromResource(dbArn, []*string{&tagKey}, r.rdssvc, r.logger)
 }
 
 func (r *RDSDBInstance) Delete(ID string, skipFinalSnapshot bool) error {

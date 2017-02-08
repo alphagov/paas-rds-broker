@@ -12,6 +12,7 @@ type DBInstance interface {
 	Create(ID string, dbInstanceDetails DBInstanceDetails) error
 	Restore(ID, snapshotIdentifier string, dbInstanceDetails DBInstanceDetails) error
 	Modify(ID string, dbInstanceDetails DBInstanceDetails, applyImmediately bool) error
+	RemoveTag(ID, tagKey string) error
 	Delete(ID string, skipFinalSnapshot bool) error
 	GetTag(ID, tagKey string) (string, error)
 }
@@ -24,6 +25,7 @@ type DBInstanceDetails struct {
 	EngineVersion              string
 	Address                    string
 	AllocatedStorage           int64
+	Arn                        string
 	AutoMinorVersionUpgrade    bool
 	AvailabilityZone           string
 	BackupRetentionPeriod      int64

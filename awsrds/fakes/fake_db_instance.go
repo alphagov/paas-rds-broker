@@ -38,6 +38,11 @@ type FakeDBInstance struct {
 	ModifyApplyImmediately  bool
 	ModifyError             error
 
+	RemoveTagCalled bool
+	RemoveTagID     string
+	RemoveTagTagKey string
+	RemoveTagError  error
+
 	DeleteCalled            bool
 	DeleteID                string
 	DeleteSkipFinalSnapshot bool
@@ -102,6 +107,14 @@ func (f *FakeDBInstance) Modify(ID string, dbInstanceDetails awsrds.DBInstanceDe
 	f.ModifyApplyImmediately = applyImmediately
 
 	return f.ModifyError
+}
+
+func (f *FakeDBInstance) RemoveTag(ID, tagKey string) error {
+	f.RemoveTagCalled = true
+	f.RemoveTagID = ID
+	f.RemoveTagTagKey = tagKey
+
+	return f.RemoveTagError
 }
 
 func (f *FakeDBInstance) Delete(ID string, skipFinalSnapshot bool) error {

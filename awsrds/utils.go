@@ -83,3 +83,25 @@ func ListTagsForResource(resourceARN string, rdssvc *rds.RDS, logger lager.Logge
 
 	return listTagsForResourceOutput.TagList, nil
 }
+
+func RemoveTagsFromResource(resourceARN string, tagKeys []*string, rdssvc *rds.RDS, logger lager.Logger) error {
+	removeTagsFromResourceInput := &rds.RemoveTagsFromResourceInput{
+		ResourceName: aws.String(resourceARN),
+		TagKeys:      tagKeys,
+	}
+
+	logger.Debug("remove-tags-from-resource", lager.Data{"input": removeTagsFromResourceInput})
+
+	removeTagsFromResourceOutput, err := rdssvc.RemoveTagsFromResource(removeTagsFromResourceInput)
+	if err != nil {
+		logger.Error("aws-rds-error", err)
+		if awsErr, ok := err.(awserr.Error); ok {
+			return errors.New(awsErr.Code() + ": " + awsErr.Message())
+		}
+		return err
+	}
+
+	logger.Debug("remove-tags-from-resource", lager.Data{"output": removeTagsFromResourceOutput})
+
+	return nil
+}

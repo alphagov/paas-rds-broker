@@ -250,4 +250,69 @@ var _ = Describe("RDS Utils", func() {
 		})
 	})
 
+	var _ = Describe("RemoveTagsFromResource", func() {
+		var (
+			resourceARN string
+			rdsTagKeys  []*string
+
+			removeTagsFromResourceInput *rds.RemoveTagsFromResourceInput
+			removeTagsFromResourceError error
+		)
+
+		BeforeEach(func() {
+			resourceARN = "arn:aws:rds:rds-region:account:db:identifier"
+			tagKey := "atag"
+			rdsTagKeys = []*string{
+				&tagKey,
+			}
+
+			removeTagsFromResourceInput = &rds.RemoveTagsFromResourceInput{
+				ResourceName: aws.String(resourceARN),
+				TagKeys:      rdsTagKeys,
+			}
+			removeTagsFromResourceError = nil
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("RemoveTagsFromResource"))
+				Expect(r.Params).To(BeAssignableToTypeOf(&rds.RemoveTagsFromResourceInput{}))
+				Expect(r.Params).To(Equal(removeTagsFromResourceInput))
+				r.Error = removeTagsFromResourceError
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		It("does not return error", func() {
+			err := RemoveTagsFromResource(resourceARN, rdsTagKeys, rdssvc, logger)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("when removing tags from a resource fails", func() {
+			BeforeEach(func() {
+				removeTagsFromResourceError = errors.New("operation failed")
+			})
+
+			It("return error the proper error", func() {
+				err := RemoveTagsFromResource(resourceARN, rdsTagKeys, rdssvc, logger)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("operation failed"))
+			})
+
+			Context("and it is an AWS error", func() {
+				BeforeEach(func() {
+					removeTagsFromResourceError = awserr.New("code", "message", errors.New("operation failed"))
+				})
+
+				It("returns the proper error", func() {
+					err := RemoveTagsFromResource(resourceARN, rdsTagKeys, rdssvc, logger)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(Equal("code: message"))
+				})
+			})
+		})
+	})
+
 })
