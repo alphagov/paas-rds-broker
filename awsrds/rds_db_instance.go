@@ -590,6 +590,9 @@ func (r *RDSDBInstance) dbSnapshotName(ID string) string {
 	return fmt.Sprintf("%s-final-snapshot", ID)
 }
 
+//FIXME: when the github.com/aws/aws-sdk-go/service/rds dependency is
+// updated we can extract the ARN directly from the rds.DBInstance struct
+// https://godoc.org/github.com/aws/aws-sdk-go/service/rds#DBInstance
 func (r *RDSDBInstance) dbInstanceARN(ID string) (string, error) {
 	userAccount, err := UserAccount(r.stssvc)
 	if err != nil {
@@ -599,6 +602,9 @@ func (r *RDSDBInstance) dbInstanceARN(ID string) (string, error) {
 	return fmt.Sprintf("arn:%s:rds:%s:%s:db:%s", r.partition, r.region, userAccount, ID), nil
 }
 
+//FIXME: when the github.com/aws/aws-sdk-go/service/rds dependency is
+// updated we can extract the ARN directly from the rds.DBSnapshot struct
+// https://godoc.org/github.com/aws/aws-sdk-go/service/rds#DBSnapshot
 func (r *RDSDBInstance) dbSnapshotARN(ID string) (string, error) {
 	userAccount, err := UserAccount(r.stssvc)
 	if err != nil {
