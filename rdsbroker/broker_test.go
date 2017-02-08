@@ -271,6 +271,7 @@ var _ = Describe("RDS Broker", func() {
 			)
 
 			BeforeEach(func() {
+				rdsProperties1.Engine = "postgres"
 				restoreFromSnapshotInstanceGUID = "guid-of-origin-instance"
 				restoreFromSnapshotDBInstanceID = dbPrefix + "-" + restoreFromSnapshotInstanceGUID
 				provisionDetails.Parameters = map[string]interface{}{"restore_from_latest_snapshot_of": restoreFromSnapshotInstanceGUID}
@@ -305,7 +306,7 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.RestoreCalled).To(BeTrue())
 				Expect(dbInstance.RestoreID).To(Equal(dbInstanceIdentifier))
 				Expect(dbInstance.RestoreDBInstanceDetails.DBInstanceClass).To(Equal("db.m1.test"))
-				Expect(dbInstance.RestoreDBInstanceDetails.Engine).To(Equal("test-engine-1"))
+				Expect(dbInstance.RestoreDBInstanceDetails.Engine).To(Equal("postgres"))
 				Expect(dbInstance.RestoreDBInstanceDetails.DBName).To(BeEmpty())
 				Expect(dbInstance.RestoreDBInstanceDetails.MasterUsername).To(BeEmpty())
 				Expect(dbInstance.RestoreDBInstanceDetails.MasterUserPassword).To(BeEmpty())
@@ -323,6 +324,8 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.RestoreDBInstanceDetails.Tags["Organization ID"]).To(Equal("organization-id"))
 				Expect(dbInstance.RestoreDBInstanceDetails.Tags["Space ID"]).To(Equal("space-id"))
 				Expect(dbInstance.RestoreDBInstanceDetails.Tags["Restored From Snapshot"]).To(Equal(expectedSnapshotIdentifier))
+				Expect(dbInstance.RestoreDBInstanceDetails.Tags["PendingResetUserPassword"]).To(Equal("true"))
+				Expect(dbInstance.RestoreDBInstanceDetails.Tags["PendingUpdateSettings"]).To(Equal("true"))
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -334,7 +337,6 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			Context("when the snapshot is in a different space", func() {
-
 				BeforeEach(func() {
 					dbSnapshotTags["Space ID"] = "different-space-id"
 				})
@@ -392,6 +394,19 @@ var _ = Describe("RDS Broker", func() {
 					Expect(err.Error()).Should(ContainSubstring("No snapshots found"))
 				})
 			})
+
+			Context("when the engine is not 'postgres'", func() {
+				BeforeEach(func() {
+					rdsProperties1.Engine = "some-other-engine"
+				})
+
+				It("returns the correct error", func() {
+					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("not supported for engine"))
+				})
+			})
+
 		})
 
 		Context("when creating a new service instance", func() {
@@ -1740,6 +1755,13 @@ var _ = Describe("RDS Broker", func() {
 				DBName:         "test-db",
 				MasterUsername: "master-username",
 				Status:         dbInstanceStatus,
+				Tags: map[string]string{
+					"Owner":       "Cloud Foundry",
+					"Broker Name": "mybroker",
+					"Created by":  "AWS RDS Service Broker",
+					"Service ID":  "Service-1",
+					"Plan ID":     "Plan-1",
+				},
 			}
 
 			properLastOperationResponse = brokerapi.LastOperationResponse{
@@ -1783,6 +1805,24 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
 			})
+
+			Context("and there are pending post restore tasks", func() {
+				JustBeforeEach(func() {
+					dbInstance.DescribeDBInstanceDetails.Tags["PendingUpdateSettings"] = "true"
+				})
+				It("should not call RemoveTag to remove the tag PendingUpdateSettings", func() {
+					_, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.RemoveTagCalled).To(BeFalse())
+				})
+
+				It("should not modify the DB instance", func() {
+					_, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.ModifyCalled).To(BeFalse())
+				})
+			})
+
 		})
 
 		Context("when last operation failed", func() {
@@ -1826,7 +1866,208 @@ var _ = Describe("RDS Broker", func() {
 					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
 				})
 			})
+
+			Context("but there are pending post restore tasks", func() {
+				JustBeforeEach(func() {
+					dbInstance.DescribeDBInstanceDetails.Tags["PendingUpdateSettings"] = "true"
+
+					properLastOperationResponse = brokerapi.LastOperationResponse{
+						State:       brokerapi.LastOperationInProgress,
+						Description: "DB Instance '" + dbInstanceIdentifier + "' has pending post restore modifications",
+					}
+				})
+				It("should call RemoveTag to remove the tag PendingUpdateSettings", func() {
+					_, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.RemoveTagCalled).To(BeTrue())
+					Expect(dbInstance.RemoveTagID).To(Equal(dbInstanceIdentifier))
+					Expect(dbInstance.RemoveTagTagKey).To(Equal("PendingUpdateSettings"))
+				})
+
+				It("should return the proper LastOperationResponse", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
+
+				Context("when remove tag fails", func() {
+					BeforeEach(func() {
+						dbInstance.RemoveTagError = errors.New("Failed to remove tag")
+					})
+					It("returns the proper error", func() {
+						_, err := rdsBroker.LastOperation(instanceID)
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).To(Equal("Failed to remove tag"))
+					})
+				})
+
+				It("modifies the DB instance", func() {
+					_, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.ModifyCalled).To(BeTrue())
+					Expect(dbInstance.ModifyID).To(Equal(dbInstanceIdentifier))
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("sets the right tags", func() {
+					_, err := rdsBroker.LastOperation(instanceID)
+					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Owner"]).To(Equal("Cloud Foundry"))
+					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Broker Name"]).To(Equal("mybroker"))
+					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Restored by"]).To(Equal("AWS RDS Service Broker"))
+					Expect(dbInstance.ModifyDBInstanceDetails.Tags).To(HaveKey("Restored at"))
+					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Service ID"]).To(Equal("Service-1"))
+					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Plan ID"]).To(Equal("Plan-1"))
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				Context("when the master password needs to be rotated", func() {
+					JustBeforeEach(func() {
+						sqlEngine.CorrectPassword = "some-other-password"
+						// use a callback function to set the password back to what it was before. This is because the Bind()
+						// uses two different calls to the SQL engine's Open() method, the first needs to fail and the second needs to pass.
+						dbInstance.ModifyCallback = func(ID string, dbInstanceDetails awsrds.DBInstanceDetails, applyImmediately bool) error {
+							sqlEngine.CorrectPassword = dbInstanceDetails.MasterUserPassword
+							return nil
+						}
+					})
+
+					It("should try to change the master password", func() {
+						_, err := rdsBroker.LastOperation(instanceID)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(dbInstance.ModifyCalled).To(BeTrue())
+						Expect(dbInstance.ModifyID).To(BeEquivalentTo(dbInstanceIdentifier))
+						Expect(dbInstance.ModifyDBInstanceDetails.MasterUserPassword).ToNot(BeEmpty())
+					})
+				})
+
+				Context("when has DBSecurityGroups", func() {
+					BeforeEach(func() {
+						rdsProperties1.DBSecurityGroups = []string{"test-db-security-group"}
+					})
+
+					It("makes the modify with the secutiry group", func() {
+						_, err := rdsBroker.LastOperation(instanceID)
+						Expect(dbInstance.ModifyDBInstanceDetails.DBSecurityGroups).To(Equal([]string{"test-db-security-group"}))
+						Expect(err).ToNot(HaveOccurred())
+					})
+				})
+			})
+
+			Context("but there are pending reboot", func() {
+				JustBeforeEach(func() {
+					dbInstance.DescribeDBInstanceDetails.Tags["PendingReboot"] = "true"
+
+					properLastOperationResponse = brokerapi.LastOperationResponse{
+						State:       brokerapi.LastOperationInProgress,
+						Description: "DB Instance '" + dbInstanceIdentifier + "' has pending post restore modifications",
+					}
+				})
+
+				It("should call RemoveTag to remove the tag PendingReboot", func() {
+					_, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.RemoveTagCalled).To(BeTrue())
+					Expect(dbInstance.RemoveTagID).To(Equal(dbInstanceIdentifier))
+					Expect(dbInstance.RemoveTagTagKey).To(Equal("PendingReboot"))
+				})
+
+				It("should return the proper LastOperationResponse", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
+
+				Context("when remove tag fails", func() {
+					BeforeEach(func() {
+						dbInstance.RemoveTagError = errors.New("Failed to remove tag")
+					})
+					It("returns the proper error", func() {
+						_, err := rdsBroker.LastOperation(instanceID)
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).To(Equal("Failed to remove tag"))
+					})
+				})
+
+				It("reboot the DB instance", func() {
+					_, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.RebootCalled).To(BeTrue())
+					Expect(dbInstance.RebootID).To(Equal(dbInstanceIdentifier))
+				})
+			})
+
+			Context("but there is a pending reset user password", func() {
+				JustBeforeEach(func() {
+					dbInstance.DescribeDBInstanceDetails.Tags["PendingResetUserPassword"] = "true"
+
+					properLastOperationResponse = brokerapi.LastOperationResponse{
+						State:       brokerapi.LastOperationInProgress,
+						Description: "DB Instance '" + dbInstanceIdentifier + "' has pending post restore modifications",
+					}
+				})
+
+				It("should call RemoveTag to remove the tag PendingResetUserPassword", func() {
+					_, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.RemoveTagCalled).To(BeTrue())
+					Expect(dbInstance.RemoveTagID).To(Equal(dbInstanceIdentifier))
+					Expect(dbInstance.RemoveTagTagKey).To(Equal("PendingResetUserPassword"))
+				})
+
+				It("should return the proper LastOperationResponse", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
+
+				Context("when remove tag fails", func() {
+					BeforeEach(func() {
+						dbInstance.RemoveTagError = errors.New("Failed to remove tag")
+					})
+					It("returns the proper error", func() {
+						_, err := rdsBroker.LastOperation(instanceID)
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).To(Equal("Failed to remove tag"))
+					})
+				})
+
+				It("should reset the database state by calling sqlengine.ResetState()", func() {
+					_, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(sqlEngine.ResetStateCalled).To(BeTrue())
+				})
+
+				Context("when sqlengine.ResetState() fails", func() {
+					BeforeEach(func() {
+						sqlEngine.ResetStateError = errors.New("Failed to reset state")
+					})
+					It("returns the proper error", func() {
+						_, err := rdsBroker.LastOperation(instanceID)
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).To(Equal("Failed to reset state"))
+					})
+				})
+			})
+
+			Context("but there are not post restore tasks or reset password to execute", func() {
+				It("should not try to change the master password", func() {
+					_, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.ModifyCalled).To(BeFalse())
+				})
+				It("should not reset the database state by not calling sqlengine.ResetState()", func() {
+					_, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(sqlEngine.ResetStateCalled).To(BeFalse())
+				})
+				It("should not call RemoveTag", func() {
+					_, err := rdsBroker.LastOperation(instanceID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.RemoveTagCalled).To(BeFalse())
+				})
+			})
 		})
+
 	})
 
 	var _ = Describe("CheckAndRotateCredentials", func() {

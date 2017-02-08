@@ -109,7 +109,7 @@ var _ = Describe("PostgresEngine", func() {
 
 		BeforeEach(func() {
 			bindingID = "binding-id"
-			err := postgresEngine.Open("localhost", port, dbname, username, password)
+			err := postgresEngine.Open(address, port, dbname, username, password)
 			Expect(err).ToNot(HaveOccurred())
 			createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
 			Expect(err).ToNot(HaveOccurred())
@@ -128,6 +128,51 @@ var _ = Describe("PostgresEngine", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user).To(Equal(createdUser))
 			Expect(password).To(Equal(createdPassword))
+		})
+	})
+
+	Describe("ResetState", func() {
+		var (
+			bindingID       string
+			createdUser     string
+			createdPassword string
+		)
+		BeforeEach(func() {
+			bindingID = "binding-id"
+			err := postgresEngine.Open(address, port, dbname, username, password)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		Describe("when there was no user created", func() {
+			AfterEach(func() {
+				dropDB(template1ConnectionString, postgresEngine.stateDBName)
+			})
+
+			It("get login and password when calling CreateUser() ", func() {
+				err := postgresEngine.ResetState()
+				Expect(err).ToNot(HaveOccurred())
+				_, _, err = postgresEngine.CreateUser(bindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+		Describe("when there was already a user created", func() {
+			BeforeEach(func() {
+				var err error
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				dropDB(template1ConnectionString, postgresEngine.stateDBName)
+			})
+
+			It("CreateUser() returns the same user but different password", func() {
+				err := postgresEngine.ResetState()
+				Expect(err).ToNot(HaveOccurred())
+				user, password, err := postgresEngine.CreateUser(bindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(user).To(Equal(createdUser))
+				Expect(password).ToNot(Equal(createdPassword))
+			})
 		})
 	})
 

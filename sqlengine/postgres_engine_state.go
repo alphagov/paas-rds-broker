@@ -79,6 +79,29 @@ func (s *postgresEngineState) initSchema() error {
 	return nil
 }
 
+func (s *postgresEngineState) listUsers() ([]string, error) {
+	users := []string{}
+	statement := "SELECT username FROM role"
+	s.logger.Debug("list-users", lager.Data{"statement": statement})
+
+	rows, err := s.Query(statement)
+	if err != nil {
+		s.logger.Error("list-user.sql-error", err)
+		return users, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var username string
+		err = rows.Scan(&username)
+		if err != nil {
+			s.logger.Error("list-user.sql-error", err)
+			return users, err
+		}
+		users = append(users, username)
+	}
+	return users, err
+}
+
 func (s *postgresEngineState) fetchUserPassword(username string) (password string, ok bool, err error) {
 	var encryptedPassword string
 	statement := "SELECT encrypted_password FROM role WHERE username = $1"
@@ -107,6 +130,24 @@ func (s *postgresEngineState) storeUser(username, password string) error {
 	_, err = s.Exec(statement, username, encryptedPassword, passwordStorageVersion)
 	if err != nil {
 		s.logger.Error("insert-user.sql-error", err)
+		return err
+	}
+	return nil
+}
+
+func (s *postgresEngineState) updateUser(username, password string) error {
+	encryptedPassword, err := encryptString(s.stateEncryptionKey, password)
+	if err != nil {
+		return err
+	}
+	statement := "UPDATE role SET (encrypted_password, password_storage_version) = ($2, $3) WHERE username = $1"
+	s.logger.Debug("update-user", lager.Data{
+		"statement": statement,
+		"params":    []string{username, "REDACTED", passwordStorageVersion},
+	})
+	_, err = s.Exec(statement, username, encryptedPassword, passwordStorageVersion)
+	if err != nil {
+		s.logger.Error("update-user.sql-error", err)
 		return err
 	}
 	return nil

@@ -37,6 +37,11 @@ type FakeDBInstance struct {
 	ModifyDBInstanceDetails awsrds.DBInstanceDetails
 	ModifyApplyImmediately  bool
 	ModifyError             error
+	ModifyCallback          func(string, awsrds.DBInstanceDetails, bool) error
+
+	RebootCalled bool
+	RebootID     string
+	RebootError  error
 
 	RemoveTagCalled bool
 	RemoveTagID     string
@@ -106,7 +111,18 @@ func (f *FakeDBInstance) Modify(ID string, dbInstanceDetails awsrds.DBInstanceDe
 	f.ModifyDBInstanceDetails = dbInstanceDetails
 	f.ModifyApplyImmediately = applyImmediately
 
+	if f.ModifyCallback != nil {
+		return f.ModifyCallback(ID, dbInstanceDetails, applyImmediately)
+	}
+
 	return f.ModifyError
+}
+
+func (f *FakeDBInstance) Reboot(ID string) error {
+	f.RebootCalled = true
+	f.RebootID = ID
+
+	return f.RebootError
 }
 
 func (f *FakeDBInstance) RemoveTag(ID, tagKey string) error {

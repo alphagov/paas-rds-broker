@@ -17,6 +17,7 @@ type SQLEngine interface {
 	Close()
 	CreateUser(bindingID, dbname string) (string, string, error)
 	DropUser(bindingID string) error
+	ResetState() error
 	URI(address string, port int64, dbname string, username string, password string) string
 	JDBCURI(address string, port int64, dbname string, username string, password string) string
 }

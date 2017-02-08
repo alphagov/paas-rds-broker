@@ -1606,6 +1606,59 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 	})
 
+	var _ = Describe("Reboot", func() {
+		var (
+			rebootDBInstanceError error
+		)
+
+		BeforeEach(func() {
+			rebootDBInstanceError = nil
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("RebootDBInstance"))
+				Expect(r.Params).To(BeAssignableToTypeOf(&rds.RebootDBInstanceInput{}))
+				params := r.Params.(*rds.RebootDBInstanceInput)
+				Expect(params.DBInstanceIdentifier).To(Equal(aws.String(dbInstanceIdentifier)))
+				r.Error = rebootDBInstanceError
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		It("does not return error", func() {
+			err := rdsDBInstance.Reboot(dbInstanceIdentifier)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("when rebooting the DB instance fails", func() {
+			BeforeEach(func() {
+				rebootDBInstanceError = errors.New("operation failed")
+			})
+
+			It("returns the proper error", func() {
+				err := rdsDBInstance.Reboot(dbInstanceIdentifier)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("operation failed"))
+			})
+
+			Context("and it is a 404 error", func() {
+				BeforeEach(func() {
+					awsError := awserr.New("code", "message", errors.New("operation failed"))
+					rebootDBInstanceError = awserr.NewRequestFailure(awsError, 404, "request-id")
+				})
+
+				It("returns the proper error", func() {
+					err := rdsDBInstance.Reboot(dbInstanceIdentifier)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(ErrDBInstanceDoesNotExist))
+				})
+			})
+		})
+	})
+
 	var _ = Describe("Delete", func() {
 		var (
 			skipFinalSnapshot         bool

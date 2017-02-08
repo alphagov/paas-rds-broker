@@ -27,6 +27,7 @@ const acceptsIncompleteLogKey = "acceptsIncomplete"
 const updateParametersLogKey = "updateParameters"
 const servicePlanLogKey = "servicePlan"
 const dbInstanceDetailsLogKey = "dbInstanceDetails"
+const lastOperationResponseLogKey = "lastOperationResponse"
 
 var (
 	ErrEncryptionNotUpdateable = errors.New("intance can not be updated to a plan with different encryption settings")
@@ -44,6 +45,19 @@ var rdsStatus2State = map[string]string{
 	"resetting-master-credentials": brokerapi.LastOperationInProgress,
 	"upgrading":                    brokerapi.LastOperationInProgress,
 }
+
+const StateUpdateSettings = "PendingUpdateSettings"
+const StateReboot = "PendingReboot"
+const StateResetUserPassword = "PendingResetUserPassword"
+
+var restoreStateSequence = []string{StateUpdateSettings, StateReboot, StateResetUserPassword}
+
+const TagServiceID = "Service ID"
+const TagPlanID = "Plan ID"
+const TagOrganizationID = "Organization ID"
+const TagSpaceID = "Space ID"
+const TagSkipFinalSnapshot = "SkipFinalSnapshot"
+const TagRestoredFromSnapshot = "Restored From Snapshot"
 
 type RDSBroker struct {
 	dbPrefix                     string
@@ -132,6 +146,9 @@ func (b *RDSBroker) Provision(instanceID string, details brokerapi.ProvisionDeta
 			return provisioningResponse, false, err
 		}
 	} else {
+		if servicePlan.RDSProperties.Engine != "postgres" {
+			return provisioningResponse, false, fmt.Errorf("Restore from snapshot not supported for engine '%s'", servicePlan.RDSProperties.Engine)
+		}
 		restoreFromDBInstanceID := b.dbInstanceIdentifier(provisionParameters.RestoreFromLatestSnapshotOf)
 		snapshots, err := b.dbInstance.DescribeSnapshots(restoreFromDBInstanceID)
 		if err != nil {
@@ -141,10 +158,10 @@ func (b *RDSBroker) Provision(instanceID string, details brokerapi.ProvisionDeta
 			return provisioningResponse, false, fmt.Errorf("No snapshots found for guid '%s'", provisionParameters.RestoreFromLatestSnapshotOf)
 		}
 		snapshot := snapshots[0]
-		if snapshot.Tags["Space ID"] != details.SpaceGUID || snapshot.Tags["Organization ID"] != details.OrganizationGUID {
+		if snapshot.Tags[TagSpaceID] != details.SpaceGUID || snapshot.Tags[TagOrganizationID] != details.OrganizationGUID {
 			return provisioningResponse, false, fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
 		}
-		if snapshot.Tags["Plan ID"] != details.PlanID {
+		if snapshot.Tags[TagPlanID] != details.PlanID {
 			return provisioningResponse, false, fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
 		}
 		snapshotIdentifier := snapshot.Identifier
@@ -235,7 +252,7 @@ func (b *RDSBroker) Deprovision(instanceID string, details brokerapi.Deprovision
 
 	skipDBInstanceFinalSnapshot := servicePlan.RDSProperties.SkipFinalSnapshot
 
-	skipFinalSnapshot, err := b.dbInstance.GetTag(b.dbInstanceIdentifier(instanceID), "SkipFinalSnapshot")
+	skipFinalSnapshot, err := b.dbInstance.GetTag(b.dbInstanceIdentifier(instanceID), TagSkipFinalSnapshot)
 	if err != nil {
 		return false, err
 	}
@@ -287,8 +304,6 @@ func (b *RDSBroker) Bind(instanceID, bindingID string, details brokerapi.BindDet
 		return bindingResponse, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
-	var dbAddress, dbName, masterUsername string
-	var dbPort int64
 	dbInstanceDetails, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
@@ -297,17 +312,22 @@ func (b *RDSBroker) Bind(instanceID, bindingID string, details brokerapi.BindDet
 		return bindingResponse, err
 	}
 
-	dbAddress = dbInstanceDetails.Address
-	dbPort = dbInstanceDetails.Port
-	masterUsername = dbInstanceDetails.MasterUsername
-	dbName = b.dbNameFromDetails(instanceID, dbInstanceDetails)
+	_, err = b.PostRestoreTasks(instanceID, &dbInstanceDetails)
+	if err != nil {
+		return bindingResponse, err
+	}
+
+	dbAddress := dbInstanceDetails.Address
+	dbPort := dbInstanceDetails.Port
+	masterUsername := dbInstanceDetails.MasterUsername
+	dbName := b.dbNameFromDetails(instanceID, dbInstanceDetails)
 
 	sqlEngine, err := b.sqlProvider.GetSQLEngine(servicePlan.RDSProperties.Engine)
 	if err != nil {
 		return bindingResponse, err
 	}
 
-	if err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, b.masterPassword(instanceID)); err != nil {
+	if err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, b.generateMasterPassword(instanceID)); err != nil {
 		return bindingResponse, err
 	}
 	defer sqlEngine.Close()
@@ -362,7 +382,7 @@ func (b *RDSBroker) Unbind(instanceID, bindingID string, details brokerapi.Unbin
 		return err
 	}
 
-	if err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, b.masterPassword(instanceID)); err != nil {
+	if err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, b.generateMasterPassword(instanceID)); err != nil {
 		return err
 	}
 	defer sqlEngine.Close()
@@ -379,28 +399,132 @@ func (b *RDSBroker) LastOperation(instanceID string) (brokerapi.LastOperationRes
 		instanceIDLogKey: instanceID,
 	})
 
-	lastOperationResponse := brokerapi.LastOperationResponse{State: brokerapi.LastOperationFailed}
-
 	dbInstanceDetails, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
-			return lastOperationResponse, brokerapi.ErrInstanceDoesNotExist
+			err = brokerapi.ErrInstanceDoesNotExist
 		}
-		return lastOperationResponse, err
+		return brokerapi.LastOperationResponse{State: brokerapi.LastOperationFailed}, err
 	}
 
-	lastOperationResponse.Description = fmt.Sprintf("DB Instance '%s' status is '%s'", b.dbInstanceIdentifier(instanceID), dbInstanceDetails.Status)
-
-	if state, ok := rdsStatus2State[dbInstanceDetails.Status]; ok {
-		lastOperationResponse.State = state
+	state := rdsStatus2State[dbInstanceDetails.Status]
+	if state == "" {
+		state = brokerapi.LastOperationFailed
 	}
 
-	if lastOperationResponse.State == brokerapi.LastOperationSucceeded && dbInstanceDetails.PendingModifications {
-		lastOperationResponse.State = brokerapi.LastOperationInProgress
-		lastOperationResponse.Description = fmt.Sprintf("DB Instance '%s' has pending modifications", b.dbInstanceIdentifier(instanceID))
+	lastOperationResponse := brokerapi.LastOperationResponse{
+		State:       state,
+		Description: fmt.Sprintf("DB Instance '%s' status is '%s'", b.dbInstanceIdentifier(instanceID), dbInstanceDetails.Status),
 	}
+
+	if lastOperationResponse.State == brokerapi.LastOperationSucceeded {
+		if dbInstanceDetails.PendingModifications {
+			lastOperationResponse = brokerapi.LastOperationResponse{
+				State:       brokerapi.LastOperationInProgress,
+				Description: fmt.Sprintf("DB Instance '%s' has pending modifications", b.dbInstanceIdentifier(instanceID)),
+			}
+		} else {
+			asyncOperarionTriggered, err := b.PostRestoreTasks(instanceID, &dbInstanceDetails)
+			if err != nil {
+				return brokerapi.LastOperationResponse{State: brokerapi.LastOperationFailed}, err
+			}
+			if asyncOperarionTriggered {
+				lastOperationResponse = brokerapi.LastOperationResponse{
+					State:       brokerapi.LastOperationInProgress,
+					Description: fmt.Sprintf("DB Instance '%s' has pending post restore modifications", b.dbInstanceIdentifier(instanceID)),
+				}
+			}
+		}
+	}
+
+	b.logger.Debug("last-operation.done", lager.Data{
+		instanceIDLogKey:            instanceID,
+		lastOperationResponseLogKey: lastOperationResponse,
+	})
 
 	return lastOperationResponse, nil
+}
+
+func (b *RDSBroker) updateDBSettings(instanceID string, dbInstanceDetails *awsrds.DBInstanceDetails) (asyncOperarionTriggered bool, err error) {
+	serviceID := dbInstanceDetails.Tags[TagServiceID]
+	planID := dbInstanceDetails.Tags[TagPlanID]
+	organizationID := dbInstanceDetails.Tags[TagOrganizationID]
+	spaceID := dbInstanceDetails.Tags[TagSpaceID]
+
+	servicePlan, ok := b.catalog.FindServicePlan(planID)
+	if !ok {
+		return false, fmt.Errorf("Service Plan '%s' not found", dbInstanceDetails.Tags[TagPlanID])
+	}
+
+	newDbInstanceDetails := b.dbInstanceFromPlan(servicePlan)
+	newDbInstanceDetails.Tags = b.dbTags("Restored", serviceID, planID, organizationID, spaceID, "", "")
+	newDbInstanceDetails.MasterUserPassword = b.generateMasterPassword(instanceID)
+	if err := b.dbInstance.Modify(b.dbInstanceIdentifier(instanceID), *newDbInstanceDetails, true); err != nil {
+		if err == awsrds.ErrDBInstanceDoesNotExist {
+			return false, brokerapi.ErrInstanceDoesNotExist
+		}
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (b *RDSBroker) rebootInstance(instanceID string, dbInstanceDetails *awsrds.DBInstanceDetails) (asyncOperarionTriggered bool, err error) {
+	err = b.dbInstance.Reboot(b.dbInstanceIdentifier(instanceID))
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (b *RDSBroker) changeUserPassword(instanceID string, dbInstanceDetails *awsrds.DBInstanceDetails) (asyncOperarionTriggered bool, err error) {
+	dbAddress := dbInstanceDetails.Address
+	dbPort := dbInstanceDetails.Port
+	masterUsername := dbInstanceDetails.MasterUsername
+	dbName := b.dbNameFromDetails(instanceID, *dbInstanceDetails)
+
+	sqlEngine, err := b.sqlProvider.GetSQLEngine(dbInstanceDetails.Engine)
+	if err != nil {
+		return false, err
+	}
+
+	if err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, b.generateMasterPassword(instanceID)); err != nil {
+		return false, err
+	}
+	defer sqlEngine.Close()
+
+	err = sqlEngine.ResetState()
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (b *RDSBroker) PostRestoreTasks(instanceID string, dbInstanceDetails *awsrds.DBInstanceDetails) (asyncOperarionTriggered bool, err error) {
+	var restoreStateFuncs = map[string]func(string, *awsrds.DBInstanceDetails) (bool, error){
+		StateUpdateSettings:    b.updateDBSettings,
+		StateReboot:            b.rebootInstance,
+		StateResetUserPassword: b.changeUserPassword,
+	}
+
+	for _, state := range restoreStateSequence {
+		_, tag := dbInstanceDetails.Tags[state]
+		if tag {
+			b.logger.Debug(fmt.Sprintf("last-operation.%s", state))
+			var success, err = restoreStateFuncs[state](instanceID, dbInstanceDetails)
+			if success {
+				var err = b.dbInstance.RemoveTag(b.dbInstanceIdentifier(instanceID), state)
+				if err != nil {
+					return false, err
+				}
+			}
+			return success, err
+		}
+	}
+
+	return false, nil
 }
 
 func (b *RDSBroker) CheckAndRotateCredentials() {
@@ -417,7 +541,7 @@ func (b *RDSBroker) CheckAndRotateCredentials() {
 	for _, dbDetails := range dbInstanceDetailsList {
 		b.logger.Debug(fmt.Sprintf("Checking credentials for instance %v", dbDetails.Identifier))
 		serviceInstanceID := b.dbInstanceIdentifierToServiceInstanceID(dbDetails.Identifier)
-		masterPassword := b.masterPassword(serviceInstanceID)
+		masterPassword := b.generateMasterPassword(serviceInstanceID)
 		dbName := b.dbNameFromDetails(dbDetails.Identifier, *dbDetails)
 
 		sqlEngine, err := b.sqlProvider.GetSQLEngine(dbDetails.Engine)
@@ -457,11 +581,11 @@ func (b *RDSBroker) dbInstanceIdentifierToServiceInstanceID(serviceInstanceID st
 	return strings.TrimPrefix(serviceInstanceID, strings.Replace(b.dbPrefix, "_", "-", -1)+"-")
 }
 
-func (b *RDSBroker) masterUsername() string {
+func (b *RDSBroker) generateMasterUsername() string {
 	return utils.RandomAlphaNum(masterUsernameLength)
 }
 
-func (b *RDSBroker) masterPassword(instanceID string) string {
+func (b *RDSBroker) generateMasterPassword(instanceID string) string {
 	return utils.GetMD5B64(b.masterPasswordSeed+instanceID, masterPasswordLength)
 }
 
@@ -484,8 +608,8 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 
 	dbInstanceDetails.DBName = b.dbName(instanceID)
 
-	dbInstanceDetails.MasterUsername = b.masterUsername()
-	dbInstanceDetails.MasterUserPassword = b.masterPassword(instanceID)
+	dbInstanceDetails.MasterUsername = b.generateMasterUsername()
+	dbInstanceDetails.MasterUserPassword = b.generateMasterPassword(instanceID)
 
 	if provisionParameters.BackupRetentionPeriod > 0 {
 		dbInstanceDetails.BackupRetentionPeriod = provisionParameters.BackupRetentionPeriod
@@ -657,27 +781,30 @@ func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID, s
 	tags[action+" at"] = time.Now().Format(time.RFC822Z)
 
 	if serviceID != "" {
-		tags["Service ID"] = serviceID
+		tags[TagServiceID] = serviceID
 	}
 
 	if planID != "" {
-		tags["Plan ID"] = planID
+		tags[TagPlanID] = planID
 	}
 
 	if organizationID != "" {
-		tags["Organization ID"] = organizationID
+		tags[TagOrganizationID] = organizationID
 	}
 
 	if spaceID != "" {
-		tags["Space ID"] = spaceID
+		tags[TagSpaceID] = spaceID
 	}
 
 	if skipFinalSnapshot != "" {
-		tags["SkipFinalSnapshot"] = skipFinalSnapshot
+		tags[TagSkipFinalSnapshot] = skipFinalSnapshot
 	}
 
 	if originSnapshotIdentifier != "" {
-		tags["Restored From Snapshot"] = originSnapshotIdentifier
+		tags[TagRestoredFromSnapshot] = originSnapshotIdentifier
+		for _, state := range restoreStateSequence {
+			tags[state] = "true"
+		}
 	}
 	return tags
 }

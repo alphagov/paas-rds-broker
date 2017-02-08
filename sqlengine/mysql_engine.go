@@ -2,6 +2,7 @@ package sqlengine
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	_ "github.com/go-sql-driver/mysql" // MySQL Driver
@@ -77,6 +78,11 @@ func (d *MySQLEngine) DropUser(bindingID string) error {
 	}
 
 	return nil
+}
+
+func (d *MySQLEngine) ResetState() error {
+	// TODO: Not implemented
+	return errors.New("Not implemented")
 }
 
 func (d *MySQLEngine) URI(address string, port int64, dbname string, username string, password string) string {

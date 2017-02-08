@@ -298,6 +298,31 @@ func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, a
 	return nil
 }
 
+func (r *RDSDBInstance) Reboot(ID string) error {
+	rebootDBInstanceInput := &rds.RebootDBInstanceInput{
+		DBInstanceIdentifier: aws.String(ID),
+	}
+
+	r.logger.Debug("reboot-db-instance", lager.Data{"input": rebootDBInstanceInput})
+
+	rebootDBInstanceOutput, err := r.rdssvc.RebootDBInstance(rebootDBInstanceInput)
+	if err != nil {
+		r.logger.Error("aws-rds-error", err)
+		if awsErr, ok := err.(awserr.Error); ok {
+			if reqErr, ok := err.(awserr.RequestFailure); ok {
+				if reqErr.StatusCode() == 404 {
+					return ErrDBInstanceDoesNotExist
+				}
+			}
+			return errors.New(awsErr.Code() + ": " + awsErr.Message())
+		}
+		return err
+	}
+
+	r.logger.Debug("reboot-db-instance", lager.Data{"output": rebootDBInstanceOutput})
+	return nil
+}
+
 func (r *RDSDBInstance) RemoveTag(ID, tagKey string) error {
 	dbArn, err := r.dbInstanceARN(ID)
 	if err != nil {
