@@ -7,6 +7,9 @@ go:
 - 1.5
 - 1.5.1
 
+services:
+- postgresql
+
 before_install:
 - export PATH=$HOME/gopath/bin:$PWD/Godeps/_workspace/bin:$PATH
 - export GOPATH=$PWD/Godeps/_workspace:$GOPATH
@@ -14,6 +17,9 @@ before_install:
 install:
 # Prevent default install task that does a `go get -t ./...`
 - true
+
+before_script:
+  - psql -c 'create database mydb;' -U postgres
 
 script:
 - go test -v ./...

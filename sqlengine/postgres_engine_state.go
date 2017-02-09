@@ -7,8 +7,6 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
-const stateDBName = "broker_state"
-
 // passwordStorageVersion represents the current method we are using to store
 // passwords. If the way we store or encrypt passwords ever changes, this field
 // (which is stored in the database) will allow us to migrate more easily.
@@ -17,7 +15,7 @@ const passwordStorageVersion = "1.0"
 func (d *PostgresEngine) openStateDB(logger lager.Logger, stateEncryptionKey string) (*postgresEngineState, error) {
 	logger = logger.Session("postgres-engine-state")
 
-	statement := "CREATE DATABASE " + stateDBName
+	statement := "CREATE DATABASE " + d.stateDBName
 	logger.Debug("create-database", lager.Data{"statement": statement})
 	_, err := d.db.Exec(statement)
 	if err != nil {
@@ -30,7 +28,7 @@ func (d *PostgresEngine) openStateDB(logger lager.Logger, stateEncryptionKey str
 		}
 	} else {
 		// No error, so the database has just been created
-		revokePrivilegesStatement := "REVOKE ALL PRIVILEGES ON DATABASE " + stateDBName + " FROM PUBLIC"
+		revokePrivilegesStatement := "REVOKE ALL PRIVILEGES ON DATABASE " + d.stateDBName + " FROM PUBLIC"
 		logger.Debug("revoke-privileges", lager.Data{"statement": revokePrivilegesStatement})
 		if _, err := d.db.Exec(revokePrivilegesStatement); err != nil {
 			logger.Error("revoke-privileges.sql-error", err)
@@ -39,8 +37,8 @@ func (d *PostgresEngine) openStateDB(logger lager.Logger, stateEncryptionKey str
 	}
 
 	var (
-		stateDBURL          = d.URI(d.address, d.port, stateDBName, d.username, d.password)
-		sanitisedStateDBURL = d.URI(d.address, d.port, stateDBName, d.username, "REDACTED")
+		stateDBURL          = d.URI(d.address, d.port, d.stateDBName, d.username, d.password)
+		sanitisedStateDBURL = d.URI(d.address, d.port, d.stateDBName, d.username, "REDACTED")
 	)
 	logger.Debug("db-open", lager.Data{"connection-string": sanitisedStateDBURL})
 	db, err := sql.Open("postgres", stateDBURL)

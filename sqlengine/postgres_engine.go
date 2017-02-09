@@ -9,6 +9,8 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
+const defaultStateDBName = "broker_state"
+
 type PostgresEngine struct {
 	logger             lager.Logger
 	stateEncryptionKey string
@@ -17,12 +19,16 @@ type PostgresEngine struct {
 	port               int64
 	username           string
 	password           string
+	requireSSL         bool
+	stateDBName        string
 }
 
 func NewPostgresEngine(logger lager.Logger, stateEncryptionKey string) *PostgresEngine {
 	return &PostgresEngine{
 		logger:             logger.Session("postgres-engine"),
 		stateEncryptionKey: stateEncryptionKey,
+		requireSSL:         true,
+		stateDBName:        defaultStateDBName,
 	}
 }
 
@@ -134,7 +140,11 @@ func (d *PostgresEngine) DropUser(bindingID string) error {
 }
 
 func (d *PostgresEngine) URI(address string, port int64, dbname string, username string, password string) string {
-	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s", username, password, address, port, dbname)
+	uri := fmt.Sprintf("postgres://%s:%s@%s:%d/%s", username, password, address, port, dbname)
+	if !d.requireSSL {
+		uri = uri + "?sslmode=disable"
+	}
+	return uri
 }
 
 func (d *PostgresEngine) JDBCURI(address string, port int64, dbname string, username string, password string) string {
