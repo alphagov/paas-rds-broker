@@ -1,13 +1,11 @@
 package awsrds
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/pivotal-golang/lager"
@@ -48,16 +46,7 @@ func (r *RDSDBInstance) Describe(ID string) (DBInstanceDetails, error) {
 
 	dbInstances, err := r.rdssvc.DescribeDBInstances(describeDBInstancesInput)
 	if err != nil {
-		r.logger.Error("aws-rds-error", err)
-		if awsErr, ok := err.(awserr.Error); ok {
-			if reqErr, ok := err.(awserr.RequestFailure); ok {
-				if reqErr.StatusCode() == 404 {
-					return dbInstanceDetails, ErrDBInstanceDoesNotExist
-				}
-			}
-			return dbInstanceDetails, errors.New(awsErr.Code() + ": " + awsErr.Message())
-		}
-		return dbInstanceDetails, err
+		return dbInstanceDetails, HandleAWSError(err, r.logger)
 	}
 
 	for _, dbInstance := range dbInstances.DBInstances {
@@ -66,19 +55,11 @@ func (r *RDSDBInstance) Describe(ID string) (DBInstanceDetails, error) {
 			dbInstanceDetails = r.buildDBInstance(dbInstance)
 			dbInstanceDetails.Arn, err = r.dbInstanceARN(ID)
 			if err != nil {
-				r.logger.Error("aws-rds-error", err)
-				if awsErr, ok := err.(awserr.Error); ok {
-					return dbInstanceDetails, errors.New(awsErr.Code() + ": " + awsErr.Message())
-				}
-				return dbInstanceDetails, err
+				return dbInstanceDetails, HandleAWSError(err, r.logger)
 			}
 			t, err := ListTagsForResource(dbInstanceDetails.Arn, r.rdssvc, r.logger)
 			if err != nil {
-				r.logger.Error("aws-rds-error", err)
-				if awsErr, ok := err.(awserr.Error); ok {
-					return dbInstanceDetails, errors.New(awsErr.Code() + ": " + awsErr.Message())
-				}
-				return dbInstanceDetails, err
+				return dbInstanceDetails, HandleAWSError(err, r.logger)
 			}
 			dbInstanceDetails.Tags = RDSTagsValues(t)
 			return dbInstanceDetails, nil
@@ -133,35 +114,18 @@ func (r *RDSDBInstance) DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDet
 
 	describeDBSnapshotsOutput, err := r.rdssvc.DescribeDBSnapshots(describeDBSnapshotsInput)
 	if err != nil {
-		r.logger.Error("aws-rds-error", err)
-		if awsErr, ok := err.(awserr.Error); ok {
-			if reqErr, ok := err.(awserr.RequestFailure); ok {
-				if reqErr.StatusCode() == 404 {
-					return dbSnapshotDetails, ErrDBInstanceDoesNotExist
-				}
-			}
-			return dbSnapshotDetails, errors.New(awsErr.Code() + ": " + awsErr.Message())
-		}
-		return dbSnapshotDetails, err
+		return dbSnapshotDetails, HandleAWSError(err, r.logger)
 	}
 
 	for _, dbSnapshot := range describeDBSnapshotsOutput.DBSnapshots {
 		s := r.buildDBSnapshot(dbSnapshot)
 		s.Arn, err = r.dbSnapshotARN(s.Identifier)
 		if err != nil {
-			r.logger.Error("aws-rds-error", err)
-			if awsErr, ok := err.(awserr.Error); ok {
-				return dbSnapshotDetails, errors.New(awsErr.Code() + ": " + awsErr.Message())
-			}
-			return dbSnapshotDetails, err
+			return dbSnapshotDetails, HandleAWSError(err, r.logger)
 		}
 		t, err := ListTagsForResource(s.Arn, r.rdssvc, r.logger)
 		if err != nil {
-			r.logger.Error("aws-rds-error", err)
-			if awsErr, ok := err.(awserr.Error); ok {
-				return dbSnapshotDetails, errors.New(awsErr.Code() + ": " + awsErr.Message())
-			}
-			return dbSnapshotDetails, err
+			return dbSnapshotDetails, HandleAWSError(err, r.logger)
 		}
 		s.Tags = RDSTagsValues(t)
 		dbSnapshotDetails = append(dbSnapshotDetails, &s)
@@ -181,16 +145,7 @@ func (r *RDSDBInstance) GetTag(ID, tagKey string) (string, error) {
 
 	myInstance, err := r.rdssvc.DescribeDBInstances(describeDBInstancesInput)
 	if err != nil {
-		r.logger.Error("aws-rds-error", err)
-		if awsErr, ok := err.(awserr.Error); ok {
-			if reqErr, ok := err.(awserr.RequestFailure); ok {
-				if reqErr.StatusCode() == 404 {
-					return "", ErrDBInstanceDoesNotExist
-				}
-			}
-			return "", errors.New(awsErr.Code() + ": " + awsErr.Message())
-		}
-		return "", err
+		return "", HandleAWSError(err, r.logger)
 	}
 
 	dbArn, err := r.dbInstanceARN(*myInstance.DBInstances[0].DBInstanceIdentifier)
@@ -225,11 +180,7 @@ func (r *RDSDBInstance) Create(ID string, dbInstanceDetails DBInstanceDetails) e
 
 	createDBInstanceOutput, err := r.rdssvc.CreateDBInstance(createDBInstanceInput)
 	if err != nil {
-		r.logger.Error("aws-rds-error", err)
-		if awsErr, ok := err.(awserr.Error); ok {
-			return errors.New(awsErr.Code() + ": " + awsErr.Message())
-		}
-		return err
+		return HandleAWSError(err, r.logger)
 	}
 	r.logger.Debug("create-db-instance", lager.Data{"output": createDBInstanceOutput})
 
@@ -242,11 +193,7 @@ func (r *RDSDBInstance) Restore(ID, snapshotIdentifier string, dbInstanceDetails
 
 	restoreDBInstanceOutput, err := r.rdssvc.RestoreDBInstanceFromDBSnapshot(restoreDBInstanceInput)
 	if err != nil {
-		r.logger.Error("aws-rds-error", err)
-		if awsErr, ok := err.(awserr.Error); ok {
-			return errors.New(awsErr.Code() + ": " + awsErr.Message())
-		}
-		return err
+		return HandleAWSError(err, r.logger)
 	}
 	r.logger.Debug("restore-db-instance", lager.Data{"output": restoreDBInstanceOutput})
 
@@ -271,16 +218,7 @@ func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, a
 
 	modifyDBInstanceOutput, err := r.rdssvc.ModifyDBInstance(modifyDBInstanceInput)
 	if err != nil {
-		r.logger.Error("aws-rds-error", err)
-		if awsErr, ok := err.(awserr.Error); ok {
-			if reqErr, ok := err.(awserr.RequestFailure); ok {
-				if reqErr.StatusCode() == 404 {
-					return ErrDBInstanceDoesNotExist
-				}
-			}
-			return errors.New(awsErr.Code() + ": " + awsErr.Message())
-		}
-		return err
+		return HandleAWSError(err, r.logger)
 	}
 
 	r.logger.Debug("modify-db-instance", lager.Data{"output": modifyDBInstanceOutput})
@@ -307,16 +245,7 @@ func (r *RDSDBInstance) Reboot(ID string) error {
 
 	rebootDBInstanceOutput, err := r.rdssvc.RebootDBInstance(rebootDBInstanceInput)
 	if err != nil {
-		r.logger.Error("aws-rds-error", err)
-		if awsErr, ok := err.(awserr.Error); ok {
-			if reqErr, ok := err.(awserr.RequestFailure); ok {
-				if reqErr.StatusCode() == 404 {
-					return ErrDBInstanceDoesNotExist
-				}
-			}
-			return errors.New(awsErr.Code() + ": " + awsErr.Message())
-		}
-		return err
+		return HandleAWSError(err, r.logger)
 	}
 
 	r.logger.Debug("reboot-db-instance", lager.Data{"output": rebootDBInstanceOutput})
@@ -338,16 +267,7 @@ func (r *RDSDBInstance) Delete(ID string, skipFinalSnapshot bool) error {
 
 	deleteDBInstanceOutput, err := r.rdssvc.DeleteDBInstance(deleteDBInstanceInput)
 	if err != nil {
-		r.logger.Error("aws-rds-error", err)
-		if awsErr, ok := err.(awserr.Error); ok {
-			if reqErr, ok := err.(awserr.RequestFailure); ok {
-				if reqErr.StatusCode() == 404 {
-					return ErrDBInstanceDoesNotExist
-				}
-			}
-			return errors.New(awsErr.Code() + ": " + awsErr.Message())
-		}
-		return err
+		return HandleAWSError(err, r.logger)
 	}
 
 	r.logger.Debug("delete-db-instance", lager.Data{"output": deleteDBInstanceOutput})

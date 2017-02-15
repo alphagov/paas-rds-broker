@@ -51,11 +51,7 @@ func AddTagsToResource(resourceARN string, tags []*rds.Tag, rdssvc *rds.RDS, log
 
 	addTagsToResourceOutput, err := rdssvc.AddTagsToResource(addTagsToResourceInput)
 	if err != nil {
-		logger.Error("aws-rds-error", err)
-		if awsErr, ok := err.(awserr.Error); ok {
-			return errors.New(awsErr.Code() + ": " + awsErr.Message())
-		}
-		return err
+		return HandleAWSError(err, logger)
 	}
 
 	logger.Debug("add-tags-to-resource", lager.Data{"output": addTagsToResourceOutput})
@@ -72,11 +68,7 @@ func ListTagsForResource(resourceARN string, rdssvc *rds.RDS, logger lager.Logge
 
 	listTagsForResourceOutput, err := rdssvc.ListTagsForResource(listTagsForResourceInput)
 	if err != nil {
-		logger.Error("aws-rds-error", err)
-		if awsErr, ok := err.(awserr.Error); ok {
-			return listTagsForResourceOutput.TagList, errors.New(awsErr.Code() + ": " + awsErr.Message())
-		}
-		return listTagsForResourceOutput.TagList, err
+		return listTagsForResourceOutput.TagList, HandleAWSError(err, logger)
 	}
 
 	logger.Debug("list-tags-for-resource", lager.Data{"output": listTagsForResourceOutput})
@@ -94,14 +86,23 @@ func RemoveTagsFromResource(resourceARN string, tagKeys []*string, rdssvc *rds.R
 
 	removeTagsFromResourceOutput, err := rdssvc.RemoveTagsFromResource(removeTagsFromResourceInput)
 	if err != nil {
-		logger.Error("aws-rds-error", err)
-		if awsErr, ok := err.(awserr.Error); ok {
-			return errors.New(awsErr.Code() + ": " + awsErr.Message())
-		}
-		return err
+		return HandleAWSError(err, logger)
 	}
 
 	logger.Debug("remove-tags-from-resource", lager.Data{"output": removeTagsFromResourceOutput})
 
 	return nil
+}
+
+func HandleAWSError(err error, logger lager.Logger) error {
+	logger.Error("aws-rds-error", err)
+	if awsErr, ok := err.(awserr.Error); ok {
+		if reqErr, ok := err.(awserr.RequestFailure); ok {
+			if reqErr.StatusCode() == 404 {
+				return ErrDBInstanceDoesNotExist
+			}
+		}
+		return errors.New(awsErr.Code() + ": " + awsErr.Message())
+	}
+	return err
 }
