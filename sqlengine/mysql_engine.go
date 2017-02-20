@@ -2,6 +2,7 @@ package sqlengine
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	_ "github.com/go-sql-driver/mysql" // MySQL Driver
@@ -10,13 +11,15 @@ import (
 )
 
 type MySQLEngine struct {
-	logger lager.Logger
-	db     *sql.DB
+	logger     lager.Logger
+	db         *sql.DB
+	requireSSL bool
 }
 
 func NewMySQLEngine(logger lager.Logger) *MySQLEngine {
 	return &MySQLEngine{
-		logger: logger.Session("mysql-engine"),
+		logger:     logger.Session("mysql-engine"),
+		requireSSL: true,
 	}
 }
 
@@ -77,8 +80,13 @@ func (d *MySQLEngine) DropUser(bindingID string) error {
 	return nil
 }
 
+func (d *MySQLEngine) ResetState() error {
+	// TODO: Not implemented
+	return errors.New("Not implemented")
+}
+
 func (d *MySQLEngine) URI(address string, port int64, dbname string, username string, password string) string {
-	return fmt.Sprintf("mysql://%s:%s@%s:%d/%s?reconnect=true", username, password, address, port, dbname)
+	return fmt.Sprintf("mysql://%s:%s@%s:%d/%s?reconnect=true&useSSL=%t", username, password, address, port, dbname, d.requireSSL)
 }
 
 func (d *MySQLEngine) JDBCURI(address string, port int64, dbname string, username string, password string) string {

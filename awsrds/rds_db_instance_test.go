@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -37,13 +38,17 @@ var _ = Describe("RDS DB Instance", func() {
 		testSink *lagertest.TestSink
 		logger   lager.Logger
 
-		rdsDBInstance DBInstance
+		rdsDBInstance          DBInstance
+		getCallerIdentityError error
 	)
+
+	const account = "123456789012"
 
 	BeforeEach(func() {
 		region = "rds-region"
 		partition = "rds-partition"
 		dbInstanceIdentifier = "cf-instance-id"
+		getCallerIdentityError = nil
 	})
 
 	JustBeforeEach(func() {
@@ -57,29 +62,37 @@ var _ = Describe("RDS DB Instance", func() {
 		logger.RegisterSink(testSink)
 
 		rdsDBInstance = NewRDSDBInstance(region, partition, rdssvc, stssvc, logger)
+
+		// Configure STS api mock to return an account ID
+		stssvc.Handlers.Clear()
+
+		stsCall = func(r *request.Request) {
+			Expect(r.Operation.Name).To(Equal("GetCallerIdentity"))
+			Expect(r.Params).To(BeAssignableToTypeOf(&sts.GetCallerIdentityInput{}))
+			data := r.Data.(*sts.GetCallerIdentityOutput)
+			data.Account = aws.String(account)
+			r.Error = getCallerIdentityError
+		}
+
+		stssvc.Handlers.Send.PushBack(stsCall)
 	})
 
 	var _ = Describe("Describe", func() {
 		var (
+			listTags                 map[string]string
+			listTagsForResourceError error
+
 			properDBInstanceDetails DBInstanceDetails
 
-			describeDBInstances []*rds.DBInstance
-			describeDBInstance  *rds.DBInstance
+			describeDBInstance *rds.DBInstance
 
 			describeDBInstancesInput *rds.DescribeDBInstancesInput
 			describeDBInstanceError  error
 		)
 
 		BeforeEach(func() {
-			properDBInstanceDetails = DBInstanceDetails{
-				Identifier:       dbInstanceIdentifier,
-				Status:           "available",
-				Engine:           "test-engine",
-				EngineVersion:    "1.2.3",
-				DBName:           "test-dbname",
-				MasterUsername:   "test-master-username",
-				AllocatedStorage: int64(100),
-			}
+			listTags = map[string]string{}
+			listTagsForResourceError = nil
 
 			describeDBInstance = &rds.DBInstance{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
@@ -90,24 +103,47 @@ var _ = Describe("RDS DB Instance", func() {
 				MasterUsername:       aws.String("test-master-username"),
 				AllocatedStorage:     aws.Int64(100),
 			}
-			describeDBInstances = []*rds.DBInstance{describeDBInstance}
-
 			describeDBInstancesInput = &rds.DescribeDBInstancesInput{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 			}
 			describeDBInstanceError = nil
+
 		})
 
 		JustBeforeEach(func() {
+			properDBInstanceDetails = DBInstanceDetails{
+				Identifier:       dbInstanceIdentifier,
+				Arn:              "arn:" + partition + ":rds:rds-region:" + account + ":db:" + dbInstanceIdentifier,
+				Status:           "available",
+				Engine:           "test-engine",
+				EngineVersion:    "1.2.3",
+				DBName:           "test-dbname",
+				MasterUsername:   "test-master-username",
+				AllocatedStorage: int64(100),
+				Tags:             listTags,
+			}
+
 			rdssvc.Handlers.Clear()
 
 			rdsCall = func(r *request.Request) {
-				Expect(r.Operation.Name).To(Equal("DescribeDBInstances"))
-				Expect(r.Params).To(BeAssignableToTypeOf(&rds.DescribeDBInstancesInput{}))
-				Expect(r.Params).To(Equal(describeDBInstancesInput))
-				data := r.Data.(*rds.DescribeDBInstancesOutput)
-				data.DBInstances = describeDBInstances
-				r.Error = describeDBInstanceError
+				Expect(r.Operation.Name).To(MatchRegexp("DescribeDBInstances|ListTagsForResource"))
+				switch r.Operation.Name {
+				case "DescribeDBInstances":
+					Expect(r.Operation.Name).To(Equal("DescribeDBInstances"))
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.DescribeDBInstancesInput{}))
+					Expect(r.Params).To(Equal(describeDBInstancesInput))
+					data := r.Data.(*rds.DescribeDBInstancesOutput)
+					data.DBInstances = []*rds.DBInstance{describeDBInstance}
+					r.Error = describeDBInstanceError
+				case "ListTagsForResource":
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
+					input := r.Params.(*rds.ListTagsForResourceInput)
+					snapshotArnRegex := "arn:.*:rds:.*:.*:db:" + aws.StringValue(describeDBInstancesInput.DBInstanceIdentifier)
+					Expect(aws.StringValue(input.ResourceName)).To(MatchRegexp(snapshotArnRegex))
+					data := r.Data.(*rds.ListTagsForResourceOutput)
+					data.TagList = BuilRDSTags(listTags)
+					r.Error = listTagsForResourceError
+				}
 			}
 			rdssvc.Handlers.Send.PushBack(rdsCall)
 		})
@@ -118,13 +154,27 @@ var _ = Describe("RDS DB Instance", func() {
 			Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
 		})
 
-		Context("when RDS DB Instance has an Endpoint", func() {
+		Context("when RDS DB Instance has some tags", func() {
 			BeforeEach(func() {
+				listTags = map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+					"key3": "value3",
+				}
+			})
+			It("returns the proper DB Instance with the tags", func() {
+				dbInstanceDetails, err := rdsDBInstance.Describe(dbInstanceIdentifier)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
+			})
+		})
+
+		Context("when RDS DB Instance has an Endpoint", func() {
+			JustBeforeEach(func() {
 				describeDBInstance.Endpoint = &rds.Endpoint{
 					Address: aws.String("dbinstance-endpoint"),
 					Port:    aws.Int64(3306),
 				}
-
 				properDBInstanceDetails.Address = "dbinstance-endpoint"
 				properDBInstanceDetails.Port = int64(3306)
 			})
@@ -137,7 +187,7 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 
 		Context("when RDS DB Instance has pending modifications", func() {
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				describeDBInstance.PendingModifiedValues = &rds.PendingModifiedValues{
 					DBInstanceClass: aws.String("new-instance-class"),
 				}
@@ -279,18 +329,6 @@ var _ = Describe("RDS DB Instance", func() {
 				}
 			}
 			rdssvc.Handlers.Send.PushBack(rdsCall)
-
-			// Configure STS api mock to return an account ID
-			stssvc.Handlers.Clear()
-
-			stsCall = func(r *request.Request) {
-				Expect(r.Operation.Name).To(Equal("GetCallerIdentity"))
-				Expect(r.Params).To(BeAssignableToTypeOf(&sts.GetCallerIdentityInput{}))
-				data := r.Data.(*sts.GetCallerIdentityOutput)
-				data.Account = aws.String("123456789012")
-			}
-
-			stssvc.Handlers.Send.PushBack(stsCall)
 		})
 
 		It("returns the proper Tag", func() {
@@ -370,7 +408,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 					listTagsForResourceInput := r.Params.(*rds.ListTagsForResourceInput)
 					gotARN := *listTagsForResourceInput.ResourceName
-					expectedARN := fmt.Sprintf("arn:%s:rds:%s:123456789012:db:%s", partition, region, dbInstanceIdentifier)
+					expectedARN := fmt.Sprintf("arn:%s:rds:%s:%s:db:%s", partition, region, account, dbInstanceIdentifier)
 					Expect(gotARN).To(HavePrefix(expectedARN))
 
 					data := r.Data.(*rds.ListTagsForResourceOutput)
@@ -390,23 +428,140 @@ var _ = Describe("RDS DB Instance", func() {
 				}
 			}
 			rdssvc.Handlers.Send.PushBack(rdsCall)
-
-			// Configure STS api mock to return an account ID
-			stssvc.Handlers.Clear()
-
-			stsCall = func(r *request.Request) {
-				Expect(r.Operation.Name).To(Equal("GetCallerIdentity"))
-				Expect(r.Params).To(BeAssignableToTypeOf(&sts.GetCallerIdentityInput{}))
-				data := r.Data.(*sts.GetCallerIdentityOutput)
-				data.Account = aws.String("123456789012")
-			}
-			stssvc.Handlers.Send.PushBack(stsCall)
 		})
 
 		It("returns the expected DB Instances for mybroker", func() {
 			dbInstanceDetailsList, err := rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dbInstanceDetailsList).To(HaveLen(2))
+		})
+	})
+
+	var _ = Describe("DescribeSnapshots", func() {
+		var (
+			describeDBSnapshotsInput       *rds.DescribeDBSnapshotsInput
+			describeDBSnapshotsError       error
+			describeDBSnapshotsRequestDone bool
+			describeDBSnapshots            []*rds.DBSnapshot
+
+			listTagsForResourceError error
+			listTags                 map[string]string
+		)
+
+		BeforeEach(func() {
+			describeDBSnapshotsInput = &rds.DescribeDBSnapshotsInput{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+			}
+			describeDBSnapshotsError = nil
+			describeDBSnapshotsRequestDone = false
+			describeDBSnapshots = []*rds.DBSnapshot{}
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(MatchRegexp("DescribeDBSnapshots|ListTagsForResource"))
+				switch r.Operation.Name {
+				case "DescribeDBSnapshots":
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.DescribeDBSnapshotsInput{}))
+					Expect(r.Params).To(Equal(describeDBSnapshotsInput))
+					data := r.Data.(*rds.DescribeDBSnapshotsOutput)
+					data.DBSnapshots = describeDBSnapshots
+					r.Error = describeDBSnapshotsError
+					describeDBSnapshotsRequestDone = true
+				case "ListTagsForResource":
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
+					input := r.Params.(*rds.ListTagsForResourceInput)
+					snapshotArnRegex := "arn:.*:rds:.*:.*:snapshot:" + aws.StringValue(describeDBSnapshotsInput.DBSnapshotIdentifier)
+					Expect(aws.StringValue(input.ResourceName)).To(MatchRegexp(snapshotArnRegex))
+					data := r.Data.(*rds.ListTagsForResourceOutput)
+					data.TagList = BuilRDSTags(listTags)
+					r.Error = listTagsForResourceError
+				}
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		It("calls the DescribeDBSnapshots endpoint", func() {
+			_, _ = rdsDBInstance.DescribeSnapshots(dbInstanceIdentifier)
+			Expect(describeDBSnapshotsRequestDone).To(BeTrue())
+		})
+
+		It("does not return error", func() {
+			_, err := rdsDBInstance.DescribeSnapshots(dbInstanceIdentifier)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("when there is a list of snapshots", func() {
+			var (
+				dbSnapshotOneDayOld   *rds.DBSnapshot
+				dbSnapshotTwoDayOld   *rds.DBSnapshot
+				dbSnapshotThreeDayOld *rds.DBSnapshot
+			)
+			BeforeEach(func() {
+				listTags = map[string]string{
+					"Owner":           "Cloud Foundry",
+					"Created by":      "AWS RDS Service Broker",
+					"Created at":      time.Now().Format(time.RFC822Z),
+					"Service ID":      "Service-1",
+					"Plan ID":         "Plan-1",
+					"Organization ID": "organization-id",
+					"Space ID":        "space-id",
+				}
+
+				// Build DescribeDBSnapshots mock response with 3 instances
+				buildDBSnapshotAWSResponse := func(instanceID string, age time.Duration) *rds.DBSnapshot {
+					instanceCreateTime := time.Now().Add(-age)
+					suffix := instanceCreateTime.Format("-2006-01-02-15-04")
+					return &rds.DBSnapshot{
+						DBInstanceIdentifier: aws.String(instanceID),
+						DBSnapshotIdentifier: aws.String(instanceID + suffix),
+						InstanceCreateTime:   aws.Time(instanceCreateTime),
+					}
+				}
+
+				dbSnapshotOneDayOld = buildDBSnapshotAWSResponse(dbInstanceIdentifier, 1*24*time.Hour)
+				dbSnapshotTwoDayOld = buildDBSnapshotAWSResponse(dbInstanceIdentifier, 2*24*time.Hour)
+				dbSnapshotThreeDayOld = buildDBSnapshotAWSResponse(dbInstanceIdentifier, 3*24*time.Hour)
+
+				describeDBSnapshots = []*rds.DBSnapshot{
+					dbSnapshotThreeDayOld,
+					dbSnapshotOneDayOld,
+					dbSnapshotTwoDayOld,
+				}
+			})
+
+			It("returns the all the snapshots in order", func() {
+				dbSnapshotsDetails, err := rdsDBInstance.DescribeSnapshots(dbInstanceIdentifier)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dbSnapshotsDetails).To(HaveLen(3))
+				Expect(dbSnapshotsDetails[0].Identifier).To(Equal(aws.StringValue(dbSnapshotOneDayOld.DBSnapshotIdentifier)))
+				Expect(dbSnapshotsDetails[1].Identifier).To(Equal(aws.StringValue(dbSnapshotTwoDayOld.DBSnapshotIdentifier)))
+				Expect(dbSnapshotsDetails[2].Identifier).To(Equal(aws.StringValue(dbSnapshotThreeDayOld.DBSnapshotIdentifier)))
+			})
+
+			It("returns the tags for all snapshots", func() {
+				dbSnapshotsDetails, err := rdsDBInstance.DescribeSnapshots(dbInstanceIdentifier)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dbSnapshotsDetails).To(HaveLen(3))
+				Expect(dbSnapshotsDetails[0].Tags).To(Equal(listTags))
+				Expect(dbSnapshotsDetails[1].Tags).To(Equal(listTags))
+				Expect(dbSnapshotsDetails[2].Tags).To(Equal(listTags))
+			})
+
+		})
+
+		Context("when describing the DB Instance fails", func() {
+			BeforeEach(func() {
+				describeDBSnapshotsError = awserr.New("code", "message", errors.New("operation failed"))
+			})
+
+			It("returns the proper AWS error", func() {
+				_, err := rdsDBInstance.DescribeSnapshots(dbInstanceIdentifier)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("code: message"))
+			})
 		})
 	})
 
@@ -804,8 +959,250 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 	})
 
+	var _ = Describe("Restore", func() {
+		var (
+			snapshotIdentifier string
+			dbInstanceDetails  DBInstanceDetails
+
+			restoreDBInstanceInput *rds.RestoreDBInstanceFromDBSnapshotInput
+			restoreDBInstanceError error
+		)
+
+		BeforeEach(func() {
+			snapshotIdentifier = "snapshot-guid"
+			dbInstanceDetails = DBInstanceDetails{
+				Engine: "test-engine",
+			}
+
+			restoreDBInstanceInput = &rds.RestoreDBInstanceFromDBSnapshotInput{
+				DBInstanceIdentifier:    aws.String(dbInstanceIdentifier),
+				DBSnapshotIdentifier:    aws.String(snapshotIdentifier),
+				Engine:                  aws.String("test-engine"),
+				AutoMinorVersionUpgrade: aws.Bool(false),
+				CopyTagsToSnapshot:      aws.Bool(false),
+				MultiAZ:                 aws.Bool(false),
+				PubliclyAccessible:      aws.Bool(false),
+			}
+			restoreDBInstanceError = nil
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("RestoreDBInstanceFromDBSnapshot"))
+				Expect(r.Params).To(BeAssignableToTypeOf(&rds.RestoreDBInstanceFromDBSnapshotInput{}))
+				Expect(r.Params).To(Equal(restoreDBInstanceInput))
+				r.Error = restoreDBInstanceError
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		It("does not return error", func() {
+			err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("when has AutoMinorVersionUpgrade", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.AutoMinorVersionUpgrade = true
+				restoreDBInstanceInput.AutoMinorVersionUpgrade = aws.Bool(true)
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when has AvailabilityZone", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.AvailabilityZone = "test-az"
+				restoreDBInstanceInput.AvailabilityZone = aws.String("test-az")
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when has CopyTagsToSnapshot", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.CopyTagsToSnapshot = true
+				restoreDBInstanceInput.CopyTagsToSnapshot = aws.Bool(true)
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when has DBInstanceClass", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.DBInstanceClass = "db.m3.small"
+				restoreDBInstanceInput.DBInstanceClass = aws.String("db.m3.small")
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when has DBName", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.DBName = "test-dbname"
+				restoreDBInstanceInput.DBName = aws.String("test-dbname")
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when has DBSubnetGroupName", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.DBSubnetGroupName = "test-db-subnet-group-name"
+				restoreDBInstanceInput.DBSubnetGroupName = aws.String("test-db-subnet-group-name")
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when has LicenseModel", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.LicenseModel = "test-license-model"
+				restoreDBInstanceInput.LicenseModel = aws.String("test-license-model")
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when has MultiAZ", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.MultiAZ = true
+				restoreDBInstanceInput.MultiAZ = aws.Bool(true)
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when has OptionGroupName", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.OptionGroupName = "test-option-group-name"
+				restoreDBInstanceInput.OptionGroupName = aws.String("test-option-group-name")
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when has Port", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.Port = 666
+				restoreDBInstanceInput.Port = aws.Int64(666)
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when has PubliclyAccessible", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.PubliclyAccessible = true
+				restoreDBInstanceInput.PubliclyAccessible = aws.Bool(true)
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when has StorageType", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.StorageType = "test-storage-type"
+				restoreDBInstanceInput.StorageType = aws.String("test-storage-type")
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when has Iops", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.Iops = 1000
+				restoreDBInstanceInput.Iops = aws.Int64(1000)
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when has Tags", func() {
+			BeforeEach(func() {
+				dbInstanceDetails.Tags = map[string]string{"Owner": "Cloud Foundry"}
+				restoreDBInstanceInput.Tags = []*rds.Tag{
+					&rds.Tag{Key: aws.String("Owner"), Value: aws.String("Cloud Foundry")},
+				}
+			})
+
+			It("does not return error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when creating the DB Instance fails", func() {
+			BeforeEach(func() {
+				restoreDBInstanceError = errors.New("operation failed")
+			})
+
+			It("returns the proper error", func() {
+				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("operation failed"))
+			})
+
+			Context("and it is an AWS error", func() {
+				BeforeEach(func() {
+					restoreDBInstanceError = awserr.New("code", "message", errors.New("operation failed"))
+				})
+
+				It("returns the proper error", func() {
+					err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(Equal("code: message"))
+				})
+			})
+		})
+	})
+
 	var _ = Describe("Modify", func() {
 		var (
+			listTags                 map[string]string
+			listTagsForResourceError error
+
 			dbInstanceDetails DBInstanceDetails
 			applyImmediately  bool
 
@@ -824,9 +1221,11 @@ var _ = Describe("RDS DB Instance", func() {
 			getCallerIdentityInput *sts.GetCallerIdentityInput
 			getCallerIdentityError error
 		)
-		const account = "123456789012"
 
 		BeforeEach(func() {
+			listTags = map[string]string{}
+			listTagsForResourceError = nil
+
 			dbInstanceDetails = DBInstanceDetails{}
 			applyImmediately = false
 
@@ -865,7 +1264,6 @@ var _ = Describe("RDS DB Instance", func() {
 				},
 			}
 			addTagsToResourceError = nil
-			getCallerIdentityError = nil
 			getCallerIdentityInput = &sts.GetCallerIdentityInput{}
 		})
 
@@ -873,7 +1271,7 @@ var _ = Describe("RDS DB Instance", func() {
 			rdssvc.Handlers.Clear()
 
 			rdsCall = func(r *request.Request) {
-				Expect(r.Operation.Name).To(MatchRegexp("DescribeDBInstances|ModifyDBInstance|AddTagsToResource"))
+				Expect(r.Operation.Name).To(MatchRegexp("DescribeDBInstances|ModifyDBInstance|AddTagsToResource|ListTagsForResource"))
 				switch r.Operation.Name {
 				case "DescribeDBInstances":
 					Expect(r.Operation.Name).To(Equal("DescribeDBInstances"))
@@ -890,19 +1288,17 @@ var _ = Describe("RDS DB Instance", func() {
 					Expect(r.Params).To(BeAssignableToTypeOf(&rds.AddTagsToResourceInput{}))
 					Expect(r.Params).To(Equal(addTagsToResourceInput))
 					r.Error = addTagsToResourceError
+				case "ListTagsForResource":
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
+					input := r.Params.(*rds.ListTagsForResourceInput)
+					snapshotArnRegex := "arn:.*:rds:.*:.*:db:" + aws.StringValue(describeDBInstancesInput.DBInstanceIdentifier)
+					Expect(aws.StringValue(input.ResourceName)).To(MatchRegexp(snapshotArnRegex))
+					data := r.Data.(*rds.ListTagsForResourceOutput)
+					data.TagList = BuilRDSTags(listTags)
+					r.Error = listTagsForResourceError
 				}
 			}
 			rdssvc.Handlers.Send.PushBack(rdsCall)
-
-			stssvc.Handlers.Clear()
-			stsCall = func(r *request.Request) {
-				Expect(r.Operation.Name).To(Equal("GetCallerIdentity"))
-				Expect(r.Params).To(Equal(getCallerIdentityInput))
-				data := r.Data.(*sts.GetCallerIdentityOutput)
-				data.Account = aws.String(account)
-				r.Error = getCallerIdentityError
-			}
-			stssvc.Handlers.Send.PushBack(stsCall)
 		})
 
 		It("does not return error", func() {
@@ -1205,6 +1601,59 @@ var _ = Describe("RDS DB Instance", func() {
 					err := rdsDBInstance.Modify(dbInstanceIdentifier, dbInstanceDetails, applyImmediately)
 					Expect(err).To(HaveOccurred())
 					Expect(err.Error()).To(Equal("code: message"))
+				})
+			})
+		})
+	})
+
+	var _ = Describe("Reboot", func() {
+		var (
+			rebootDBInstanceError error
+		)
+
+		BeforeEach(func() {
+			rebootDBInstanceError = nil
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("RebootDBInstance"))
+				Expect(r.Params).To(BeAssignableToTypeOf(&rds.RebootDBInstanceInput{}))
+				params := r.Params.(*rds.RebootDBInstanceInput)
+				Expect(params.DBInstanceIdentifier).To(Equal(aws.String(dbInstanceIdentifier)))
+				r.Error = rebootDBInstanceError
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		It("does not return error", func() {
+			err := rdsDBInstance.Reboot(dbInstanceIdentifier)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("when rebooting the DB instance fails", func() {
+			BeforeEach(func() {
+				rebootDBInstanceError = errors.New("operation failed")
+			})
+
+			It("returns the proper error", func() {
+				err := rdsDBInstance.Reboot(dbInstanceIdentifier)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("operation failed"))
+			})
+
+			Context("and it is a 404 error", func() {
+				BeforeEach(func() {
+					awsError := awserr.New("code", "message", errors.New("operation failed"))
+					rebootDBInstanceError = awserr.NewRequestFailure(awsError, 404, "request-id")
+				})
+
+				It("returns the proper error", func() {
+					err := rdsDBInstance.Reboot(dbInstanceIdentifier)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(ErrDBInstanceDoesNotExist))
 				})
 			})
 		})

@@ -16,16 +16,37 @@ type FakeDBInstance struct {
 	DescribeByTagDBInstanceDetails []*awsrds.DBInstanceDetails
 	DescribeByTagError             error
 
+	DescribeSnapshotsCalled             bool
+	DescribeSnapshotsDBInstanceID       string
+	DescribeSnapshotsDBSnapshotsDetails []*awsrds.DBSnapshotDetails
+	DescribeSnapshotsError              error
+
 	CreateCalled            bool
 	CreateID                string
 	CreateDBInstanceDetails awsrds.DBInstanceDetails
 	CreateError             error
+
+	RestoreCalled             bool
+	RestoreID                 string
+	RestoreSnapshotIdentifier string
+	RestoreDBInstanceDetails  awsrds.DBInstanceDetails
+	RestoreError              error
 
 	ModifyCalled            bool
 	ModifyID                string
 	ModifyDBInstanceDetails awsrds.DBInstanceDetails
 	ModifyApplyImmediately  bool
 	ModifyError             error
+	ModifyCallback          func(string, awsrds.DBInstanceDetails, bool) error
+
+	RebootCalled bool
+	RebootID     string
+	RebootError  error
+
+	RemoveTagCalled bool
+	RemoveTagID     string
+	RemoveTagTagKey string
+	RemoveTagError  error
 
 	DeleteCalled            bool
 	DeleteID                string
@@ -60,6 +81,13 @@ func (f *FakeDBInstance) DescribeByTag(tagKey, tagValue string) ([]*awsrds.DBIns
 	return f.DescribeByTagDBInstanceDetails, f.DescribeByTagError
 }
 
+func (f *FakeDBInstance) DescribeSnapshots(dbInstanceID string) ([]*awsrds.DBSnapshotDetails, error) {
+	f.DescribeSnapshotsCalled = true
+	f.DescribeSnapshotsDBInstanceID = dbInstanceID
+
+	return f.DescribeSnapshotsDBSnapshotsDetails, f.DescribeSnapshotsError
+}
+
 func (f *FakeDBInstance) Create(ID string, dbInstanceDetails awsrds.DBInstanceDetails) error {
 	f.CreateCalled = true
 	f.CreateID = ID
@@ -68,13 +96,41 @@ func (f *FakeDBInstance) Create(ID string, dbInstanceDetails awsrds.DBInstanceDe
 	return f.CreateError
 }
 
+func (f *FakeDBInstance) Restore(ID, snapshotIdentifier string, dbInstanceDetails awsrds.DBInstanceDetails) error {
+	f.RestoreCalled = true
+	f.RestoreID = ID
+	f.RestoreSnapshotIdentifier = snapshotIdentifier
+	f.RestoreDBInstanceDetails = dbInstanceDetails
+
+	return f.RestoreError
+}
+
 func (f *FakeDBInstance) Modify(ID string, dbInstanceDetails awsrds.DBInstanceDetails, applyImmediately bool) error {
 	f.ModifyCalled = true
 	f.ModifyID = ID
 	f.ModifyDBInstanceDetails = dbInstanceDetails
 	f.ModifyApplyImmediately = applyImmediately
 
+	if f.ModifyCallback != nil {
+		return f.ModifyCallback(ID, dbInstanceDetails, applyImmediately)
+	}
+
 	return f.ModifyError
+}
+
+func (f *FakeDBInstance) Reboot(ID string) error {
+	f.RebootCalled = true
+	f.RebootID = ID
+
+	return f.RebootError
+}
+
+func (f *FakeDBInstance) RemoveTag(ID, tagKey string) error {
+	f.RemoveTagCalled = true
+	f.RemoveTagID = ID
+	f.RemoveTagTagKey = tagKey
+
+	return f.RemoveTagError
 }
 
 func (f *FakeDBInstance) Delete(ID string, skipFinalSnapshot bool) error {

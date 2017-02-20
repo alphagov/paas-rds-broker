@@ -8,10 +8,15 @@ import (
 )
 
 var alpha = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
+var alphaLower = []byte("abcdefghijklmnopqrstuvwxyz")
 var numer = []byte("0123456789")
 
 func RandomAlphaNum(length int) string {
 	return randChar(1, alpha) + randChar(length-1, append(alpha, numer...))
+}
+
+func RandomLowerAlphaNum(length int) string {
+	return randChar(1, alphaLower) + randChar(length-1, append(alphaLower, numer...))
 }
 
 func randChar(length int, chars []byte) string {

@@ -2,6 +2,8 @@ package fakes
 
 import (
 	"fmt"
+
+	"github.com/alphagov/paas-rds-broker/sqlengine"
 )
 
 type FakeSQLEngine struct {
@@ -26,6 +28,11 @@ type FakeSQLEngine struct {
 	DropUserCalled    bool
 	DropUserBindingID string
 	DropUserError     error
+
+	ResetStateCalled bool
+	ResetStateError  error
+
+	CorrectPassword string
 }
 
 func (f *FakeSQLEngine) Open(address string, port int64, dbname string, username string, password string) error {
@@ -36,6 +43,11 @@ func (f *FakeSQLEngine) Open(address string, port int64, dbname string, username
 	f.OpenUsername = username
 	f.OpenPassword = password
 
+	if f.OpenError == nil {
+		if f.CorrectPassword != "" && f.CorrectPassword != password {
+			return sqlengine.LoginFailedError
+		}
+	}
 	return f.OpenError
 }
 
@@ -56,6 +68,12 @@ func (f *FakeSQLEngine) DropUser(bindingID string) error {
 	f.DropUserBindingID = bindingID
 
 	return f.DropUserError
+}
+
+func (f *FakeSQLEngine) ResetState() error {
+	f.ResetStateCalled = true
+
+	return f.ResetStateError
 }
 
 func (f *FakeSQLEngine) URI(address string, port int64, dbname string, username string, password string) string {

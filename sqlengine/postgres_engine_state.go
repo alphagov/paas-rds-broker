@@ -7,8 +7,6 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
-const stateDBName = "broker_state"
-
 // passwordStorageVersion represents the current method we are using to store
 // passwords. If the way we store or encrypt passwords ever changes, this field
 // (which is stored in the database) will allow us to migrate more easily.
@@ -17,7 +15,7 @@ const passwordStorageVersion = "1.0"
 func (d *PostgresEngine) openStateDB(logger lager.Logger, stateEncryptionKey string) (*postgresEngineState, error) {
 	logger = logger.Session("postgres-engine-state")
 
-	statement := "CREATE DATABASE " + stateDBName
+	statement := "CREATE DATABASE " + d.stateDBName
 	logger.Debug("create-database", lager.Data{"statement": statement})
 	_, err := d.db.Exec(statement)
 	if err != nil {
@@ -30,7 +28,7 @@ func (d *PostgresEngine) openStateDB(logger lager.Logger, stateEncryptionKey str
 		}
 	} else {
 		// No error, so the database has just been created
-		revokePrivilegesStatement := "REVOKE ALL PRIVILEGES ON DATABASE " + stateDBName + " FROM PUBLIC"
+		revokePrivilegesStatement := "REVOKE ALL PRIVILEGES ON DATABASE " + d.stateDBName + " FROM PUBLIC"
 		logger.Debug("revoke-privileges", lager.Data{"statement": revokePrivilegesStatement})
 		if _, err := d.db.Exec(revokePrivilegesStatement); err != nil {
 			logger.Error("revoke-privileges.sql-error", err)
@@ -39,8 +37,8 @@ func (d *PostgresEngine) openStateDB(logger lager.Logger, stateEncryptionKey str
 	}
 
 	var (
-		stateDBURL          = d.URI(d.address, d.port, stateDBName, d.username, d.password)
-		sanitisedStateDBURL = d.URI(d.address, d.port, stateDBName, d.username, "REDACTED")
+		stateDBURL          = d.URI(d.address, d.port, d.stateDBName, d.username, d.password)
+		sanitisedStateDBURL = d.URI(d.address, d.port, d.stateDBName, d.username, "REDACTED")
 	)
 	logger.Debug("db-open", lager.Data{"connection-string": sanitisedStateDBURL})
 	db, err := sql.Open("postgres", stateDBURL)
@@ -81,6 +79,29 @@ func (s *postgresEngineState) initSchema() error {
 	return nil
 }
 
+func (s *postgresEngineState) listUsers() ([]string, error) {
+	users := []string{}
+	statement := "SELECT username FROM role"
+	s.logger.Debug("list-users", lager.Data{"statement": statement})
+
+	rows, err := s.Query(statement)
+	if err != nil {
+		s.logger.Error("list-user.sql-error", err)
+		return users, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var username string
+		err = rows.Scan(&username)
+		if err != nil {
+			s.logger.Error("list-user.sql-error", err)
+			return users, err
+		}
+		users = append(users, username)
+	}
+	return users, err
+}
+
 func (s *postgresEngineState) fetchUserPassword(username string) (password string, ok bool, err error) {
 	var encryptedPassword string
 	statement := "SELECT encrypted_password FROM role WHERE username = $1"
@@ -109,6 +130,24 @@ func (s *postgresEngineState) storeUser(username, password string) error {
 	_, err = s.Exec(statement, username, encryptedPassword, passwordStorageVersion)
 	if err != nil {
 		s.logger.Error("insert-user.sql-error", err)
+		return err
+	}
+	return nil
+}
+
+func (s *postgresEngineState) updateUser(username, password string) error {
+	encryptedPassword, err := encryptString(s.stateEncryptionKey, password)
+	if err != nil {
+		return err
+	}
+	statement := "UPDATE role SET (encrypted_password, password_storage_version) = ($2, $3) WHERE username = $1"
+	s.logger.Debug("update-user", lager.Data{
+		"statement": statement,
+		"params":    []string{username, "REDACTED", passwordStorageVersion},
+	})
+	_, err = s.Exec(statement, username, encryptedPassword, passwordStorageVersion)
+	if err != nil {
+		s.logger.Error("update-user.sql-error", err)
 		return err
 	}
 	return nil

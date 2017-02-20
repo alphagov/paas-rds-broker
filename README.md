@@ -1,9 +1,9 @@
 # AWS RDS Service Broker [![Build Status](https://travis-ci.org/alphagov/paas-rds-broker.png)](https://travis-ci.org/alphagov/paas-rds-broker)
 
 
-This is a fork of [AWS RDS Service Broker](https://github.com/cf-platform-eng/rds-broker) written by Pivotal Software Inc. 
+This is a fork of [AWS RDS Service Broker](https://github.com/cf-platform-eng/rds-broker) written by Pivotal Software Inc.
 
-We have changed all source code includes to point to this repository. 
+We have changed all source code includes to point to this repository.
 
 This is an **experimental** [Cloud Foundry Service Broker](https://docs.cloudfoundry.org/services/overview.html) for [Amazon Relational Database Service (RDS)](https://aws.amazon.com/rds/) supporting [MariaDB](https://aws.amazon.com/rds/mariadb/), [MySQL](https://aws.amazon.com/rds/mysql/) and [PostgreSQL](https://aws.amazon.com/rds/postgresql/) RDS Databases.
 
@@ -112,6 +112,32 @@ Update calls support the following optional [arbitrary parameters](https://docs.
 | preferred_maintenance_window | String  | The weekly time range during which system maintenance can occur (*)
 
 (*) Refer to the [Amazon Relational Database Service Documentation](https://aws.amazon.com/documentation/rds/) for more details about how to set these properties
+
+## Running tests
+
+To run the tests of this broker, you need a postgres running locally, without SSL.
+
+In travis we use the [postgres service](https://docs.travis-ci.com/user/database-setup/#PostgreSQL)
+
+The tests can read from environment variables the server configuration, with the following defaults:
+ * `POSTGRESQL_HOSTNAME=localhost`
+ * `POSTGRESQL_PORT=5432`
+ * `POSTGRESQL_USERNAME=postgres`
+ * `POSTGRESQL_PASSWORD=`
+
+You can run locally a docker container to run the tests:
+
+```
+docker run -p 5432:5432 --name postgres -e POSTGRES_PASSWORD= -d postgres
+
+export POSTGRESQL_HOSTNAME=${DOCKER_HOSTNAME:-localhost} # Change accordingly
+
+ginkgo sqlengine
+
+docker stop postgres
+docker rm postgres
+```
+
 
 ## Contributing
 
