@@ -407,6 +407,17 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 
+			Context("and the restore_from_latest_snapshot_of is an empty string", func() {
+				BeforeEach(func() {
+					provisionDetails.Parameters = map[string]interface{}{"restore_from_latest_snapshot_of": ""}
+				})
+				It("returns the correct error", func() {
+					_, _, err := rdsBroker.Provision(instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("Invalid guid"))
+				})
+			})
+
 		})
 
 		Context("when creating a new service instance", func() {

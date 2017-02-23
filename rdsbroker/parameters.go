@@ -10,8 +10,8 @@ type ProvisionParameters struct {
 	DBName                      string
 	PreferredBackupWindow       string
 	PreferredMaintenanceWindow  string
-	SkipFinalSnapshot           string `mapstructure:"skip_final_snapshot"`
-	RestoreFromLatestSnapshotOf string `mapstructure:"restore_from_latest_snapshot_of"`
+	SkipFinalSnapshot           string  `mapstructure:"skip_final_snapshot"`
+	RestoreFromLatestSnapshotOf *string `mapstructure:"restore_from_latest_snapshot_of"`
 }
 
 type UpdateParameters struct {

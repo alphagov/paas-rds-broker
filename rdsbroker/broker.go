@@ -140,22 +140,25 @@ func (b *RDSBroker) Provision(instanceID string, details brokerapi.ProvisionDeta
 		return provisioningResponse, false, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
-	if provisionParameters.RestoreFromLatestSnapshotOf == "" {
+	if provisionParameters.RestoreFromLatestSnapshotOf == nil {
 		createDBInstance := b.createDBInstance(instanceID, servicePlan, provisionParameters, details)
 		if err := b.dbInstance.Create(b.dbInstanceIdentifier(instanceID), *createDBInstance); err != nil {
 			return provisioningResponse, false, err
 		}
 	} else {
+		if *provisionParameters.RestoreFromLatestSnapshotOf == "" {
+			return provisioningResponse, false, fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromLatestSnapshotOf)
+		}
 		if servicePlan.RDSProperties.Engine != "postgres" {
 			return provisioningResponse, false, fmt.Errorf("Restore from snapshot not supported for engine '%s'", servicePlan.RDSProperties.Engine)
 		}
-		restoreFromDBInstanceID := b.dbInstanceIdentifier(provisionParameters.RestoreFromLatestSnapshotOf)
+		restoreFromDBInstanceID := b.dbInstanceIdentifier(*provisionParameters.RestoreFromLatestSnapshotOf)
 		snapshots, err := b.dbInstance.DescribeSnapshots(restoreFromDBInstanceID)
 		if err != nil {
 			return provisioningResponse, false, err
 		}
 		if len(snapshots) == 0 {
-			return provisioningResponse, false, fmt.Errorf("No snapshots found for guid '%s'", provisionParameters.RestoreFromLatestSnapshotOf)
+			return provisioningResponse, false, fmt.Errorf("No snapshots found for guid '%s'", *provisionParameters.RestoreFromLatestSnapshotOf)
 		}
 		snapshot := snapshots[0]
 		if snapshot.Tags[TagSpaceID] != details.SpaceGUID || snapshot.Tags[TagOrganizationID] != details.OrganizationGUID {
