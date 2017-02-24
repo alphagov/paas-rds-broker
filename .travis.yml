@@ -22,4 +22,4 @@ before_script:
   - psql -c 'create database mydb;' -U postgres
 
 script:
-- go test -v ./...
+- go test -v $(go list ./... | grep -v /ci/)
