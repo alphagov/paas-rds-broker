@@ -129,15 +129,11 @@ func (d *PostgresEngine) DropUser(bindingID string) error {
 }
 
 func (d *PostgresEngine) ResetState() error {
-	stateDB, err := d.openStateDB(d.logger, d.stateEncryptionKey)
-	if err != nil {
-		return err
-	}
-	defer stateDB.Close()
+	d.logger.Debug("reset-state.start")
 
-	tx, err := stateDB.Begin()
+	tx, err := d.db.Begin()
 	if err != nil {
-		stateDB.logger.Error("sql-error", err)
+		d.logger.Error("sql-error", err)
 		return err
 	}
 	commitCalled := false
@@ -147,32 +143,41 @@ func (d *PostgresEngine) ResetState() error {
 		}
 	}()
 
-	users, err := stateDB.listUsers()
+	users := []string{}
 
-	for _, username := range users {
-		password := generatePassword()
-		// User already exists but the password needs to be reset.
-		var (
-			updateUserStatement          = "ALTER USER \"" + username + "\" WITH PASSWORD '" + password + "'"
-			sanitizedUpdateUserStatement = "ALTER USER \"" + username + "\" WITH PASSWORD 'REDACTED'"
-		)
-		d.logger.Debug("alter-user", lager.Data{"statement": sanitizedUpdateUserStatement})
-		if _, err := tx.Exec(updateUserStatement); err != nil {
+	rows, err := tx.Query("select usename from pg_user where usesuper != true and usename != current_user")
+	if err != nil {
+		d.logger.Error("sql-error", err)
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var username string
+		err = rows.Scan(&username)
+		if err != nil {
 			d.logger.Error("sql-error", err)
 			return err
 		}
-		err = stateDB.updateUser(username, password)
-		if err != nil {
+		users = append(users, username)
+	}
+
+	for _, username := range users {
+		dropUserStatement := fmt.Sprintf(`drop role "%s"`, username)
+		d.logger.Debug("reset-state", lager.Data{"statement": dropUserStatement})
+		if _, err := tx.Exec(dropUserStatement); err != nil {
+			d.logger.Error("sql-error", err)
 			return err
 		}
 	}
 
 	err = tx.Commit()
-	commitCalled = true // Prevent Rollback being called in deferred function
 	if err != nil {
 		d.logger.Error("commit.sql-error", err)
 		return err
 	}
+	commitCalled = true // Prevent Rollback being called in deferred function
+
+	d.logger.Debug("reset-state.finish")
 
 	return nil
 }
