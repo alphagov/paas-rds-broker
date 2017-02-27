@@ -14,7 +14,9 @@ import (
 var ensureTriggerPattern = `
 create or replace function reassign_owned() returns event_trigger language plpgsql as $$
 begin
-	if pg_has_role(current_user, '{{.role}}', 'member') then
+	IF pg_has_role(current_user, '{{.role}}', 'member') AND
+	   NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true)
+	THEN
 		execute 'reassign owned by "' || current_user || '" to "{{.role}}"';
 	end if;
 end
