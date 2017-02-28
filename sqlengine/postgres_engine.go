@@ -105,12 +105,29 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, passwor
 		return "", "", err
 	}
 
-	grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, username)
-	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
-
-	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
-		d.logger.Error("sql-error", err)
+	users, err := d.listNonSuperUsers(d.db)
+	if err != nil {
 		return "", "", err
+	}
+
+	// FIXME: Simplify when old bindings are not used anymore
+	for _, user := range users {
+		grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, user)
+		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+
+		if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
+			d.logger.Error("sql-error", err)
+			return "", "", err
+		}
+
+		reassignStatement := fmt.Sprintf(`reassign owned by "%s" to "%s"`, user, groupname)
+		d.logger.Debug("reassign-objects", lager.Data{"statement": reassignStatement})
+
+		if _, err := d.db.Exec(reassignStatement); err != nil {
+			d.logger.Error("sql-error", err)
+			return "", "", err
+		}
+
 	}
 
 	return username, password, nil
@@ -147,28 +164,15 @@ func (d *PostgresEngine) ResetState() error {
 		}
 	}()
 
-	users := []string{}
-
-	rows, err := tx.Query("select usename from pg_user where usesuper != true and usename != current_user")
+	users, err := d.listNonSuperUsers(d.db)
 	if err != nil {
-		d.logger.Error("sql-error", err)
 		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var username string
-		err = rows.Scan(&username)
-		if err != nil {
-			d.logger.Error("sql-error", err)
-			return err
-		}
-		users = append(users, username)
 	}
 
 	for _, username := range users {
 		dropUserStatement := fmt.Sprintf(`drop role "%s"`, username)
 		d.logger.Debug("reset-state", lager.Data{"statement": dropUserStatement})
-		if _, err := tx.Exec(dropUserStatement); err != nil {
+		if _, err = tx.Exec(dropUserStatement); err != nil {
 			d.logger.Error("sql-error", err)
 			return err
 		}
@@ -184,6 +188,27 @@ func (d *PostgresEngine) ResetState() error {
 	d.logger.Debug("reset-state.finish")
 
 	return nil
+}
+
+func (d *PostgresEngine) listNonSuperUsers(db *sql.DB) ([]string, error) {
+	users := []string{}
+
+	rows, err := db.Query("select usename from pg_user where usesuper != true and usename != current_user")
+	if err != nil {
+		d.logger.Error("sql-error", err)
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var username string
+		err = rows.Scan(&username)
+		if err != nil {
+			d.logger.Error("sql-error", err)
+			return nil, err
+		}
+		users = append(users, username)
+	}
+	return users, nil
 }
 
 func (d *PostgresEngine) URI(address string, port int64, dbname string, username string, password string) string {
