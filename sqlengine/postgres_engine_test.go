@@ -2,6 +2,7 @@ package sqlengine
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -33,14 +34,23 @@ func createMasterUser(connectionString string) (string, string) {
 	return randomMasterUser, password
 }
 
-func dropMasterUser(connectionString, randomMasterUser string) {
+func dropTestUser(connectionString, username string) {
+	// The master connection should be used here. See:
+	// https://www.postgresql.org/message-id/83894A1821034948BA27FE4DAA47427928F7C29922%40apde03.APD.Satcom.Local
 	db, err := sql.Open("postgres", connectionString)
 	defer db.Close()
 	Expect(err).ToNot(HaveOccurred())
 
-	statement := "DROP USER " + randomMasterUser
+	statement := "DROP OWNED BY " + username
 	_, err = db.Exec(statement)
-	Expect(err).ToNot(HaveOccurred())
+	if err != nil {
+		fmt.Fprintln(GinkgoWriter, err)
+	}
+	statement = "DROP USER " + username
+	_, err = db.Exec(statement)
+	if err != nil {
+		fmt.Fprintln(GinkgoWriter, err)
+	}
 }
 
 func createDB(connectionString, dbName string) {
@@ -71,6 +81,51 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return value
 }
 
+func createLegacyUser(connectionString, dbname string) (string, string) {
+	db, err := sql.Open("postgres", connectionString)
+	defer db.Close()
+	Expect(err).ToNot(HaveOccurred())
+
+	username := dbname + "_owner"
+	password := "mypass"
+
+	createUserStatement := "CREATE USER \"" + username + "\" WITH PASSWORD '" + password + "';"
+	_, err = db.Exec(createUserStatement)
+	Expect(err).ToNot(HaveOccurred())
+
+	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON DATABASE \"" + dbname + "\" TO \"" + username + "\";"
+	_, err = db.Exec(grantPrivilegesStatement)
+	Expect(err).ToNot(HaveOccurred())
+
+	return username, password
+}
+
+func createObjects(connectionString, tableName string) {
+	db, err := sql.Open("postgres", connectionString)
+	defer db.Close()
+	Expect(err).ToNot(HaveOccurred())
+
+	_, err = db.Exec("CREATE TABLE " + tableName + "(col CHAR(8))")
+	Expect(err).ToNot(HaveOccurred())
+
+	_, err = db.Exec("INSERT INTO " + tableName + " (col) VALUES ('value')")
+	Expect(err).ToNot(HaveOccurred())
+}
+
+func accessAndDeleteObjects(connectionString, tableName string) {
+	db, err := sql.Open("postgres", connectionString)
+	defer db.Close()
+	Expect(err).ToNot(HaveOccurred())
+
+	var col string
+	err = db.QueryRow("SELECT * FROM " + tableName + " WHERE col = 'value'").Scan(&col)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(strings.TrimSpace(col)).To(BeEquivalentTo("value"))
+
+	_, err = db.Exec("DROP TABLE " + tableName)
+	Expect(err).ToNot(HaveOccurred())
+}
+
 var _ = Describe("PostgresEngine", func() {
 	var (
 		postgresEngine *PostgresEngine
@@ -85,6 +140,7 @@ var _ = Describe("PostgresEngine", func() {
 		randomTestSuffix string
 
 		template1ConnectionString string
+		masterConnectionString    string
 	)
 
 	BeforeEach(func() {
@@ -110,9 +166,8 @@ var _ = Describe("PostgresEngine", func() {
 		template1ConnectionString = postgresEngine.URI(address, port, "template1", rootUsername, rootPassword)
 
 		masterUsername, masterPassword = createMasterUser(template1ConnectionString)
-	})
+		masterConnectionString = postgresEngine.URI(address, port, dbname, masterUsername, masterPassword)
 
-	BeforeEach(func() {
 		// Create the test DB
 		createDB(template1ConnectionString, dbname)
 	})
@@ -120,7 +175,7 @@ var _ = Describe("PostgresEngine", func() {
 	AfterEach(func() {
 		postgresEngine.Close() // Ensure the DB is closed
 		dropDB(template1ConnectionString, dbname)
-		dropMasterUser(template1ConnectionString, masterUsername)
+		dropTestUser(template1ConnectionString, masterUsername)
 	})
 
 	It("can connect to the new DB", func() {
@@ -159,15 +214,10 @@ var _ = Describe("PostgresEngine", func() {
 		It("CreateUser() returns valid credentials", func() {
 			connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
 			db, err := sql.Open("postgres", connectionString)
-			defer db.Close()
 			Expect(err).ToNot(HaveOccurred())
+			defer db.Close()
 			err = db.Ping()
 			Expect(err).ToNot(HaveOccurred())
-		})
-
-		It("CreateUser() fails when called several times with the same bindingID", func() {
-			_, _, err := postgresEngine.CreateUser(bindingID, dbname)
-			Expect(err).To(HaveOccurred())
 		})
 
 		Context("When there are two different bindings", func() {
@@ -190,36 +240,148 @@ var _ = Describe("PostgresEngine", func() {
 			})
 
 			It("CreateUser() returns different user and password", func() {
+				fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
 				Expect(otherCreatedUser).ToNot(Equal(createdUser))
+				fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
 				Expect(otherCreatedPassword).ToNot(Equal(createdPassword))
 			})
 
 			It("Tables created by one binding can be accessed and deleted by other", func() {
 				connectionString1 := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
-				db1, err := sql.Open("postgres", connectionString1)
-				defer db1.Close()
-				Expect(err).ToNot(HaveOccurred())
-
 				connectionString2 := postgresEngine.URI(address, port, dbname, otherCreatedUser, otherCreatedPassword)
-				db2, err := sql.Open("postgres", connectionString2)
-				defer db2.Close()
-				Expect(err).ToNot(HaveOccurred())
-
-				_, err = db1.Exec("CREATE TABLE a_table(col CHAR(8))")
-				Expect(err).ToNot(HaveOccurred())
-
-				_, err = db1.Exec("INSERT INTO a_table (col) VALUES ('value')")
-				Expect(err).ToNot(HaveOccurred())
-
-				var col string
-				err = db2.QueryRow("SELECT * FROM a_table WHERE col = 'value'").Scan(&col)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(strings.TrimSpace(col)).To(BeEquivalentTo("value"))
-
-				_, err = db2.Exec("DROP TABLE a_table")
-				Expect(err).ToNot(HaveOccurred())
+				createObjects(connectionString1, "table1")
+				accessAndDeleteObjects(connectionString2, "table1")
+				createObjects(connectionString2, "table2")
+				accessAndDeleteObjects(connectionString1, "table2")
 			})
 		})
+	})
+
+	Describe("MigrateLegacyUsers", func() {
+		var (
+			bindingID              string
+			connectionStringNew    string
+			connectionStringLegacy string
+			legacyUserName         string
+			legacyUserPassword     string
+		)
+
+		Context("There is a user from a legacy binding", func() {
+			BeforeEach(func() {
+				legacyUserName, legacyUserPassword = createLegacyUser(masterConnectionString, dbname)
+				connectionStringLegacy = postgresEngine.URI(address, port, dbname, legacyUserName, legacyUserPassword)
+				createObjects(connectionStringLegacy, "legacy_table")
+			})
+
+			BeforeEach(func() {
+				bindingID = "binding-id" + randomTestSuffix
+				err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
+				Expect(err).ToNot(HaveOccurred())
+
+				createdUser, createdPassword, err := postgresEngine.CreateUser(bindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
+
+				connectionStringNew = postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+			})
+
+			AfterEach(func() {
+				err := postgresEngine.DropUser(bindingID)
+				Expect(err).ToNot(HaveOccurred())
+				dropTestUser(masterConnectionString, legacyUserName)
+			})
+
+			It("Should allow the new bindings to access objects created by the legacy user", func() {
+				accessAndDeleteObjects(connectionStringNew, "legacy_table")
+			})
+
+			It("Should allow the legacy user to access objects from new bindings", func() {
+				createObjects(connectionStringNew, "new_table")
+				accessAndDeleteObjects(connectionStringLegacy, "new_table")
+			})
+
+		})
+
+	})
+
+	Describe("Migrate bindings", func() {
+		var (
+			bindingID              string
+			connectionStringNew    string
+			connectionStringLegacy string
+			legacyUserName         string
+			legacyUserPassword     string
+			createdUser            string
+			otherCreatedUser       string
+		)
+
+		Context("Migrate legacy databases", func() {
+			BeforeEach(func() {
+				legacyUserName, legacyUserPassword = createLegacyUser(masterConnectionString, dbname)
+				connectionStringLegacy = postgresEngine.URI(address, port, dbname, legacyUserName, legacyUserPassword)
+				createObjects(connectionStringLegacy, "legacy_table")
+				bindingID = "binding-id" + randomTestSuffix
+				err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
+				Expect(err).ToNot(HaveOccurred())
+				createdUser, createdPassword, err := postgresEngine.CreateUser(bindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
+				connectionStringNew = postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+
+			})
+
+			AfterEach(func() {
+				err := postgresEngine.DropUser(bindingID)
+				Expect(err).ToNot(HaveOccurred())
+				dropTestUser(masterConnectionString, legacyUserName)
+				dropTestUser(masterConnectionString, createdUser)
+				dropTestUser(masterConnectionString, otherCreatedUser)
+			})
+
+			It("Migrate legacy databases with one user", func() {
+				err := postgresEngine.MigrateLegacyAdminUsers(bindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
+				createObjects(connectionStringLegacy, "table1")
+				accessAndDeleteObjects(connectionStringLegacy, "table1")
+
+			})
+
+			Context("When there are two different bindings", func() {
+				var (
+					otherBindingID         string
+					otherCreatedUser       string
+					otherCreatedPassword   string
+					newCreatedUser         string
+					newCreatedPassword     string
+				)
+
+				BeforeEach(func() {
+					var err error
+					newCreatedUser, newCreatedPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+					Expect(err).ToNot(HaveOccurred())
+					otherBindingID = "other-binding-id" + randomTestSuffix
+					otherCreatedUser, otherCreatedPassword, err = postgresEngine.CreateUser(otherBindingID, dbname)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				AfterEach(func() {
+					err := postgresEngine.DropUser(otherBindingID)
+					Expect(err).ToNot(HaveOccurred())
+					err = postgresEngine.DropUser(bindingID)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("Migrate legacy databases with multiple binds", func() {
+					err := postgresEngine.MigrateLegacyAdminUsers(bindingID, dbname)
+					Expect(err).ToNot(HaveOccurred())
+					connectionString1 := postgresEngine.URI(address, port, dbname, newCreatedUser, newCreatedPassword)
+					connectionString2 := postgresEngine.URI(address, port, dbname, otherCreatedUser, otherCreatedPassword)
+					createObjects(connectionString1, "table1")
+					accessAndDeleteObjects(connectionString2, "table1")
+					createObjects(connectionString2, "table2")
+					accessAndDeleteObjects(connectionString1, "table2")
+				})
+			})
+		})
+
 	})
 
 	Describe("DropUser", func() {

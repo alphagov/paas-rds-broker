@@ -30,7 +30,7 @@ const dbInstanceDetailsLogKey = "dbInstanceDetails"
 const lastOperationResponseLogKey = "lastOperationResponse"
 
 var (
-	ErrEncryptionNotUpdateable = errors.New("intance can not be updated to a plan with different encryption settings")
+	ErrEncryptionNotUpdateable = errors.New("instance can not be updated to a plan with different encryption settings")
 )
 
 var rdsStatus2State = map[string]brokerapi.LastOperationState{
