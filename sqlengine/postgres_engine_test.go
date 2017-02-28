@@ -260,15 +260,11 @@ var _ = Describe("PostgresEngine", func() {
 				Expect(pqErr.Message).To(MatchRegexp("role .* does not exist"))
 			})
 
-			It("Calling DropUser() twice fails with 'role does not exist'", func() {
+			It("Calling DropUser() twice doesn't fail with 'role does not exist'", func() {
 				err := postgresEngine.DropUser(bindingID)
 				Expect(err).ToNot(HaveOccurred())
 				err = postgresEngine.DropUser(bindingID)
-				Expect(err).To(HaveOccurred())
-				pqErr, ok := err.(*pq.Error)
-				Expect(ok).To(BeTrue())
-				Expect(pqErr.Code).To(BeEquivalentTo("42704"))
-				Expect(pqErr.Message).To(MatchRegexp("role .* does not exist"))
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("Other errors are not ignored", func() {
