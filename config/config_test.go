@@ -1,10 +1,10 @@
-package main_test
+package config_test
 
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	. "github.com/alphagov/paas-rds-broker"
+	. "github.com/alphagov/paas-rds-broker/config"
 
 	"github.com/alphagov/paas-rds-broker/rdsbroker"
 )

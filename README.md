@@ -115,6 +115,10 @@ Update calls support the following optional [arbitrary parameters](https://docs.
 
 ## Running tests
 
+There are two forms of tests for the broker, the unit tests and the integration tests. The unit tests are run automatically by travis, but because the integration tests actually use the AWS RDS API they must be run manually or by an agent with AWS credentials.
+
+### Running the unit tests
+
 To run the tests of this broker, you need a postgres running locally, without SSL.
 
 In travis we use the [postgres service](https://docs.travis-ci.com/user/database-setup/#PostgreSQL)
@@ -132,12 +136,23 @@ docker run -p 5432:5432 --name postgres -e POSTGRES_PASSWORD= -d postgres
 
 export POSTGRESQL_HOSTNAME=${DOCKER_HOSTNAME:-localhost} # Change accordingly
 
-ginkgo sqlengine
+make unit
 
 docker stop postgres
 docker rm postgres
 ```
 
+### Running the integration tests
+
+These tests must be run from within an AWS environment as they will attempt to connect directly to the RDS instance to verify it, and they require AWS credentials that can list/create/delete/tag RDS instances, and delete RDS snapshots.
+
+To run them you will require the security group name that the RDS instance should be created in (the host running the tests must have access to it), and the VPC ID that subnet belongs to.
+
+```
+export VPC_SECURITY_GROUP_ID=sg-f7b9bd92
+export DB_SUBNET_GROUP_NAME=rdsbroker-test
+make integration
+```
 
 ## Contributing
 

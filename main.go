@@ -16,6 +16,7 @@ import (
 	"github.com/pivotal-golang/lager"
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
+	"github.com/alphagov/paas-rds-broker/config"
 	"github.com/alphagov/paas-rds-broker/rdsbroker"
 	"github.com/alphagov/paas-rds-broker/sqlengine"
 )
@@ -49,7 +50,7 @@ func buildLogger(logLevel string) lager.Logger {
 	return logger
 }
 
-func buildHTTPHandler(serviceBroker *rdsbroker.RDSBroker, logger lager.Logger, config *Config) http.Handler {
+func buildHTTPHandler(serviceBroker *rdsbroker.RDSBroker, logger lager.Logger, config *config.Config) http.Handler {
 	credentials := brokerapi.BrokerCredentials{
 		Username: config.Username,
 		Password: config.Password,
@@ -67,7 +68,7 @@ func buildHTTPHandler(serviceBroker *rdsbroker.RDSBroker, logger lager.Logger, c
 func main() {
 	flag.Parse()
 
-	config, err := LoadConfig(configFilePath)
+	config, err := config.LoadConfig(configFilePath)
 	if err != nil {
 		log.Fatalf("Error loading config file: %s", err)
 	}
