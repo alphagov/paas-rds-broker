@@ -12,8 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/frodenas/brokerapi"
-	"github.com/pivotal-golang/lager"
+	"github.com/pivotal-cf/brokerapi"
+	"code.cloudfoundry.org/lager"
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/alphagov/paas-rds-broker/config"
