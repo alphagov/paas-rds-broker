@@ -180,6 +180,8 @@ var _ = Describe("RDS Broker", func() {
 		}
 
 		logger = lager.NewLogger("rdsbroker_test")
+		gingkoSink := lager.NewWriterSink(GinkgoWriter, lager.INFO)
+		logger.RegisterSink(gingkoSink)
 		testSink = lagertest.NewTestSink()
 		logger.RegisterSink(testSink)
 
