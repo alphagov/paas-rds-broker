@@ -8,14 +8,12 @@ import (
 	"code.cloudfoundry.org/lager"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/sts"
 )
 
 type RDSDBInstance struct {
 	region    string
 	partition string
 	rdssvc    *rds.RDS
-	stssvc    *sts.STS
 	logger    lager.Logger
 }
 
@@ -23,14 +21,12 @@ func NewRDSDBInstance(
 	region string,
 	partition string,
 	rdssvc *rds.RDS,
-	stssvc *sts.STS,
 	logger lager.Logger,
 ) *RDSDBInstance {
 	return &RDSDBInstance{
 		region:    region,
 		partition: partition,
 		rdssvc:    rdssvc,
-		stssvc:    stssvc,
 		logger:    logger.Session("db-instance"),
 	}
 }
@@ -111,11 +107,10 @@ func (r *RDSDBInstance) DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDet
 
 	for _, dbSnapshot := range describeDBSnapshotsOutput.DBSnapshots {
 		s := r.buildDBSnapshot(dbSnapshot)
-		s.Arn, err = r.dbSnapshotARN(s.Identifier)
 		if err != nil {
 			return dbSnapshotDetails, HandleAWSError(err, r.logger)
 		}
-		t, err := ListTagsForResource(s.Arn, r.rdssvc, r.logger)
+		t, err := ListTagsForResource(aws.StringValue(dbSnapshot.DBSnapshotArn), r.rdssvc, r.logger)
 		if err != nil {
 			return dbSnapshotDetails, HandleAWSError(err, r.logger)
 		}
@@ -543,30 +538,6 @@ func (r *RDSDBInstance) buildDeleteDBInstanceInput(ID string, skipFinalSnapshot 
 
 func (r *RDSDBInstance) dbSnapshotName(ID string) string {
 	return fmt.Sprintf("%s-final-snapshot", ID)
-}
-
-//FIXME: when the github.com/aws/aws-sdk-go/service/rds dependency is
-// updated we can extract the ARN directly from the rds.DBInstance struct
-// https://godoc.org/github.com/aws/aws-sdk-go/service/rds#DBInstance
-func (r *RDSDBInstance) dbInstanceARN(ID string) (string, error) {
-	userAccount, err := UserAccount(r.stssvc)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("arn:%s:rds:%s:%s:db:%s", r.partition, r.region, userAccount, ID), nil
-}
-
-//FIXME: when the github.com/aws/aws-sdk-go/service/rds dependency is
-// updated we can extract the ARN directly from the rds.DBSnapshot struct
-// https://godoc.org/github.com/aws/aws-sdk-go/service/rds#DBSnapshot
-func (r *RDSDBInstance) dbSnapshotARN(ID string) (string, error) {
-	userAccount, err := UserAccount(r.stssvc)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("arn:%s:rds:%s:%s:snapshot:%s", r.partition, r.region, userAccount, ID), nil
 }
 
 func (r *RDSDBInstance) allowMajorVersionUpgrade(newEngineVersion, oldEngineVersion string) bool {

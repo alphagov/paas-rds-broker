@@ -15,7 +15,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/sts"
 )
 
 var _ = Describe("RDS Utils", func() {
@@ -25,9 +24,6 @@ var _ = Describe("RDS Utils", func() {
 		rdssvc  *rds.RDS
 		rdsCall func(r *request.Request)
 
-		stssvc  *sts.STS
-		stsCall func(r *request.Request)
-
 		testSink *lagertest.TestSink
 		logger   lager.Logger
 	)
@@ -36,55 +32,10 @@ var _ = Describe("RDS Utils", func() {
 		awsSession = session.New(nil)
 
 		rdssvc = rds.New(awsSession)
-		stssvc = sts.New(awsSession)
 
 		logger = lager.NewLogger("rdsservice_test")
 		testSink = lagertest.NewTestSink()
 		logger.RegisterSink(testSink)
-	})
-
-	var _ = Describe("UserAccount", func() {
-		var (
-			getCallerIdentityInput *sts.GetCallerIdentityInput
-			getCallerIdentityError error
-		)
-		const account = "123456789012"
-
-		BeforeEach(func() {
-			getCallerIdentityError = nil
-			getCallerIdentityInput = &sts.GetCallerIdentityInput{}
-		})
-
-		JustBeforeEach(func() {
-			stssvc.Handlers.Clear()
-
-			stsCall = func(r *request.Request) {
-				Expect(r.Operation.Name).To(Equal("GetCallerIdentity"))
-				Expect(r.Params).To(Equal(getCallerIdentityInput))
-				data := r.Data.(*sts.GetCallerIdentityOutput)
-				data.Account = aws.String(account)
-				r.Error = getCallerIdentityError
-			}
-			stssvc.Handlers.Send.PushBack(stsCall)
-		})
-
-		It("returns the User Account", func() {
-			userAccount, err := UserAccount(stssvc)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(userAccount).To(Equal(account))
-		})
-
-		Context("when getting user fails", func() {
-			BeforeEach(func() {
-				getCallerIdentityError = errors.New("operation failed")
-			})
-
-			It("returns the proper error", func() {
-				_, err := UserAccount(stssvc)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal("operation failed"))
-			})
-		})
 	})
 
 	var _ = Describe("BuilRDSTags", func() {

@@ -7,19 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/sts"
 )
-
-func UserAccount(stssvc *sts.STS) (string, error) {
-	getCallerIdentityInput := &sts.GetCallerIdentityInput{}
-	getCallerIdentityOutput, err := stssvc.GetCallerIdentity(getCallerIdentityInput)
-	if err != nil {
-		return "", err
-	}
-
-	return *getCallerIdentityOutput.Account, nil
-
-}
 
 func BuilRDSTags(tags map[string]string) []*rds.Tag {
 	var rdsTags []*rds.Tag

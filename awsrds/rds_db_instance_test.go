@@ -26,15 +26,13 @@ var _ = Describe("RDS DB Instance", func() {
 		region               string
 		partition            string
 		dbInstanceIdentifier string
-		arn                  string
+		dbInstanceArn        string
+		dbSnapshotArn        string
 
 		awsSession *session.Session
 
 		rdssvc  *rds.RDS
 		rdsCall func(r *request.Request)
-
-		stssvc  *sts.STS
-		stsCall func(r *request.Request)
 
 		testSink *lagertest.TestSink
 		logger   lager.Logger
@@ -49,7 +47,8 @@ var _ = Describe("RDS DB Instance", func() {
 		region = "rds-region"
 		partition = "rds-partition"
 		dbInstanceIdentifier = "cf-instance-id"
-		arn = "arn:" + partition + ":rds:rds-region:" + account + ":db:" + dbInstanceIdentifier
+		dbInstanceArn = "arn:" + partition + ":rds:rds-region:" + account + ":db:" + dbInstanceIdentifier
+		dbSnapshotArn = "arn:" + partition + ":rds:rds-region:" + account + ":snapshot:" + dbInstanceIdentifier
 		getCallerIdentityError = nil
 	})
 
@@ -57,26 +56,12 @@ var _ = Describe("RDS DB Instance", func() {
 		awsSession = session.New(nil)
 
 		rdssvc = rds.New(awsSession)
-		stssvc = sts.New(awsSession)
 
 		logger = lager.NewLogger("rdsdbinstance_test")
 		testSink = lagertest.NewTestSink()
 		logger.RegisterSink(testSink)
 
-		rdsDBInstance = NewRDSDBInstance(region, partition, rdssvc, stssvc, logger)
-
-		// Configure STS api mock to return an account ID
-		stssvc.Handlers.Clear()
-
-		stsCall = func(r *request.Request) {
-			Expect(r.Operation.Name).To(Equal("GetCallerIdentity"))
-			Expect(r.Params).To(BeAssignableToTypeOf(&sts.GetCallerIdentityInput{}))
-			data := r.Data.(*sts.GetCallerIdentityOutput)
-			data.Account = aws.String(account)
-			r.Error = getCallerIdentityError
-		}
-
-		stssvc.Handlers.Send.PushBack(stsCall)
+		rdsDBInstance = NewRDSDBInstance(region, partition, rdssvc, logger)
 	})
 
 	var _ = Describe("Describe", func() {
@@ -98,7 +83,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 			describeDBInstance = &rds.DBInstance{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
-				DBInstanceArn:        aws.String(arn),
+				DBInstanceArn:        aws.String(dbInstanceArn),
 				DBInstanceStatus:     aws.String("available"),
 				Engine:               aws.String("test-engine"),
 				EngineVersion:        aws.String("1.2.3"),
@@ -116,7 +101,7 @@ var _ = Describe("RDS DB Instance", func() {
 		JustBeforeEach(func() {
 			properDBInstanceDetails = DBInstanceDetails{
 				Identifier:       dbInstanceIdentifier,
-				Arn:              arn,
+				Arn:              dbInstanceArn,
 				Status:           "available",
 				Engine:           "test-engine",
 				EngineVersion:    "1.2.3",
@@ -356,7 +341,7 @@ var _ = Describe("RDS DB Instance", func() {
 			buildDBInstanceAWSResponse := func(id, suffix string) *rds.DBInstance {
 				return &rds.DBInstance{
 					DBInstanceIdentifier: aws.String(id + suffix),
-					DBInstanceArn:        aws.String(arn + suffix),
+					DBInstanceArn:        aws.String(dbInstanceArn + suffix),
 					DBInstanceStatus:     aws.String("available"),
 					Engine:               aws.String("test-engine"),
 					EngineVersion:        aws.String("1.2.3"),
@@ -378,7 +363,7 @@ var _ = Describe("RDS DB Instance", func() {
 			buildExpectedDBInstanceDetails := func(id, suffix, brokerName string) *DBInstanceDetails {
 				return &DBInstanceDetails{
 					Identifier:       id + suffix,
-					Arn:              arn + suffix,
+					Arn:              dbInstanceArn + suffix,
 					Status:           "available",
 					Engine:           "test-engine",
 					EngineVersion:    "1.2.3",
@@ -522,6 +507,7 @@ var _ = Describe("RDS DB Instance", func() {
 					return &rds.DBSnapshot{
 						DBInstanceIdentifier: aws.String(instanceID),
 						DBSnapshotIdentifier: aws.String(instanceID + suffix),
+						DBSnapshotArn:        aws.String(dbSnapshotArn + suffix),
 						InstanceCreateTime:   aws.Time(instanceCreateTime),
 					}
 				}
@@ -1236,7 +1222,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 			describeDBInstance = &rds.DBInstance{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
-				DBInstanceArn:        aws.String(arn),
+				DBInstanceArn:        aws.String(dbInstanceArn),
 				DBInstanceStatus:     aws.String("available"),
 				Engine:               aws.String("test-engine"),
 				EngineVersion:        aws.String("1.2.3"),
