@@ -26,6 +26,7 @@ var _ = Describe("RDS DB Instance", func() {
 		region               string
 		partition            string
 		dbInstanceIdentifier string
+		arn                  string
 
 		awsSession *session.Session
 
@@ -48,6 +49,7 @@ var _ = Describe("RDS DB Instance", func() {
 		region = "rds-region"
 		partition = "rds-partition"
 		dbInstanceIdentifier = "cf-instance-id"
+		arn = "arn:" + partition + ":rds:rds-region:" + account + ":db:" + dbInstanceIdentifier
 		getCallerIdentityError = nil
 	})
 
@@ -96,6 +98,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 			describeDBInstance = &rds.DBInstance{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBInstanceArn:        aws.String(arn),
 				DBInstanceStatus:     aws.String("available"),
 				Engine:               aws.String("test-engine"),
 				EngineVersion:        aws.String("1.2.3"),
@@ -113,7 +116,7 @@ var _ = Describe("RDS DB Instance", func() {
 		JustBeforeEach(func() {
 			properDBInstanceDetails = DBInstanceDetails{
 				Identifier:       dbInstanceIdentifier,
-				Arn:              "arn:" + partition + ":rds:rds-region:" + account + ":db:" + dbInstanceIdentifier,
+				Arn:              arn,
 				Status:           "available",
 				Engine:           "test-engine",
 				EngineVersion:    "1.2.3",
@@ -353,6 +356,7 @@ var _ = Describe("RDS DB Instance", func() {
 			buildDBInstanceAWSResponse := func(id, suffix string) *rds.DBInstance {
 				return &rds.DBInstance{
 					DBInstanceIdentifier: aws.String(id + suffix),
+					DBInstanceArn:        aws.String(arn + suffix),
 					DBInstanceStatus:     aws.String("available"),
 					Engine:               aws.String("test-engine"),
 					EngineVersion:        aws.String("1.2.3"),
@@ -374,6 +378,7 @@ var _ = Describe("RDS DB Instance", func() {
 			buildExpectedDBInstanceDetails := func(id, suffix, brokerName string) *DBInstanceDetails {
 				return &DBInstanceDetails{
 					Identifier:       id + suffix,
+					Arn:              arn + suffix,
 					Status:           "available",
 					Engine:           "test-engine",
 					EngineVersion:    "1.2.3",
@@ -1231,6 +1236,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 			describeDBInstance = &rds.DBInstance{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBInstanceArn:        aws.String(arn),
 				DBInstanceStatus:     aws.String("available"),
 				Engine:               aws.String("test-engine"),
 				EngineVersion:        aws.String("1.2.3"),

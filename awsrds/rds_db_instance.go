@@ -53,10 +53,6 @@ func (r *RDSDBInstance) Describe(ID string) (DBInstanceDetails, error) {
 		if aws.StringValue(dbInstance.DBInstanceIdentifier) == ID {
 			r.logger.Debug("describe-db-instances", lager.Data{"db-instance": dbInstance})
 			dbInstanceDetails = r.buildDBInstance(dbInstance)
-			dbInstanceDetails.Arn, err = r.dbInstanceARN(ID)
-			if err != nil {
-				return dbInstanceDetails, HandleAWSError(err, r.logger)
-			}
 			t, err := ListTagsForResource(dbInstanceDetails.Arn, r.rdssvc, r.logger)
 			if err != nil {
 				return dbInstanceDetails, HandleAWSError(err, r.logger)
@@ -80,12 +76,8 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string) ([]*DBInstanceDet
 		return dbInstanceDetails, err
 	}
 	for _, dbInstance := range dbInstances.DBInstances {
-		dbArn, err := r.dbInstanceARN(*dbInstance.DBInstanceIdentifier)
-		if err != nil {
-			return dbInstanceDetails, err
-		}
 		listTagsForResourceInput := &rds.ListTagsForResourceInput{
-			ResourceName: aws.String(dbArn),
+			ResourceName: dbInstance.DBInstanceArn,
 		}
 		listTagsForResourceOutput, err := r.rdssvc.ListTagsForResource(listTagsForResourceInput)
 		if err != nil {
@@ -148,13 +140,8 @@ func (r *RDSDBInstance) GetTag(ID, tagKey string) (string, error) {
 		return "", HandleAWSError(err, r.logger)
 	}
 
-	dbArn, err := r.dbInstanceARN(*myInstance.DBInstances[0].DBInstanceIdentifier)
-	if err != nil {
-		return "", err
-	}
-
 	listTagsForResourceInput := &rds.ListTagsForResourceInput{
-		ResourceName: aws.String(dbArn),
+		ResourceName: myInstance.DBInstances[0].DBInstanceArn,
 	}
 
 	listTagsForResourceOutput, err := r.rdssvc.ListTagsForResource(listTagsForResourceInput)
@@ -224,13 +211,8 @@ func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, a
 	r.logger.Debug("modify-db-instance", lager.Data{"output": modifyDBInstanceOutput})
 
 	if len(dbInstanceDetails.Tags) > 0 {
-		dbInstanceARN, err := r.dbInstanceARN(ID)
-		if err != nil {
-			return nil
-		}
-
 		tags := BuilRDSTags(dbInstanceDetails.Tags)
-		AddTagsToResource(dbInstanceARN, tags, r.rdssvc, r.logger)
+		AddTagsToResource(oldDBInstanceDetails.Arn, tags, r.rdssvc, r.logger)
 	}
 
 	return nil
@@ -253,12 +235,12 @@ func (r *RDSDBInstance) Reboot(ID string) error {
 }
 
 func (r *RDSDBInstance) RemoveTag(ID, tagKey string) error {
-	dbArn, err := r.dbInstanceARN(ID)
+	dBInstanceDetails, err := r.Describe(ID)
 	if err != nil {
 		return err
 	}
 
-	return RemoveTagsFromResource(dbArn, []*string{&tagKey}, r.rdssvc, r.logger)
+	return RemoveTagsFromResource(dBInstanceDetails.Arn, []*string{&tagKey}, r.rdssvc, r.logger)
 }
 
 func (r *RDSDBInstance) Delete(ID string, skipFinalSnapshot bool) error {
@@ -278,6 +260,7 @@ func (r *RDSDBInstance) Delete(ID string, skipFinalSnapshot bool) error {
 func (r *RDSDBInstance) buildDBInstance(dbInstance *rds.DBInstance) DBInstanceDetails {
 	dbInstanceDetails := DBInstanceDetails{
 		Identifier:       aws.StringValue(dbInstance.DBInstanceIdentifier),
+		Arn:              aws.StringValue(dbInstance.DBInstanceArn),
 		Status:           aws.StringValue(dbInstance.DBInstanceStatus),
 		Engine:           aws.StringValue(dbInstance.Engine),
 		EngineVersion:    aws.StringValue(dbInstance.EngineVersion),
