@@ -1921,6 +1921,22 @@ var _ = Describe("RDS Broker", func() {
 					Expect(err).To(HaveOccurred())
 					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
 				})
+
+				It("brokerapi integration returns a status 410 Gone", func() {
+					recorder := httptest.NewRecorder()
+
+					req, _ := http.NewRequest(
+						"GET",
+						"http://example.com/v2/service_instances/"+instanceID+"/last_operation",
+						nil,
+					)
+					req.SetBasicAuth(brokeruser, brokerpass)
+					fmt.Fprintf(GinkgoWriter, "%s:\n", recorder.Body.Bytes())
+
+					rdsBrokerServer.ServeHTTP(recorder, req)
+					Expect(recorder.Code).To(Equal(410))
+				})
+
 			})
 		})
 
