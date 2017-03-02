@@ -1,9 +1,11 @@
 package rdsbroker_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -1580,6 +1582,69 @@ var _ = Describe("RDS Broker", func() {
 			Expect(sqlEngine.CreateUserDBName).To(Equal("test-db"))
 			Expect(sqlEngine.CloseCalled).To(BeTrue())
 			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("brokerapi integration returns the proper response", func() {
+			recorder := httptest.NewRecorder()
+
+			bindingDetailsJson := []byte(`
+				{
+					"service_id": "Service-1",
+					"plan_id": "Plan-1",
+					"bind_resource": {
+						"app_guid": "Application-1"
+					},
+					"parameters": {}
+				}`)
+
+			req, _ := http.NewRequest(
+				"PUT",
+				"http://example.com/v2/service_instances/"+
+					instanceID+
+					"/service_bindings/"+
+					bindingID,
+				bytes.NewBuffer(bindingDetailsJson),
+			)
+			req.SetBasicAuth(brokeruser, brokerpass)
+
+			rdsBrokerServer.ServeHTTP(recorder, req)
+
+			var bindingResponse struct {
+				TheCredentials struct {
+					TheHost     string `json:"host"`
+					ThePort     int64  `json:"port"`
+					TheName     string `json:"name"`
+					TheUsername string `json:"username"`
+					ThePassword string `json:"password"`
+					TheURI      string `json:"uri"`
+					TheJDBCURI  string `json:"jdbcuri"`
+				} `json:"credentials"`
+			}
+
+			Expect(recorder.Body.String()).To(ContainSubstring(`"credentials"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"host"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"port"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"name"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"username"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"password"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"uri"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"jdbcuri"`))
+
+			err := json.Unmarshal(recorder.Body.Bytes(), &bindingResponse)
+			Expect(err).ToNot(HaveOccurred())
+			fmt.Fprintf(GinkgoWriter, "%s:\n", recorder.Body.Bytes())
+			fmt.Fprintf(GinkgoWriter, "%v:\n", bindingResponse)
+
+			Expect(bindingResponse.TheCredentials.TheHost).To(Equal("endpoint-address"))
+			Expect(bindingResponse.TheCredentials.ThePort).To(Equal(int64(3306)))
+			Expect(bindingResponse.TheCredentials.TheName).To(Equal("test-db"))
+			Expect(bindingResponse.TheCredentials.TheUsername).To(Equal(dbUsername))
+			Expect(bindingResponse.TheCredentials.ThePassword).To(Equal("secret"))
+			Expect(bindingResponse.TheCredentials.TheURI).To(ContainSubstring("@endpoint-address:3306/test-db?reconnect=true"))
+			Expect(bindingResponse.TheCredentials.TheJDBCURI).To(ContainSubstring("jdbc:fake://endpoint-address:3306/test-db?user=" + dbUsername + "&password="))
+
+			Expect(recorder.Code).To(Equal(201))
+
 		})
 
 		// FIXME: Re-enable these tests when we have some bind-time parameters again
