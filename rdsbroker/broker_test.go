@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"sort"
 	"strings"
 	"time"
 
@@ -57,6 +60,10 @@ var _ = Describe("RDS Broker", func() {
 		skipFinalSnapshot            bool
 		dbPrefix                     string
 		brokerName                   string
+
+		brokeruser      string
+		brokerpass      string
+		rdsBrokerServer http.Handler
 	)
 
 	const (
@@ -175,6 +182,16 @@ var _ = Describe("RDS Broker", func() {
 		logger.RegisterSink(testSink)
 
 		rdsBroker = New(config, dbInstance, sqlProvider, logger)
+
+		brokeruser = "brokeruser"
+		brokerpass = "brokerpass"
+
+		credentials := brokerapi.BrokerCredentials{
+			Username: "brokeruser",
+			Password: "brokerpass",
+		}
+
+		rdsBrokerServer = brokerapi.New(rdsBroker, logger, credentials)
 	})
 
 	var _ = Describe("Services", func() {
@@ -232,6 +249,47 @@ var _ = Describe("RDS Broker", func() {
 		It("returns the proper CatalogResponse", func() {
 			brokerCatalog := rdsBroker.Services(ctx)
 			Expect(brokerCatalog).To(Equal(properCatalogResponse))
+		})
+
+		It("brokerapi integration returns the proper CatalogResponse", func() {
+			var err error
+
+			recorder := httptest.NewRecorder()
+
+			req, _ := http.NewRequest("GET", "http://example.com/v2/catalog", nil)
+			req.SetBasicAuth(brokeruser, brokerpass)
+
+			rdsBrokerServer.ServeHTTP(recorder, req)
+			Expect(recorder.Code).To(Equal(200))
+
+			catalog := brokerapi.CatalogResponse{}
+			err = json.Unmarshal(recorder.Body.Bytes(), &catalog)
+			Expect(err).ToNot(HaveOccurred())
+
+			sort.Slice(
+				catalog.Services,
+				func(i, j int) bool {
+					return catalog.Services[i].ID < catalog.Services[j].ID
+				},
+			)
+
+			Expect(catalog.Services).To(HaveLen(3))
+			service1 := catalog.Services[0]
+			service2 := catalog.Services[1]
+			service3 := catalog.Services[2]
+			Expect(service1.ID).To(Equal("Service-1"))
+			Expect(service2.ID).To(Equal("Service-2"))
+			Expect(service3.ID).To(Equal("Service-3"))
+
+			Expect(service1.ID).To(Equal("Service-1"))
+			Expect(service1.Name).To(Equal("Service 1"))
+			Expect(service1.Description).To(Equal("This is the Service 1"))
+			Expect(service1.Bindable).To(BeTrue())
+			Expect(service1.PlanUpdatable).To(BeTrue())
+			Expect(service1.Plans).To(HaveLen(1))
+			Expect(service1.Plans[0].ID).To(Equal("Plan-1"))
+			Expect(service1.Plans[0].Name).To(Equal("Plan 1"))
+			Expect(service1.Plans[0].Description).To(Equal("This is the Plan 1"))
 		})
 
 	})
