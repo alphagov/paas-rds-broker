@@ -89,7 +89,6 @@ var _ = Describe("Service", func() {
 			ID:              "Service-1",
 			Name:            "Service 1",
 			Description:     "Service 1 description",
-			Bindable:        true,
 			Tags:            []string{"service"},
 			Metadata:        &brokerapi.ServiceMetadata{},
 			Requires:        []brokerapi.RequiredPermission{"syslog"},

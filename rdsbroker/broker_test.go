@@ -137,7 +137,6 @@ var _ = Describe("RDS Broker", func() {
 			ID:            "Service-1",
 			Name:          "Service 1",
 			Description:   "This is the Service 1",
-			Bindable:      serviceBindable,
 			PlanUpdatable: planUpdateable,
 			Plans:         []ServicePlan{plan1},
 		}
@@ -145,7 +144,6 @@ var _ = Describe("RDS Broker", func() {
 			ID:            "Service-2",
 			Name:          "Service 2",
 			Description:   "This is the Service 2",
-			Bindable:      serviceBindable,
 			PlanUpdatable: planUpdateable,
 			Plans:         []ServicePlan{plan2},
 		}
@@ -153,7 +151,6 @@ var _ = Describe("RDS Broker", func() {
 			ID:            "Service-3",
 			Name:          "Service 3",
 			Description:   "This is the Service 3",
-			Bindable:      serviceBindable,
 			PlanUpdatable: planUpdateable,
 			Plans:         []ServicePlan{plan3},
 		}

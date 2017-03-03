@@ -115,6 +115,10 @@ func (b *RDSBroker) Services(ctx context.Context) []brokerapi.Service {
 		return []brokerapi.Service{}
 	}
 
+	for i := range apiCatalog.Services {
+		apiCatalog.Services[i].Bindable = true
+	}
+
 	return apiCatalog.Services
 }
 

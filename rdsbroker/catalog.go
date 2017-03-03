@@ -22,9 +22,8 @@ type Service struct {
 	ID              string                            `json:"id"`
 	Name            string                            `json:"name"`
 	Description     string                            `json:"description"`
-	Bindable        bool                              `json:"bindable"`
 	Tags            []string                          `json:"tags,omitempty"`
-	PlanUpdatable  bool                              `json:"plan_updateable"`
+	PlanUpdatable   bool                              `json:"plan_updateable"`
 	Plans           []ServicePlan                     `json:"plans"`
 	Requires        []brokerapi.RequiredPermission    `json:"requires,omitempty"`
 	Metadata        *brokerapi.ServiceMetadata        `json:"metadata,omitempty"`
