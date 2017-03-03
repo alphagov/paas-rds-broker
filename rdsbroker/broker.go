@@ -315,11 +315,6 @@ func (b *RDSBroker) Bind(instanceID, bindingID string, details brokerapi.BindDet
 		return bindingResponse, err
 	}
 
-	_, err = b.PostRestoreTasks(instanceID, &dbInstanceDetails)
-	if err != nil {
-		return bindingResponse, err
-	}
-
 	dbAddress := dbInstanceDetails.Address
 	dbPort := dbInstanceDetails.Port
 	masterUsername := dbInstanceDetails.MasterUsername
