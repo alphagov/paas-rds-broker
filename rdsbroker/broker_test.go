@@ -1449,10 +1449,9 @@ var _ = Describe("RDS Broker", func() {
 					dbInstance.DeleteError = awsrds.ErrDBInstanceDoesNotExist
 				})
 
-				It("returns the proper error", func() {
+				It("does not return an error", func() {
 					_, err := rdsBroker.Deprovision(instanceID, deprovisionDetails, acceptsIncomplete)
-					Expect(err).To(HaveOccurred())
-					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+					Expect(err).ToNot(HaveOccurred())
 				})
 			})
 		})
