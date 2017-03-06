@@ -508,7 +508,7 @@ var _ = Describe("RDS DB Instance", func() {
 						DBInstanceIdentifier: aws.String(instanceID),
 						DBSnapshotIdentifier: aws.String(instanceID + suffix),
 						DBSnapshotArn:        aws.String(dbSnapshotArn + suffix),
-						InstanceCreateTime:   aws.Time(instanceCreateTime),
+						SnapshotCreateTime:   aws.Time(instanceCreateTime),
 					}
 				}
 
