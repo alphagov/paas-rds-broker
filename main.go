@@ -8,12 +8,11 @@ import (
 	"os"
 	"strings"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/frodenas/brokerapi"
-	"github.com/pivotal-golang/lager"
+	"github.com/pivotal-cf/brokerapi"
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/alphagov/paas-rds-broker/config"
@@ -79,9 +78,8 @@ func main() {
 	awsSession := session.New(awsConfig)
 
 	rdssvc := rds.New(awsSession)
-	stssvc := sts.New(awsSession)
 
-	dbInstance := awsrds.NewRDSDBInstance(config.RDSConfig.Region, config.RDSConfig.AWSPartition, rdssvc, stssvc, logger)
+	dbInstance := awsrds.NewRDSDBInstance(config.RDSConfig.Region, config.RDSConfig.AWSPartition, rdssvc, logger)
 
 	sqlProvider := sqlengine.NewProviderService(logger, config.StateEncryptionKey)
 

@@ -6,7 +6,7 @@ import (
 
 	"github.com/lib/pq" // PostgreSQL Driver
 
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
 )
 
 const defaultStateDBName = "broker_state"

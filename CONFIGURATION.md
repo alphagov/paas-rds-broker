@@ -45,7 +45,6 @@ Please refer to the [Catalog Documentation](https://docs.cloudfoundry.org/servic
 | id                            | Y        | String        | An identifier used to correlate this service in future requests to the catalog
 | name                          | Y        | String        | The CLI-friendly name of the service that will appear in the catalog. All lowercase, no spaces
 | description                   | Y        | String        | A short description of the service that will appear in the catalog
-| bindable                      | N        | Boolean       | Whether the service can be bound to applications
 | tags                          | N        | []String      | A list of service tags
 | metadata.displayName          | N        | String        | The name of the service to be displayed in graphical clients
 | metadata.imageUrl             | N        | String        | The URL to an image

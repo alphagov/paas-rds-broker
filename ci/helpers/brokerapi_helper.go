@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"net/http"
+	"os"
 	"strconv"
 
-	"github.com/frodenas/brokerapi"
 	. "github.com/onsi/ginkgo"
+	"github.com/pivotal-cf/brokerapi"
 )
 
 type ByServiceID []brokerapi.Service

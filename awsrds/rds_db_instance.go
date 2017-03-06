@@ -5,17 +5,15 @@ import (
 	"sort"
 	"strings"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/pivotal-golang/lager"
 )
 
 type RDSDBInstance struct {
 	region    string
 	partition string
 	rdssvc    *rds.RDS
-	stssvc    *sts.STS
 	logger    lager.Logger
 }
 
@@ -23,14 +21,12 @@ func NewRDSDBInstance(
 	region string,
 	partition string,
 	rdssvc *rds.RDS,
-	stssvc *sts.STS,
 	logger lager.Logger,
 ) *RDSDBInstance {
 	return &RDSDBInstance{
 		region:    region,
 		partition: partition,
 		rdssvc:    rdssvc,
-		stssvc:    stssvc,
 		logger:    logger.Session("db-instance"),
 	}
 }
@@ -53,10 +49,6 @@ func (r *RDSDBInstance) Describe(ID string) (DBInstanceDetails, error) {
 		if aws.StringValue(dbInstance.DBInstanceIdentifier) == ID {
 			r.logger.Debug("describe-db-instances", lager.Data{"db-instance": dbInstance})
 			dbInstanceDetails = r.buildDBInstance(dbInstance)
-			dbInstanceDetails.Arn, err = r.dbInstanceARN(ID)
-			if err != nil {
-				return dbInstanceDetails, HandleAWSError(err, r.logger)
-			}
 			t, err := ListTagsForResource(dbInstanceDetails.Arn, r.rdssvc, r.logger)
 			if err != nil {
 				return dbInstanceDetails, HandleAWSError(err, r.logger)
@@ -80,12 +72,8 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string) ([]*DBInstanceDet
 		return dbInstanceDetails, err
 	}
 	for _, dbInstance := range dbInstances.DBInstances {
-		dbArn, err := r.dbInstanceARN(*dbInstance.DBInstanceIdentifier)
-		if err != nil {
-			return dbInstanceDetails, err
-		}
 		listTagsForResourceInput := &rds.ListTagsForResourceInput{
-			ResourceName: aws.String(dbArn),
+			ResourceName: dbInstance.DBInstanceArn,
 		}
 		listTagsForResourceOutput, err := r.rdssvc.ListTagsForResource(listTagsForResourceInput)
 		if err != nil {
@@ -119,11 +107,10 @@ func (r *RDSDBInstance) DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDet
 
 	for _, dbSnapshot := range describeDBSnapshotsOutput.DBSnapshots {
 		s := r.buildDBSnapshot(dbSnapshot)
-		s.Arn, err = r.dbSnapshotARN(s.Identifier)
 		if err != nil {
 			return dbSnapshotDetails, HandleAWSError(err, r.logger)
 		}
-		t, err := ListTagsForResource(s.Arn, r.rdssvc, r.logger)
+		t, err := ListTagsForResource(aws.StringValue(dbSnapshot.DBSnapshotArn), r.rdssvc, r.logger)
 		if err != nil {
 			return dbSnapshotDetails, HandleAWSError(err, r.logger)
 		}
@@ -148,13 +135,8 @@ func (r *RDSDBInstance) GetTag(ID, tagKey string) (string, error) {
 		return "", HandleAWSError(err, r.logger)
 	}
 
-	dbArn, err := r.dbInstanceARN(*myInstance.DBInstances[0].DBInstanceIdentifier)
-	if err != nil {
-		return "", err
-	}
-
 	listTagsForResourceInput := &rds.ListTagsForResourceInput{
-		ResourceName: aws.String(dbArn),
+		ResourceName: myInstance.DBInstances[0].DBInstanceArn,
 	}
 
 	listTagsForResourceOutput, err := r.rdssvc.ListTagsForResource(listTagsForResourceInput)
@@ -224,13 +206,8 @@ func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, a
 	r.logger.Debug("modify-db-instance", lager.Data{"output": modifyDBInstanceOutput})
 
 	if len(dbInstanceDetails.Tags) > 0 {
-		dbInstanceARN, err := r.dbInstanceARN(ID)
-		if err != nil {
-			return nil
-		}
-
 		tags := BuilRDSTags(dbInstanceDetails.Tags)
-		AddTagsToResource(dbInstanceARN, tags, r.rdssvc, r.logger)
+		AddTagsToResource(oldDBInstanceDetails.Arn, tags, r.rdssvc, r.logger)
 	}
 
 	return nil
@@ -253,12 +230,12 @@ func (r *RDSDBInstance) Reboot(ID string) error {
 }
 
 func (r *RDSDBInstance) RemoveTag(ID, tagKey string) error {
-	dbArn, err := r.dbInstanceARN(ID)
+	dBInstanceDetails, err := r.Describe(ID)
 	if err != nil {
 		return err
 	}
 
-	return RemoveTagsFromResource(dbArn, []*string{&tagKey}, r.rdssvc, r.logger)
+	return RemoveTagsFromResource(dBInstanceDetails.Arn, []*string{&tagKey}, r.rdssvc, r.logger)
 }
 
 func (r *RDSDBInstance) Delete(ID string, skipFinalSnapshot bool) error {
@@ -278,6 +255,7 @@ func (r *RDSDBInstance) Delete(ID string, skipFinalSnapshot bool) error {
 func (r *RDSDBInstance) buildDBInstance(dbInstance *rds.DBInstance) DBInstanceDetails {
 	dbInstanceDetails := DBInstanceDetails{
 		Identifier:       aws.StringValue(dbInstance.DBInstanceIdentifier),
+		Arn:              aws.StringValue(dbInstance.DBInstanceArn),
 		Status:           aws.StringValue(dbInstance.DBInstanceStatus),
 		Engine:           aws.StringValue(dbInstance.Engine),
 		EngineVersion:    aws.StringValue(dbInstance.EngineVersion),
@@ -560,30 +538,6 @@ func (r *RDSDBInstance) buildDeleteDBInstanceInput(ID string, skipFinalSnapshot 
 
 func (r *RDSDBInstance) dbSnapshotName(ID string) string {
 	return fmt.Sprintf("%s-final-snapshot", ID)
-}
-
-//FIXME: when the github.com/aws/aws-sdk-go/service/rds dependency is
-// updated we can extract the ARN directly from the rds.DBInstance struct
-// https://godoc.org/github.com/aws/aws-sdk-go/service/rds#DBInstance
-func (r *RDSDBInstance) dbInstanceARN(ID string) (string, error) {
-	userAccount, err := UserAccount(r.stssvc)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("arn:%s:rds:%s:%s:db:%s", r.partition, r.region, userAccount, ID), nil
-}
-
-//FIXME: when the github.com/aws/aws-sdk-go/service/rds dependency is
-// updated we can extract the ARN directly from the rds.DBSnapshot struct
-// https://godoc.org/github.com/aws/aws-sdk-go/service/rds#DBSnapshot
-func (r *RDSDBInstance) dbSnapshotARN(ID string) (string, error) {
-	userAccount, err := UserAccount(r.stssvc)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("arn:%s:rds:%s:%s:snapshot:%s", r.partition, r.region, userAccount, ID), nil
 }
 
 func (r *RDSDBInstance) allowMajorVersionUpgrade(newEngineVersion, oldEngineVersion string) bool {

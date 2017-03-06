@@ -50,7 +50,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service1.Name).To(Equal("Service 1"))
 			Expect(service1.Description).To(Equal("This is the Service 1"))
 			Expect(service1.Bindable).To(BeTrue())
-			Expect(service1.PlanUpdateable).To(BeTrue())
+			Expect(service1.PlanUpdatable).To(BeTrue())
 			Expect(service1.Plans).To(HaveLen(1))
 			Expect(service1.Plans[0].ID).To(Equal("Plan-1"))
 			Expect(service1.Plans[0].Name).To(Equal("Plan 1"))
