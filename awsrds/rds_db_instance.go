@@ -283,7 +283,7 @@ func (r *RDSDBInstance) buildDBSnapshot(dbSnapshot *rds.DBSnapshot) DBSnapshotDe
 	dbSnapshotDetails := DBSnapshotDetails{
 		Identifier:         aws.StringValue(dbSnapshot.DBSnapshotIdentifier),
 		InstanceIdentifier: aws.StringValue(dbSnapshot.DBInstanceIdentifier),
-		CreateTime:         aws.TimeValue(dbSnapshot.InstanceCreateTime),
+		CreateTime:         aws.TimeValue(dbSnapshot.SnapshotCreateTime),
 	}
 	return dbSnapshotDetails
 }
