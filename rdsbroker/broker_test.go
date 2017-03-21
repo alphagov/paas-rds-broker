@@ -312,12 +312,41 @@ var _ = Describe("RDS Broker", func() {
 				PlanID:           "Plan-1",
 				ServiceID:        "Service-1",
 				SpaceGUID:        "space-id",
+				RawParameters:    json.RawMessage{},
 			}
 			acceptsIncomplete = true
 
 			properProvisionedServiceSpec = brokerapi.ProvisionedServiceSpec{
 				IsAsync: true,
 			}
+		})
+
+		Context("when custom parameters are not provided", func() {
+			BeforeEach(func() {
+				allowUserProvisionParameters = true
+			})
+
+			Context("when not present in request", func() {
+				BeforeEach(func() {
+					provisionDetails.RawParameters = nil
+				})
+
+				It("does not return an error", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+
+			Context("when an empty JSON document", func() {
+				BeforeEach(func() {
+					provisionDetails.RawParameters = json.RawMessage("{}")
+				})
+
+				It("does not return an error", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
 		})
 
 		It("returns the proper response", func() {
@@ -981,7 +1010,7 @@ var _ = Describe("RDS Broker", func() {
 					OrgID:     "organization-id",
 					SpaceID:   "space-id",
 				},
-				RawParameters: json.RawMessage("{}"),
+				RawParameters: json.RawMessage{},
 			}
 			acceptsIncomplete = true
 			properUpdateServiceSpec = brokerapi.UpdateServiceSpec{
@@ -1013,6 +1042,34 @@ var _ = Describe("RDS Broker", func() {
 			Expect(dbInstance.ModifyDBInstanceDetails.Tags["Service ID"]).To(Equal("Service-2"))
 			Expect(dbInstance.ModifyDBInstanceDetails.Tags["Plan ID"]).To(Equal("Plan-2"))
 			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("when custom parameters are not provided", func() {
+			BeforeEach(func() {
+				allowUserUpdateParameters = true
+			})
+
+			Context("when not present in request", func() {
+				BeforeEach(func() {
+					updateDetails.RawParameters = nil
+				})
+
+				It("does not return an error", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+
+			Context("when an empty JSON document", func() {
+				BeforeEach(func() {
+					updateDetails.RawParameters = json.RawMessage("{}")
+				})
+
+				It("does not return an error", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
 		})
 
 		Context("when has AllocatedStorage", func() {
@@ -1537,7 +1594,7 @@ var _ = Describe("RDS Broker", func() {
 				ServiceID:     "Service-1",
 				PlanID:        "Plan-1",
 				AppGUID:       "Application-1",
-				RawParameters: json.RawMessage("{}"),
+				RawParameters: json.RawMessage{},
 			}
 
 			dbInstance.DescribeDBInstanceDetails = awsrds.DBInstanceDetails{
@@ -1647,6 +1704,34 @@ var _ = Describe("RDS Broker", func() {
 
 			Expect(recorder.Code).To(Equal(201))
 
+		})
+
+		Context("when not using custom parameters", func() {
+			BeforeEach(func() {
+				allowUserBindParameters = true
+			})
+
+			Context("when absent from the request", func() {
+				BeforeEach(func() {
+					bindDetails.RawParameters = nil
+				})
+
+				It("does not return an error", func() {
+					_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+
+			Context("when present as an empty JSON document", func() {
+				BeforeEach(func() {
+					bindDetails.RawParameters = json.RawMessage("{}")
+				})
+
+				It("does not return an error", func() {
+					_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
 		})
 
 		// FIXME: Re-enable these tests when we have some bind-time parameters again
