@@ -207,7 +207,7 @@ func (b *RDSBroker) Update(
 	}
 
 	updateParameters := UpdateParameters{}
-	if b.allowUserUpdateParameters {
+	if b.allowUserUpdateParameters && len(details.RawParameters) > 0 {
 		if err := json.Unmarshal(details.RawParameters, &updateParameters); err != nil {
 			return brokerapi.UpdateServiceSpec{}, err
 		}
@@ -314,7 +314,7 @@ func (b *RDSBroker) Bind(
 	bindingResponse := brokerapi.Binding{}
 
 	bindParameters := BindParameters{}
-	if b.allowUserBindParameters {
+	if b.allowUserBindParameters && len(details.RawParameters) > 0 {
 		if err := json.Unmarshal(details.RawParameters, &bindParameters); err != nil {
 			return bindingResponse, err
 		}
