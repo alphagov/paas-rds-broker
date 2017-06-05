@@ -5,7 +5,7 @@
   "state_encryption_key": "key",
   "rds_config": {
     "region": "eu-west-1",
-    "db_prefix": "rdsbroker-test",
+    "db_prefix": "build-test",
     "allow_user_provision_parameters": true,
     "allow_user_update_parameters": true,
     "allow_user_bind_parameters": true,
