@@ -38,13 +38,17 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 			sort.Sort(ByServiceID(catalog.Services))
 
-			Expect(catalog.Services).To(HaveLen(3))
+			Expect(catalog.Services).To(HaveLen(5))
 			service1 := catalog.Services[0]
 			service2 := catalog.Services[1]
 			service3 := catalog.Services[2]
+			service4 := catalog.Services[3]
+			service5 := catalog.Services[4]
 			Expect(service1.ID).To(Equal("Service-1"))
 			Expect(service2.ID).To(Equal("Service-2"))
 			Expect(service3.ID).To(Equal("Service-3"))
+			Expect(service4.ID).To(Equal("Service-4"))
+			Expect(service5.ID).To(Equal("Service-5"))
 
 			Expect(service1.ID).To(Equal("Service-1"))
 			Expect(service1.Name).To(Equal("Service 1"))
@@ -55,10 +59,19 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service1.Plans[0].ID).To(Equal("Plan-1"))
 			Expect(service1.Plans[0].Name).To(Equal("Plan 1"))
 			Expect(service1.Plans[0].Description).To(Equal("This is the Plan 1"))
+			Expect(service5.ID).To(Equal("Service-5"))
+			Expect(service5.Name).To(Equal("Service 5"))
+			Expect(service5.Description).To(Equal("This is the Service 5"))
+			Expect(service5.Bindable).To(BeTrue())
+			Expect(service5.PlanUpdatable).To(BeTrue())
+			Expect(service5.Plans).To(HaveLen(1))
+			Expect(service5.Plans[0].ID).To(Equal("Plan-5"))
+			Expect(service5.Plans[0].Name).To(Equal("Plan 5"))
+			Expect(service5.Plans[0].Description).To(Equal("This is the Plan 5"))
 		})
 	})
 
-	var _ = Describe("Instance Provision/Update/Deprovision", func() {
+	var _ = Describe("Postgres Instance Provision/Update/Deprovision", func() {
 		var (
 			instanceID string
 			serviceID  string
@@ -92,14 +105,55 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(state).To(Equal("gone"))
 		})
 
-		It("can bind to the created service", func() {
+		It("can bind to the created Postgres service", func() {
 			resp, err := brokerAPIClient.DoBindRequest(instanceID, serviceID, planID, appGUID, bindingID)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(201))
 		})
 	})
 
-	var _ = Describe("Final snapshot enable/disable", func() {
+	var _ = Describe("MySQL Instance Provision/Update/Deprovision", func() {
+		var (
+			instanceID string
+			serviceID  string
+			planID     string
+			appGUID    string
+			bindingID  string
+		)
+
+		BeforeEach(func() {
+			instanceID = uuid.NewV4().String()
+			serviceID = "Service-4"
+			planID = "Plan-4"
+			appGUID = uuid.NewV4().String()
+			bindingID = uuid.NewV4().String()
+
+			brokerAPIClient.AcceptsIncomplete = true
+
+			code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(code).To(Equal(202))
+			state := pollForOperationCompletion(instanceID, serviceID, planID, operation)
+			Expect(state).To(Equal("succeeded"))
+		})
+
+		AfterEach(func() {
+			brokerAPIClient.AcceptsIncomplete = true
+			code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(code).To(Equal(202))
+			state := pollForOperationCompletion(instanceID, serviceID, planID, operation)
+			Expect(state).To(Equal("gone"))
+		})
+
+		It("can bind to the created MySQL service", func() {
+			resp, err := brokerAPIClient.DoBindRequest(instanceID, serviceID, planID, appGUID, bindingID)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(201))
+		})
+	})
+
+	var _ = Describe("Postgres Final snapshot enable/disable", func() {
 		var (
 			instanceID string
 			serviceID  string
@@ -117,7 +171,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			brokerAPIClient.AcceptsIncomplete = true
 		})
 
-		It("should create a final snapshot by default", func() {
+		It("should create a final Postgres snapshot by default", func() {
 			code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(code).To(Equal(202))
@@ -142,7 +196,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should not create a final snapshot when `skip_final_snapshot` is set at provision time", func() {
+		It("should not create a Postgres final snapshot when `skip_final_snapshot` is set at provision time", func() {
 			code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, `{"skip_final_snapshot": "true"}`)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(code).To(Equal(202))
@@ -167,7 +221,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
-		It("should not create a final snapshot when `skip_final_snapshot` is set via update", func() {
+		It("should not create a Postgres final snapshot when `skip_final_snapshot` is set via update", func() {
 			code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(code).To(Equal(202))
@@ -198,6 +252,107 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(err).To(HaveOccurred())
 		})
 	})
+
+
+var _ = Describe("MySQL Final snapshot enable/disable", func() {
+	var (
+		instanceID string
+		serviceID  string
+		planID     string
+		appGUID    string
+		bindingID  string
+	)
+
+	BeforeEach(func() {
+		instanceID = uuid.NewV4().String()
+		serviceID = "Service-5"
+		planID = "Plan-5"
+		appGUID = uuid.NewV4().String()
+		bindingID = uuid.NewV4().String()
+		brokerAPIClient.AcceptsIncomplete = true
+	})
+
+	It("should create a MySQL final snapshot by default", func() {
+		code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(code).To(Equal(202))
+		state := pollForOperationCompletion(instanceID, serviceID, planID, operation)
+		Expect(state).To(Equal("succeeded"))
+
+		code, operation, err = brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(code).To(Equal(202))
+		state = pollForOperationCompletion(instanceID, serviceID, planID, operation)
+		Expect(state).To(Equal("gone"))
+
+		snapshots, err := rdsClient.GetDBFinalSnapshots(instanceID)
+		fmt.Fprintf(GinkgoWriter, "Final snapshots for %s:\n", instanceID)
+		fmt.Fprint(GinkgoWriter, snapshots)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(snapshots).Should(ContainSubstring(instanceID))
+
+		snapshotDeletionOutput, err := rdsClient.DeleteDBFinalSnapshot(instanceID)
+		fmt.Fprintf(GinkgoWriter, "Snapshot deletion output for %s:\n", instanceID)
+		fmt.Fprint(GinkgoWriter, snapshotDeletionOutput)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("should not create a MySQL final snapshot when `skip_final_snapshot` is set at provision time", func() {
+		code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, `{"skip_final_snapshot": "true"}`)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(code).To(Equal(202))
+		state := pollForOperationCompletion(instanceID, serviceID, planID, operation)
+		Expect(state).To(Equal("succeeded"))
+
+		code, operation, err = brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(code).To(Equal(202))
+		state = pollForOperationCompletion(instanceID, serviceID, planID, operation)
+		Expect(state).To(Equal("gone"))
+
+		snapshots, err := rdsClient.GetDBFinalSnapshots(instanceID)
+		fmt.Fprintf(GinkgoWriter, "Final snapshots for %s:\n", instanceID)
+		fmt.Fprint(GinkgoWriter, snapshots)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).Should(ContainSubstring("DBSnapshotNotFound"))
+
+		snapshotDeletionOutput, err := rdsClient.DeleteDBFinalSnapshot(instanceID)
+		fmt.Fprintf(GinkgoWriter, "Snapshot deletion output for %s:\n", instanceID)
+		fmt.Fprint(GinkgoWriter, snapshotDeletionOutput)
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("should not create a final MySQL snapshot when `skip_final_snapshot` is set via update", func() {
+		code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(code).To(Equal(202))
+		state := pollForOperationCompletion(instanceID, serviceID, planID, operation)
+		Expect(state).To(Equal("succeeded"))
+
+		code, operation, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"skip_final_snapshot": "true"}`)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(code).To(Equal(202))
+		state = pollForOperationCompletion(instanceID, serviceID, planID, operation)
+		Expect(state).To(Equal("succeeded"))
+
+		code, operation, err = brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(code).To(Equal(202))
+		state = pollForOperationCompletion(instanceID, serviceID, planID, operation)
+		Expect(state).To(Equal("gone"))
+
+		snapshots, err := rdsClient.GetDBFinalSnapshots(instanceID)
+		fmt.Fprintf(GinkgoWriter, "Final snapshots for %s:\n", instanceID)
+		fmt.Fprint(GinkgoWriter, snapshots)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).Should(ContainSubstring("DBSnapshotNotFound"))
+
+		snapshotDeletionOutput, err := rdsClient.DeleteDBFinalSnapshot(instanceID)
+		fmt.Fprintf(GinkgoWriter, "Snapshot deletion output for %s:\n", instanceID)
+		fmt.Fprint(GinkgoWriter, snapshotDeletionOutput)
+		Expect(err).To(HaveOccurred())
+	})
+})
 
 })
 
