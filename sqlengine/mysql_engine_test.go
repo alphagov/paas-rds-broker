@@ -87,9 +87,9 @@ var _ = Describe("MySQLEngine", func() {
 	})
 
 	It("returns error if engine is the database is not reachable", func() {
-		err := mysqlEngine.Open("localhost", 1, dbname, "notauser", "thisisntapassword")
+		err := mysqlEngine.Open("localhost", 1, dbname, username, password)
 		defer mysqlEngine.Close()
-		Eventually(err).Should(HaveOccurred())
+		Expect(err).To(HaveOccurred())
 	})
 
 	Describe("CreateUser", func() {

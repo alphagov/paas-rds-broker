@@ -34,6 +34,12 @@ func (d *MySQLEngine) Open(address string, port int64, dbname string, username s
 
 	d.db = db
 
+	// Open() may not actually open the connection so we ping to validate it
+	err = d.db.Ping()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
