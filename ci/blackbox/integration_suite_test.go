@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/phayes/freeport"
+	uuid "github.com/satori/go.uuid"
 
 	"github.com/alphagov/paas-rds-broker/config"
 
@@ -52,6 +53,11 @@ func TestSuite(t *testing.T) {
 		Expect(err).ToNot(HaveOccurred())
 		err = rdsBrokerConfig.Validate()
 		Expect(err).ToNot(HaveOccurred())
+
+		rdsBrokerConfig.RDSConfig.BrokerName = fmt.Sprintf("%s-%s",
+			rdsBrokerConfig.RDSConfig.BrokerName,
+			uuid.NewV4().String(),
+		)
 
 		awsSession := session.New(&aws.Config{
 			Region: aws.String(rdsBrokerConfig.RDSConfig.Region)},
