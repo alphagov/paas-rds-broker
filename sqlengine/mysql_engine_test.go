@@ -92,79 +92,27 @@ var _ = Describe("MySQLEngine", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
-	Describe("CreateUser", func() {
+	Describe("User modification tests", func() {
 		var (
-			bindingID       string
-			createdUser     string
-			createdPassword string
+			bindingID string
 		)
 
 		BeforeEach(func() {
 			bindingID = "binding-id"
 			err := mysqlEngine.Open(address, port, dbname, username, password)
 			Expect(err).ToNot(HaveOccurred())
-			createdUser, createdPassword, err = mysqlEngine.CreateUser(bindingID, dbname)
+		})
+
+		It("CreateUser() should successfully complete it's destiny", func() {
+			createdUser, createdPassword, err := mysqlEngine.CreateUser(bindingID, dbname)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(createdUser).NotTo(BeEmpty())
+			Expect(createdPassword).NotTo(BeEmpty())
 		})
 
-		AfterEach(func() {
-			// dropMysqlDB(template1ConnectionString, dbname)
-		})
-
-		It("CreateUser() returns the same user and password when called several times", func() {
-			user, password, err := mysqlEngine.CreateUser(bindingID, dbname)
+		It("DropUser() should drop the user successfully", func() {
+			err := mysqlEngine.DropUser(bindingID)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(user).To(Equal(createdUser))
-			Expect(password).To(Equal(createdPassword))
-			user, password, err = mysqlEngine.CreateUser(bindingID, dbname)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(user).To(Equal(createdUser))
-			Expect(password).To(Equal(createdPassword))
-		})
-	})
-
-	Describe("ResetState", func() {
-		var (
-			bindingID       string
-			createdUser     string
-			createdPassword string
-		)
-		BeforeEach(func() {
-			bindingID = "binding-id"
-			err := mysqlEngine.Open(address, port, dbname, username, password)
-			Expect(err).ToNot(HaveOccurred())
-		})
-		Describe("when there was no user created", func() {
-			AfterEach(func() {
-				// dropMysqlDB(template1ConnectionString, dbname)
-			})
-
-			It("get login and password when calling CreateUser() ", func() {
-				err := mysqlEngine.ResetState()
-				Expect(err).ToNot(HaveOccurred())
-				_, _, err = mysqlEngine.CreateUser(bindingID, dbname)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-		Describe("when there was already a user created", func() {
-			BeforeEach(func() {
-				var err error
-				createdUser, createdPassword, err = mysqlEngine.CreateUser(bindingID, dbname)
-				Expect(err).ToNot(HaveOccurred())
-			})
-
-			AfterEach(func() {
-				// dropMysqlDB(template1ConnectionString, dbname)
-			})
-
-			It("CreateUser() returns the same user but different password", func() {
-				err := mysqlEngine.ResetState()
-				Expect(err).ToNot(HaveOccurred())
-				user, password, err := mysqlEngine.CreateUser(bindingID, dbname)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(user).To(Equal(createdUser))
-				Expect(password).ToNot(Equal(createdPassword))
-			})
 		})
 	})
 
