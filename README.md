@@ -144,13 +144,15 @@ docker rm postgres
 
 ### Running the integration tests
 
-These tests must be run from within an AWS environment as they will attempt to connect directly to the RDS instance to verify it, and they require AWS credentials that can list/create/delete/tag RDS instances, and delete RDS snapshots.
+These tests must be run from within an AWS environment as they will attempt to connect directly to the RDS instance to verify it. They will create and delete some supporting resources:
 
-To run them you will require the security group name that the RDS instance should be created in (the host running the tests must have access to it), and the VPC ID that subnet belongs to.
+- [DB Subnet Group](http://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.WorkingWithRDSInstanceinaVPC.html#USER_VPC.Subnets) for the RDS instances, based on all of the subnets in the VPC of the instance that the tests run on
+- [EC2 Security Group](http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_SecurityGroups.html) for the test to connect to RDS instances, based on the subnet of the instance that the tests run on
 
+They need IAM permissions for the above, everything listed in [`iam_policy.json`](iam_policy.json), and the ability to delete RDS snapshots.
+
+You can run them with:
 ```
-export VPC_SECURITY_GROUP_ID=sg-f7b9bd92
-export DB_SUBNET_GROUP_NAME=rdsbroker-test
 make integration
 ```
 

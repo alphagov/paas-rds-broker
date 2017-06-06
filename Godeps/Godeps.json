@@ -100,6 +100,11 @@
 			"Rev": "6669bce73b4e3bc922ff5ea3a3983ede26e02b39"
 		},
 		{
+			"ImportPath": "github.com/aws/aws-sdk-go/private/protocol/ec2query",
+			"Comment": "v1.7.3",
+			"Rev": "6669bce73b4e3bc922ff5ea3a3983ede26e02b39"
+		},
+		{
 			"ImportPath": "github.com/aws/aws-sdk-go/private/protocol/query",
 			"Comment": "v1.7.3",
 			"Rev": "6669bce73b4e3bc922ff5ea3a3983ede26e02b39"
@@ -121,6 +126,11 @@
 		},
 		{
 			"ImportPath": "github.com/aws/aws-sdk-go/private/waiter",
+			"Comment": "v1.7.3",
+			"Rev": "6669bce73b4e3bc922ff5ea3a3983ede26e02b39"
+		},
+		{
+			"ImportPath": "github.com/aws/aws-sdk-go/service/ec2",
 			"Comment": "v1.7.3",
 			"Rev": "6669bce73b4e3bc922ff5ea3a3983ede26e02b39"
 		},
