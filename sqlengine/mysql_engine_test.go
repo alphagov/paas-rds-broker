@@ -8,6 +8,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"fmt"
+
 	"code.cloudfoundry.org/lager"
 )
 
@@ -54,18 +56,20 @@ var _ = Describe("MySQLEngine", func() {
 		mysqlEngine = NewMySQLEngine(logger)
 		mysqlEngine.requireSSL = false
 
-		address = getEnvOrDefault("MYSQL_HOSTNAME", "localhost")
+		address = getEnvOrDefault("MYSQL_HOSTNAME", "127.0.0.1")
 		portString := getEnvOrDefault("MYSQL_PORT", "3306")
 		p, err := strconv.Atoi(portString)
 		Expect(err).ToNot(HaveOccurred())
 		port = int64(p)
 
-		username = getEnvOrDefault("MYSQL_USERNAME", "mysql")
+		username = getEnvOrDefault("MYSQL_USERNAME", "root")
 		password = getEnvOrDefault("MYSQL_PASSWORD", "")
 
 		dbname = "mydb" + randomTestSuffix
 
-		template1ConnectionString = mysqlEngine.URI(address, port, "template1", username, password)
+		template1ConnectionString = mysqlEngine.connectionString(address, port, "", username, password)
+
+		fmt.Println(template1ConnectionString)
 
 		// Create the test DB
 		createMysqlDB(template1ConnectionString, dbname)
@@ -83,9 +87,9 @@ var _ = Describe("MySQLEngine", func() {
 	})
 
 	It("returns error if engine is the database is not reachable", func() {
-		err := mysqlEngine.Open("localhost", 1, dbname, username, password)
+		err := mysqlEngine.Open("localhost", 1, dbname, "notauser", "thisisntapassword")
 		defer mysqlEngine.Close()
-		Expect(err).To(HaveOccurred())
+		Eventually(err).Should(HaveOccurred())
 	})
 
 	Describe("CreateUser", func() {
