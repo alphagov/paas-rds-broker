@@ -67,18 +67,21 @@ func CreateSecurityGroup(prefix string, session *session.Session) (*string, erro
 		return nil, err
 	}
 
-	_, err = ec2Service.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
-		GroupId: securityGroup.GroupId,
-		IpPermissions: []*ec2.IpPermission{{
-			IpProtocol: aws.String("tcp"),
-			FromPort:   aws.Int64(5432),
-			ToPort:     aws.Int64(5432),
-			IpRanges:   []*ec2.IpRange{{CidrIp: aws.String(localSubnet)}},
-		}},
-	})
-	if err != nil {
-		return nil, err
+	for _, port := range []int64{5432, 3306} {
+		_, err = ec2Service.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
+			GroupId: securityGroup.GroupId,
+			IpPermissions: []*ec2.IpPermission{{
+				IpProtocol: aws.String("tcp"),
+				FromPort:   aws.Int64(port),
+				ToPort:     aws.Int64(port),
+				IpRanges:   []*ec2.IpRange{{CidrIp: aws.String(localSubnet)}},
+			}},
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
+
 
 	return securityGroup.GroupId, nil
 }
