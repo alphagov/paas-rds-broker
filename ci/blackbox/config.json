@@ -5,7 +5,7 @@
   "state_encryption_key": "key",
   "rds_config": {
     "region": "eu-west-1",
-    "db_prefix": "rdsbroker-test",
+    "db_prefix": "build-test",
     "allow_user_provision_parameters": true,
     "allow_user_update_parameters": true,
     "allow_user_bind_parameters": true,
@@ -26,8 +26,8 @@
                      "allocated_storage" : 10,
                      "skip_final_snapshot" : true,
                      "engine_version" : "9.5.4",
-                     "db_subnet_group_name": "DB_SUBNET_GROUP_NAME",
-                     "vpc_security_group_ids": ["VPC_SECURITY_GROUP_ID"]
+                     "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                     "vpc_security_group_ids": ["POPULATED_BY_TEST_SUITE"]
                   },
                   "free" : false,
                   "name" : "Plan 1",
@@ -46,8 +46,8 @@
                      "allocated_storage" : 20,
                      "engine" : "postgres",
                      "db_instance_class" : "db.t2.small",
-                     "db_subnet_group_name": "DB_SUBNET_GROUP_NAME",
-                     "vpc_security_group_ids": ["VPC_SECURITY_GROUP_ID"]
+                     "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                     "vpc_security_group_ids": ["POPULATED_BY_TEST_SUITE"]
                   },
                   "free" : false,
                   "id" : "Plan-2",
@@ -67,8 +67,8 @@
                      "engine" : "postgres",
                      "db_instance_class" : "db.t2.small",
                      "engine_version" : "9.5.4",
-                     "db_subnet_group_name": "DB_SUBNET_GROUP_NAME",
-                     "vpc_security_group_ids": ["VPC_SECURITY_GROUP_ID"]
+                     "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                     "vpc_security_group_ids": ["POPULATED_BY_TEST_SUITE"]
                   },
                   "free" : false,
                   "name" : "Plan 3",
