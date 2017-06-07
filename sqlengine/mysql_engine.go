@@ -8,6 +8,7 @@ import (
 	_ "github.com/go-sql-driver/mysql" // MySQL Driver
 
 	"code.cloudfoundry.org/lager"
+	"strings"
 )
 
 type MySQLEngine struct {
@@ -52,6 +53,26 @@ func (d *MySQLEngine) Close() {
 func (d *MySQLEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
 	username = generateUsername(bindingID)
 	password = generatePassword()
+	options := []string{
+		"SELECT",
+		"INSERT",
+		"UPDATE",
+		"DELETE",
+		"CREATE",
+		"DROP",
+		"REFERENCES",
+		"INDEX",
+		"ALTER",
+		"CREATE TEMPORARY TABLES",
+		"LOCK TABLES",
+		"EXECUTE",
+		"CREATE VIEW",
+		"SHOW VIEW",
+		"CREATE ROUTINE",
+		"ALTER ROUTINE",
+		"EVENT",
+		"TRIGGER",
+	}
 
 	createUserStatement := "CREATE USER '" + username + "'@'%' IDENTIFIED BY '" + password + "'"
 	d.logger.Debug("create-user", lager.Data{"statement": createUserStatement})
@@ -61,7 +82,7 @@ func (d *MySQLEngine) CreateUser(bindingID, dbname string) (username, password s
 		return "", "", err
 	}
 
-	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON " + dbname + ".* TO '" + username + "'@'%'"
+	grantPrivilegesStatement := "GRANT " + strings.Join(options, ", ") + " ON " + dbname + ".* TO '" + username + "'@'%'"
 	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
