@@ -53,7 +53,7 @@ func (d *MySQLEngine) CreateUser(bindingID, dbname string) (username, password s
 	username = generateUsername(bindingID)
 	password = generatePassword()
 
-	createUserStatement := "CREATE USER '" + username + "' IDENTIFIED BY '" + password + "'"
+	createUserStatement := "CREATE USER '" + username + "'@'%' IDENTIFIED BY '" + password + "'"
 	d.logger.Debug("create-user", lager.Data{"statement": createUserStatement})
 
 	if _, err := d.db.Exec(createUserStatement); err != nil {
