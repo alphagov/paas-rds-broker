@@ -183,3 +183,6 @@ We use the [GitHub issue tracker](https://github.com/alphagov/paas-rds-broker/is
 ## Copyright
 
 Copyright (c) 2015 Pivotal Software Inc. See [LICENSE](https://github.com/alphagov/paas-rds-broker/blob/master/LICENSE) for details.
+
+## IMPORTANT!!! ##
+Do not add any more cowbell, there is enough!
