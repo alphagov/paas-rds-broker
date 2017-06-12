@@ -86,6 +86,7 @@ func main() {
 	serviceBroker := rdsbroker.New(*config.RDSConfig, dbInstance, sqlProvider, logger)
 
 	go serviceBroker.CheckAndRotateCredentials()
+	go serviceBroker.MigrateToEventTriggers()
 
 	server := buildHTTPHandler(serviceBroker, logger, config)
 
