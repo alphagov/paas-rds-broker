@@ -115,9 +115,9 @@ There are two forms of tests for the broker, the unit tests and the integration 
 
 ### Running the unit tests
 
-To run the tests of this broker, you need a postgres running locally, without SSL.
+To run the tests of this broker, you need a postgres and MySQL running locally, without SSL.
 
-In travis we use the [postgres service](https://docs.travis-ci.com/user/database-setup/#PostgreSQL)
+In travis we use the [postgres service](https://docs.travis-ci.com/user/database-setup/#PostgreSQL) and the [mysql service](https://docs.travis-ci.com/user/database-setup/#MySQL)
 
 The tests can read from environment variables the server configuration, with the following defaults:
  * `POSTGRESQL_HOSTNAME=localhost`
@@ -125,17 +125,20 @@ The tests can read from environment variables the server configuration, with the
  * `POSTGRESQL_USERNAME=postgres`
  * `POSTGRESQL_PASSWORD=`
 
-You can run locally a docker container to run the tests:
+You can run locally a postgres docker container and a homebrew-installed MySQL to run the tests
 
 ```
 docker run -p 5432:5432 --name postgres -e POSTGRES_PASSWORD= -d postgres
-
 export POSTGRESQL_HOSTNAME=${DOCKER_HOSTNAME:-localhost} # Change accordingly
+
+brew install mysql
+mysql.server start
 
 make unit
 
 docker stop postgres
 docker rm postgres
+mysql.server stop
 ```
 
 ### Running the integration tests
