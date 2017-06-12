@@ -1,20 +1,21 @@
 language: go
 
 go:
-- 1.8
+  - 1.8
 
 services:
-- postgresql
+  - postgresql
+  - mysql
 
 before_install:
-- go get github.com/onsi/ginkgo/ginkgo
+  - go get github.com/onsi/ginkgo/ginkgo
 
 install:
-# Prevent default install task that does a `go get -t ./...`
-- true
+  # Prevent default install task that does a `go get -t ./...`
+  - true
 
 before_script:
   - psql -c 'create database mydb;' -U postgres
 
 script:
-- make unit
+  - make unit
