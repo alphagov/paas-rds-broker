@@ -289,6 +289,7 @@ func (b *BrokerAPIClient) DoBindRequest(instanceID, serviceID, planID, appGUID, 
 		}`,
 		serviceID,
 		planID,
+		appGUID,
 	))
 
 	return b.doRequest(
