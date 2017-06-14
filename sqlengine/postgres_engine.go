@@ -9,6 +9,8 @@ import (
 	"github.com/lib/pq" // PostgreSQL Driver
 
 	"code.cloudfoundry.org/lager"
+	"github.com/alphagov/paas-rds-broker/awsrds"
+	"golang.org/x/tools/go/gcimporter15/testdata"
 )
 
 var ensureTriggerPattern = `
@@ -35,6 +37,8 @@ $body$
 
 var ensureTriggerTemplate = template.Must(template.New("ensureTrigger").Parse(ensureTriggerPattern))
 var ensureGroupTemplate = template.Must(template.New("ensureGroup").Parse(ensureGroupPattern))
+
+const masterPasswordLength = 32
 
 type PostgresEngine struct {
 	logger     lager.Logger
@@ -289,4 +293,46 @@ func (d *PostgresEngine) EnsureTrigger(groupname string) error {
 	}
 
 	return nil
+}
+
+func (d *PostgresEngine) Migrate(dbDetails *awsrds.DBInstanceDetails, dbname string, masterPassword string) {
+
+	d.Open(dbDetails.Address, dbDetails.Port, dbname, dbDetails.MasterUsername, masterPassword)
+
+	groupname := d.GeneratePostgresGroup(dbname)
+
+	if err := d.EnsureGroup(dbname, groupname); err != nil {
+		d.logger.Error("Ensure Group", err)
+		return
+	}
+
+	if err := d.EnsureTrigger(groupname); err != nil {
+		d.logger.Error("Ensure Trigger", err)
+		return
+	}
+
+	users, err := d.ListNonSuperUsers()
+	if err != nil {
+		return
+	}
+
+	for _, user := range users {
+		grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, user)
+		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+
+		if _, err := d.DB.Exec(grantPrivilegesStatement); err != nil {
+			d.logger.Error("sql-error", err)
+			continue
+		}
+
+		reassignStatement := fmt.Sprintf(`reassign owned by "%s" to "%s"`, user, groupname)
+		d.logger.Debug("reassign-objects", lager.Data{"statement": reassignStatement})
+
+		if _, err := d.DB.Exec(reassignStatement); err != nil {
+			d.logger.Error("sql-error", err)
+			continue
+		}
+
+		d.logger.Info(fmt.Sprintf("Completed migration of %s to use event triggers", dbname))
+	}
 }

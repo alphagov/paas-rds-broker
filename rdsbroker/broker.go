@@ -30,7 +30,7 @@ const dbInstanceDetailsLogKey = "dbInstanceDetails"
 const lastOperationResponseLogKey = "lastOperationResponse"
 
 var (
-	ErrEncryptionNotUpdateable = errors.New("intance can not be updated to a plan with different encryption settings")
+	ErrEncryptionNotUpdateable = errors.New("instance can not be updated to a plan with different encryption settings")
 )
 
 var rdsStatus2State = map[string]brokerapi.LastOperationState{
@@ -619,49 +619,13 @@ func (b *RDSBroker) MigrateToEventTriggers() {
 			b.logger.Error(fmt.Sprintf("Could not determine SQL Engine of instance %v", dbDetails.Identifier), err)
 			continue
 		}
-		if dbDetails.Engine != "postgres" {
+		if dbDetails.Engine == "postgres" {
 			continue
 		}
 
 		pgEngine, ok := sengine.(*sqlengine.PostgresEngine)
 		if !ok {
-			continue
-		}
-
-		err = pgEngine.Open(dbDetails.Address, dbDetails.Port, dbname, dbDetails.MasterUsername, masterPassword)
-
-		groupname := pgEngine.GeneratePostgresGroup(dbname)
-
-		if err := pgEngine.EnsureGroup(dbname, groupname); err != nil {
-			continue
-		}
-
-		if err := pgEngine.EnsureTrigger(groupname); err != nil {
-			continue
-		}
-
-		users, err := pgEngine.ListNonSuperUsers()
-		if err != nil {
-			continue
-		}
-
-		for _, user := range users {
-			grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, user)
-			b.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
-
-			if _, err := pgEngine.DB.Exec(grantPrivilegesStatement); err != nil {
-				b.logger.Error("sql-error", err)
-				continue
-			}
-
-			reassignStatement := fmt.Sprintf(`reassign owned by "%s" to "%s"`, user, groupname)
-			b.logger.Debug("reassign-objects", lager.Data{"statement": reassignStatement})
-
-			if _, err := pgEngine.DB.Exec(reassignStatement); err != nil {
-				b.logger.Error("sql-error", err)
-				continue
-			}
-
+			pgEngine.Migrate(dbDetails, dbname, masterPassword)
 		}
 
 	}
