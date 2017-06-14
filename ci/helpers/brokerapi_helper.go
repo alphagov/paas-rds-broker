@@ -289,11 +289,24 @@ func (b *BrokerAPIClient) DoBindRequest(instanceID, serviceID, planID, appGUID, 
 		}`,
 		serviceID,
 		planID,
+		appGUID,
 	))
 
 	return b.doRequest(
 		"PUT",
 		path,
 		bytes.NewBuffer(bindingDetailsJson),
+	)
+}
+
+func (b *BrokerAPIClient) DoUnbindRequest(instanceID, serviceID, planID, bindingID string) (*http.Response, error) {
+	path := fmt.Sprintf("/v2/service_instances/%s/service_bindings/%s", instanceID, bindingID)
+
+	return b.doRequest(
+		"DELETE",
+		path,
+		nil,
+		uriParam{key: "service_id", value: serviceID},
+		uriParam{key: "plan_id", value: planID},
 	)
 }
