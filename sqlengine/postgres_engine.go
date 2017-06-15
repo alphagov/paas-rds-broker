@@ -10,7 +10,6 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"github.com/alphagov/paas-rds-broker/awsrds"
-	"golang.org/x/tools/go/gcimporter15/testdata"
 )
 
 var ensureTriggerPattern = `
