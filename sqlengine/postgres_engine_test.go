@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/alphagov/paas-rds-broker/utils"
 	"github.com/lib/pq"
@@ -14,6 +15,7 @@ import (
 
 	"bytes"
 	"code.cloudfoundry.org/lager"
+	"bytes"
 )
 
 func createMasterUser(connectionString string) (string, string) {
@@ -101,56 +103,81 @@ func createLegacyUser(connectionString, dbname string) (string, string) {
 	return username, password
 }
 
-func migrateLegacyUser(connectionString, dbname string) (string, string) {
-	db, err := sql.Open("postgres", connectionString)
-	defer db.Close()
-	Expect(err).ToNot(HaveOccurred())
-
-	username := dbname + "_owner"
-	password := "mypass"
-	masterPassword := "mypass"
-
-	runMigrate := PostgresEngine.Migrate( dbname, masterPassword)
-
-
-	createUserStatement := "CREATE USER \"" + username + "\" WITH PASSWORD '" + password + "'"
-	_, err = db.Exec(createUserStatement)
-	Expect(err).ToNot(HaveOccurred())
-
-	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON DATABASE \"" + dbname + "\" TO \"" + username + "\""
-	_, err = db.Exec(grantPrivilegesStatement)
-	Expect(err).ToNot(HaveOccurred())
-
-	return username, password
-}
-
 func migrationTest(connectionString, dbname string) {
 
 	user := dbname + "_owner"
 	groupname := dbname + "_manager"
 
+	var ensureTriggerPattern = `
+	create or replace function reassign_owned() returns event_trigger language plpgsql as $$
+	begin
+		IF pg_has_role(current_user, '{{.role}}', 'member') AND
+		   NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true)
+		THEN
+			execute 'reassign owned by "' || current_user || '" to "{{.role}}"';
+		end if;
+	end
+	$$;
+`
+	var ensureGroupPattern = `
+	do
+	$body$
+	begin
+		if not exists (select 1 from pg_catalog.pg_roles where rolname = '{{.role}}') then
+			create role "{{.role}}";
+		end if;
+	end
+	$body$
+`
+
+	var ensureTriggerTemplate = template.Must(template.New("ensureTrigger").Parse(ensureTriggerPattern))
+	var ensureGroupTemplate = template.Must(template.New("ensureGroup").Parse(ensureGroupPattern))
+
 	db, err := sql.Open("postgres", connectionString)
 	defer db.Close()
 	Expect(err).ToNot(HaveOccurred())
 
-	ensureGroupStatement := "if not exists (select 1 from pg_catalog.pg_roles where rolname = \"" + groupname + "\") then create role \"" + groupname + "\";end if"
-	_, err = db.Exec(ensureGroupStatement)
-	Expect(err).ToNot(HaveOccurred())
+	var ensureGroupStatement bytes.Buffer
+	if err := ensureGroupTemplate.Execute(&ensureGroupStatement, map[string]string{
+		"role": groupname,
+	}); err != nil {
+		return
+	}
 
+	if _, err := db.Exec(ensureGroupStatement.String()); err != nil {
 
-	triggerStatement := "IF pg_has_role(current_user, \"" + groupname + "\", 'member') AND NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true) THEN execute 'reassign owned by \"" + user + "\" to "\ + groupname + "\"'; end if;"
-	_, err = db.Exec(triggerStatement)
-	Expect(err).ToNot(HaveOccurred())
+		return
+	}
+
+	var ensureTriggerStatement bytes.Buffer
+	if err := ensureTriggerTemplate.Execute(&ensureTriggerStatement, map[string]string{
+		"role": groupname,
+	}); err != nil {
+		return
+	}
+
+	cmds := []string{
+		ensureTriggerStatement.String(),
+		`drop event trigger if exists reassign_owned;`,
+		`create event trigger reassign_owned on ddl_command_end execute procedure reassign_owned();`,
+	}
+
+	for _, cmd := range cmds {
+		_, err = db.Exec(cmd)
+		if err != nil {
+			return
+		}
+	}
 
 	usersStatement := "select usename from pg_user where usesuper != true and usename != current_user"
 	_, err = db.Exec(usersStatement)
 	Expect(err).ToNot(HaveOccurred())
 
-	grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, user)
+	grantPrivilegesStatement := "grant " + groupname + " to " + user + ";"
 	_, err = db.Exec(grantPrivilegesStatement)
 	Expect(err).ToNot(HaveOccurred())
 
-	reassignStatement := fmt.Sprintf(`reassign owned by "%s" to "%s"`, user, groupname)
+	reassignStatement := "reassign owned by " + user + " to " + groupname + ";"
 	_, err = db.Exec(reassignStatement)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -181,8 +208,6 @@ func accessAndDeleteObjects(connectionString, tableName string) {
 	_, err = db.Exec("DROP TABLE " + tableName)
 	Expect(err).ToNot(HaveOccurred())
 }
-
-
 
 var _ = Describe("PostgresEngine", func() {
 	var (
@@ -364,8 +389,8 @@ var _ = Describe("PostgresEngine", func() {
 
 	})
 
-	Describe("Migrate bindings", func () {
-		var(
+	Describe("Migrate bindings", func() {
+		var (
 			bindingID              string
 			connectionStringNew    string
 			connectionStringLegacy string
@@ -405,7 +430,7 @@ var _ = Describe("PostgresEngine", func() {
 
 			})
 
-			It ("Migrate legacy databases with multiple binds", func() {
+			It("Migrate legacy databases with multiple binds", func() {
 				migrationTest(connectionStringLegacy, dbname)
 				connectionString1 := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
 				connectionString2 := postgresEngine.URI(address, port, dbname, otherCreatedUser, otherCreatedPassword)
