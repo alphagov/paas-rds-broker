@@ -7,8 +7,9 @@ import (
 
 	_ "github.com/go-sql-driver/mysql" // MySQL Driver
 
-	"code.cloudfoundry.org/lager"
 	"strings"
+
+	"code.cloudfoundry.org/lager"
 )
 
 type MySQLEngine struct {
@@ -26,7 +27,8 @@ func NewMySQLEngine(logger lager.Logger) *MySQLEngine {
 
 func (d *MySQLEngine) Open(address string, port int64, dbname string, username string, password string) error {
 	connectionString := d.connectionString(address, port, dbname, username, password)
-	d.logger.Debug("sql-open", lager.Data{"connection-string": connectionString})
+	sanitizedConnectionString := d.connectionString(address, port, dbname, username, "REDACTED")
+	d.logger.Debug("sql-open", lager.Data{"connection-string": sanitizedConnectionString})
 
 	db, err := sql.Open("mysql", connectionString)
 	if err != nil {
@@ -74,15 +76,16 @@ func (d *MySQLEngine) CreateUser(bindingID, dbname string) (username, password s
 		"TRIGGER",
 	}
 
-	createUserStatement := "CREATE USER '" + username + "'@'%' IDENTIFIED BY '" + password + "'"
-	d.logger.Debug("create-user", lager.Data{"statement": createUserStatement})
+	createUserStatement := "CREATE USER '" + username + "'@'%' IDENTIFIED BY '" + password + "';"
+	sanitizedCreateUserStatement := "CREATE USER '" + username + "'@'%' IDENTIFIED BY 'REDACTED';"
+	d.logger.Debug("create-user", lager.Data{"statement": sanitizedCreateUserStatement})
 
 	if _, err := d.db.Exec(createUserStatement); err != nil {
 		d.logger.Error("sql-error", err)
 		return "", "", err
 	}
 
-	grantPrivilegesStatement := "GRANT " + strings.Join(options, ", ") + " ON " + dbname + ".* TO '" + username + "'@'%'"
+	grantPrivilegesStatement := "GRANT " + strings.Join(options, ", ") + " ON `" + dbname + "`.* TO '" + username + "'@'%';"
 	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
@@ -96,7 +99,7 @@ func (d *MySQLEngine) CreateUser(bindingID, dbname string) (username, password s
 func (d *MySQLEngine) DropUser(bindingID string) error {
 	username := generateUsername(bindingID)
 
-	dropUserStatement := "DROP USER '" + username + "'@'%'"
+	dropUserStatement := "DROP USER '" + username + "'@'%';"
 	d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
 
 	if _, err := d.db.Exec(dropUserStatement); err != nil {
