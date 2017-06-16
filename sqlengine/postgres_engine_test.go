@@ -91,11 +91,11 @@ func createLegacyUser(connectionString, dbname string) (string, string) {
 	username := dbname + "_owner"
 	password := "mypass"
 
-	createUserStatement := "CREATE USER \"" + username + "\" WITH PASSWORD '" + password + "'"
+	createUserStatement := "CREATE USER \"" + username + "\" WITH PASSWORD '" + password + "';"
 	_, err = db.Exec(createUserStatement)
 	Expect(err).ToNot(HaveOccurred())
 
-	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON DATABASE \"" + dbname + "\" TO \"" + username + "\""
+	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON DATABASE \"" + dbname + "\" TO \"" + username + "\";"
 	_, err = db.Exec(grantPrivilegesStatement)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -168,7 +168,7 @@ func migrationTest(connectionString, dbname string) {
 		}
 	}
 
-	usersStatement := "select usename from pg_user where usesuper != true and usename != current_user;"
+	usersStatement := "SELECT usename FROM pg_user WHERE usename LIKE '%owner';"
 	_, err = db.Exec(usersStatement)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -327,7 +327,9 @@ var _ = Describe("PostgresEngine", func() {
 			})
 
 			It("CreateUser() returns different user and password", func() {
+				fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
 				Expect(otherCreatedUser).ToNot(Equal(createdUser))
+				fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
 				Expect(otherCreatedPassword).ToNot(Equal(createdPassword))
 			})
 

@@ -9,7 +9,6 @@ import (
 	"github.com/lib/pq" // PostgreSQL Driver
 
 	"code.cloudfoundry.org/lager"
-	"github.com/alphagov/paas-rds-broker/awsrds"
 )
 
 var ensureTriggerPattern = `
@@ -100,40 +99,75 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, passwor
 	username = generateUsername(bindingID)
 	password = generatePassword()
 
-	createUserStatement := fmt.Sprintf(`create role "%s" inherit login password '%s'`, username, password)
-	d.logger.Debug("create-user", lager.Data{"statement": createUserStatement})
+	createUserStatement := fmt.Sprintf(`create role "%s" inherit login password '%s';`, username, password)
+	createUserStatementSanitized := fmt.Sprintf(`create role "%s" inherit login password '%s';`, username, "REDACTED")
+	d.logger.Debug("create-user", lager.Data{"statement": createUserStatementSanitized})
 
 	if _, err := d.DB.Exec(createUserStatement); err != nil {
 		d.logger.Error("sql-error", err)
 		return "", "", err
 	}
 
-	users, err := d.ListNonSuperUsers()
-	if err != nil {
+	grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s";`, groupname, username)
+	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+
+	if _, err := d.DB.Exec(grantPrivilegesStatement); err != nil {
+		d.logger.Error("sql-error", err)
 		return "", "", err
 	}
 
-	// FIXME: Simplify when old bindings are not used anymore
+	d.MigrateLegacyAdminUsers(bindingID, dbname)
+
+	return "", "", err
+}
+
+func (d *PostgresEngine) MigrateLegacyAdminUsers(bindingID, dbname string) (err error) {
+	groupname := d.GeneratePostgresGroup(dbname)
+	users, err := d.ListLegacyAdminUsers()
+	if err != nil {
+		return err
+	}
+
 	for _, user := range users {
-		grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, user)
+		grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s";`, groupname, user)
 		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 		if _, err := d.DB.Exec(grantPrivilegesStatement); err != nil {
 			d.logger.Error("sql-error", err)
-			return "", "", err
+			return err
 		}
 
-		reassignStatement := fmt.Sprintf(`reassign owned by "%s" to "%s"`, user, groupname)
+		reassignStatement := fmt.Sprintf(`reassign owned by "%s" to "%s";`, user, groupname)
 		d.logger.Debug("reassign-objects", lager.Data{"statement": reassignStatement})
 
 		if _, err := d.DB.Exec(reassignStatement); err != nil {
 			d.logger.Error("sql-error", err)
-			return "", "", err
+			return err
 		}
 
 	}
+	return err
+}
 
-	return username, password, nil
+func (d *PostgresEngine) ListLegacyAdminUsers() ([]string, error) {
+	users := []string{}
+
+	rows, err := d.DB.Query("SELECT usename FROM pg_user WHERE usename LIKE '%owner';")
+	if err != nil {
+		d.logger.Error("sql-error", err)
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var username string
+		err = rows.Scan(&username)
+		if err != nil {
+			d.logger.Error("sql-error", err)
+			return nil, err
+		}
+		users = append(users, username)
+	}
+	return users, nil
 }
 
 func (d *PostgresEngine) DropUser(bindingID string) error {
@@ -294,44 +328,3 @@ func (d *PostgresEngine) EnsureTrigger(groupname string) error {
 	return nil
 }
 
-func (d *PostgresEngine) Migrate(dbDetails *awsrds.DBInstanceDetails, dbname string, masterPassword string) {
-
-	d.Open(dbDetails.Address, dbDetails.Port, dbname, dbDetails.MasterUsername, masterPassword)
-
-	groupname := d.GeneratePostgresGroup(dbname)
-
-	if err := d.EnsureGroup(dbname, groupname); err != nil {
-		d.logger.Error("Ensure Group", err)
-		return
-	}
-
-	if err := d.EnsureTrigger(groupname); err != nil {
-		d.logger.Error("Ensure Trigger", err)
-		return
-	}
-
-	users, err := d.ListNonSuperUsers()
-	if err != nil {
-		return
-	}
-
-	for _, user := range users {
-		grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, user)
-		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
-
-		if _, err := d.DB.Exec(grantPrivilegesStatement); err != nil {
-			d.logger.Error("sql-error", err)
-			continue
-		}
-
-		reassignStatement := fmt.Sprintf(`reassign owned by "%s" to "%s"`, user, groupname)
-		d.logger.Debug("reassign-objects", lager.Data{"statement": reassignStatement})
-
-		if _, err := d.DB.Exec(reassignStatement); err != nil {
-			d.logger.Error("sql-error", err)
-			continue
-		}
-
-		d.logger.Info(fmt.Sprintf("Completed migration of %s to use event triggers", dbname))
-	}
-}

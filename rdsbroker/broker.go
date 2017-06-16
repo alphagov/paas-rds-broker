@@ -601,36 +601,6 @@ func (b *RDSBroker) CheckAndRotateCredentials() {
 	b.logger.Info(fmt.Sprintf("Instances credentials check has ended"))
 }
 
-func (b *RDSBroker) MigrateToEventTriggers() {
-
-	dbInstanceDetailsList, err := b.dbInstance.DescribeByTag("Broker Name", b.brokerName)
-	if err != nil {
-		b.logger.Error("Could not obtain the list of instances", err)
-		return
-	}
-
-	for _, dbDetails := range dbInstanceDetailsList {
-		b.logger.Info(fmt.Sprintf("Started migration of %s to use event triggers", b.dbInstance))
-		serviceInstanceID := b.dbInstanceIdentifierToServiceInstanceID(dbDetails.Identifier)
-		masterPassword := b.generateMasterPassword(serviceInstanceID)
-		dbname := b.dbNameFromDetails(dbDetails.Identifier, *dbDetails)
-		sengine, err := b.sqlProvider.GetSQLEngine(dbDetails.Engine)
-		if err != nil {
-			b.logger.Error(fmt.Sprintf("Could not determine SQL Engine of instance %v", dbDetails.Identifier), err)
-			continue
-		}
-		if dbDetails.Engine == "postgres" {
-			continue
-		}
-
-		pgEngine, ok := sengine.(*sqlengine.PostgresEngine)
-		if !ok {
-			pgEngine.Migrate(dbDetails, dbname, masterPassword)
-		}
-
-	}
-}
-
 func (b *RDSBroker) dbInstanceIdentifier(instanceID string) string {
 	return fmt.Sprintf("%s-%s", strings.Replace(b.dbPrefix, "_", "-", -1), strings.Replace(instanceID, "_", "-", -1))
 }
