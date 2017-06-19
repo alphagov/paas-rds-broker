@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/alphagov/paas-rds-broker/utils"
 	"github.com/lib/pq"
@@ -14,7 +13,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"code.cloudfoundry.org/lager"
-	"bytes"
 )
 
 func createMasterUser(connectionString string) (string, string) {
@@ -100,86 +98,6 @@ func createLegacyUser(connectionString, dbname string) (string, string) {
 	Expect(err).ToNot(HaveOccurred())
 
 	return username, password
-}
-
-func migrationTest(connectionString, dbname string) {
-
-	user := dbname + "_owner"
-	groupname := dbname + "_manager"
-
-	var ensureTriggerPattern = `
-	create or replace function reassign_owned() returns event_trigger language plpgsql as $$
-	begin
-		IF pg_has_role(current_user, '{{.role}}', 'member') AND
-		   NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true)
-		THEN
-			execute 'reassign owned by "' || current_user || '" to "{{.role}}"';
-		end if;
-	end
-	$$;
-`
-	var ensureGroupPattern = `
-	do
-	$body$
-	begin
-		if not exists (select 1 from pg_catalog.pg_roles where rolname = '{{.role}}') then
-			create role "{{.role}}";
-		end if;
-	end
-	$body$
-`
-
-	var ensureTriggerTemplate = template.Must(template.New("ensureTrigger").Parse(ensureTriggerPattern))
-	var ensureGroupTemplate = template.Must(template.New("ensureGroup").Parse(ensureGroupPattern))
-
-	db, err := sql.Open("postgres", connectionString)
-	defer db.Close()
-	Expect(err).ToNot(HaveOccurred())
-
-	var ensureGroupStatement bytes.Buffer
-	if err := ensureGroupTemplate.Execute(&ensureGroupStatement, map[string]string{
-		"role": groupname,
-	}); err != nil {
-		return
-	}
-
-	if _, err := db.Exec(ensureGroupStatement.String()); err != nil {
-
-		return
-	}
-
-	var ensureTriggerStatement bytes.Buffer
-	if err := ensureTriggerTemplate.Execute(&ensureTriggerStatement, map[string]string{
-		"role": groupname,
-	}); err != nil {
-		return
-	}
-
-	cmds := []string{
-		ensureTriggerStatement.String(),
-		`drop event trigger if exists reassign_owned;`,
-		`create event trigger reassign_owned on ddl_command_end execute procedure reassign_owned();`,
-	}
-
-	for _, cmd := range cmds {
-		_, err = db.Exec(cmd)
-		if err != nil {
-			return
-		}
-	}
-
-	usersStatement := "SELECT usename FROM pg_user WHERE usename LIKE '%owner';"
-	_, err = db.Exec(usersStatement)
-	Expect(err).ToNot(HaveOccurred())
-
-	grantPrivilegesStatement := "grant " + groupname + " to " + user + ";"
-	_, err = db.Exec(grantPrivilegesStatement)
-	Expect(err).ToNot(HaveOccurred())
-
-	reassignStatement := "reassign owned by " + user + " to " + groupname + ";"
-	_, err = db.Exec(reassignStatement)
-	Expect(err).ToNot(HaveOccurred())
-
 }
 
 func createObjects(connectionString, tableName string) {
@@ -296,15 +214,10 @@ var _ = Describe("PostgresEngine", func() {
 		It("CreateUser() returns valid credentials", func() {
 			connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
 			db, err := sql.Open("postgres", connectionString)
-			defer db.Close()
 			Expect(err).ToNot(HaveOccurred())
+			defer db.Close()
 			err = db.Ping()
 			Expect(err).ToNot(HaveOccurred())
-		})
-
-		It("CreateUser() fails when called several times with the same bindingID", func() {
-			_, _, err := postgresEngine.CreateUser(bindingID, dbname)
-			Expect(err).To(HaveOccurred())
 		})
 
 		Context("When there are two different bindings", func() {
@@ -398,9 +311,7 @@ var _ = Describe("PostgresEngine", func() {
 			legacyUserName         string
 			legacyUserPassword     string
 			createdUser            string
-			createdPassword        string
 			otherCreatedUser       string
-			otherCreatedPassword   string
 		)
 
 		Context("Migrate legacy databases", func() {
@@ -425,22 +336,51 @@ var _ = Describe("PostgresEngine", func() {
 			})
 
 			It("Migrate legacy databases with one user", func() {
-				migrationTest(connectionStringLegacy, dbname)
+				err := postgresEngine.MigrateLegacyAdminUsers(bindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
 				createObjects(connectionStringLegacy, "table1")
 				accessAndDeleteObjects(connectionStringLegacy, "table1")
 
 			})
 
-			It("Migrate legacy databases with multiple binds", func() {
-				migrationTest(connectionStringLegacy, dbname)
-				connectionString1 := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
-				connectionString2 := postgresEngine.URI(address, port, dbname, otherCreatedUser, otherCreatedPassword)
-				createObjects(connectionString1, "table1")
-				accessAndDeleteObjects(connectionString2, "table1")
-				createObjects(connectionString2, "table2")
-				accessAndDeleteObjects(connectionString1, "table2")
+			Context("When there are two different bindings", func() {
+				var (
+					otherBindingID       string
+					otherCreatedUser     string
+					otherCreatedPassword string
+					newcreatedUser       string
+					newcreatedPassword   string
+				)
+
+				BeforeEach(func() {
+					var err error
+					newcreatedUser, newcreatedPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+					Expect(err).ToNot(HaveOccurred())
+					otherBindingID = "other-binding-id" + randomTestSuffix
+					otherCreatedUser, otherCreatedPassword, err = postgresEngine.CreateUser(otherBindingID, dbname)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				AfterEach(func() {
+					err := postgresEngine.DropUser(otherBindingID)
+					Expect(err).ToNot(HaveOccurred())
+					err = postgresEngine.DropUser(bindingID)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("Migrate legacy databases with multiple binds", func() {
+					err := postgresEngine.MigrateLegacyAdminUsers(bindingID, dbname)
+					Expect(err).ToNot(HaveOccurred())
+					connectionString1 := postgresEngine.URI(address, port, dbname, newcreatedUser, newcreatedPassword)
+					connectionString2 := postgresEngine.URI(address, port, dbname, otherCreatedUser, otherCreatedPassword)
+					createObjects(connectionString1, "table1")
+					accessAndDeleteObjects(connectionString2, "table1")
+					createObjects(connectionString2, "table2")
+					accessAndDeleteObjects(connectionString1, "table2")
+				})
 			})
 		})
+
 	})
 
 	Describe("DropUser", func() {

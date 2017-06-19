@@ -8,8 +8,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"fmt"
-
 	"code.cloudfoundry.org/lager"
 )
 
@@ -68,8 +66,6 @@ var _ = Describe("MySQLEngine", func() {
 		dbname = "mydb" + randomTestSuffix
 
 		template1ConnectionString = mysqlEngine.connectionString(address, port, "", username, password)
-
-		fmt.Println(template1ConnectionString)
 
 		// Create the test DB
 		createMysqlDB(template1ConnectionString, dbname)

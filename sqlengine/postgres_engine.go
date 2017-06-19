@@ -17,7 +17,7 @@ begin
 	IF pg_has_role(current_user, '{{.role}}', 'member') AND
 	   NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true)
 	THEN
-		execute 'reassign owned by "' || current_user || '" to "{{.role}}"';
+		EXECUTE 'reassign owned by "' || current_user || '" to "{{.role}}"';
 	end if;
 end
 $$;
@@ -26,15 +26,30 @@ var ensureGroupPattern = `
 do
 $body$
 begin
-	if not exists (select 1 from pg_catalog.pg_roles where rolname = '{{.role}}') then
-		create role "{{.role}}";
-	end if;
+	IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = '{{.role}}') THEN
+		CREATE ROLE "{{.role}}";
+	END IF;
 end
 $body$
 `
 
+const ensureCreateUserPattern = `
+DO
+$body$
+BEGIN
+   IF NOT EXISTS (
+      SELECT *
+      FROM   pg_catalog.pg_user
+      WHERE  usename = '{{.user}}') THEN
+
+      CREATE USER {{.user}} WITH PASSWORD '{{.password}}';
+   END IF;
+END
+$body$;`
+
 var ensureTriggerTemplate = template.Must(template.New("ensureTrigger").Parse(ensureTriggerPattern))
 var ensureGroupTemplate = template.Must(template.New("ensureGroup").Parse(ensureGroupPattern))
+var ensureCreateUserTemplate = template.Must(template.New("ensureUser").Parse(ensureCreateUserPattern))
 
 const masterPasswordLength = 32
 
@@ -88,23 +103,19 @@ func (d *PostgresEngine) Close() {
 func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
 	groupname := d.GeneratePostgresGroup(dbname)
 
-	if err := d.EnsureGroup(dbname, groupname); err != nil {
+	if err = d.EnsureGroup(dbname, groupname); err != nil {
 		return "", "", err
 	}
 
-	if err := d.EnsureTrigger(groupname); err != nil {
+	if err = d.EnsureTrigger(groupname); err != nil {
 		return "", "", err
 	}
 
 	username = generateUsername(bindingID)
 	password = generatePassword()
 
-	createUserStatement := fmt.Sprintf(`create role "%s" inherit login password '%s';`, username, password)
-	createUserStatementSanitized := fmt.Sprintf(`create role "%s" inherit login password '%s';`, username, "REDACTED")
-	d.logger.Debug("create-user", lager.Data{"statement": createUserStatementSanitized})
 
-	if _, err := d.DB.Exec(createUserStatement); err != nil {
-		d.logger.Error("sql-error", err)
+	if err = d.EnsureUser(dbname, username, password); err != nil {
 		return "", "", err
 	}
 
@@ -112,23 +123,26 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, passwor
 	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 	if _, err := d.DB.Exec(grantPrivilegesStatement); err != nil {
-		d.logger.Error("sql-error", err)
+		d.logger.Error("Grant sql-error", err)
 		return "", "", err
 	}
 
-	d.MigrateLegacyAdminUsers(bindingID, dbname)
+	err = d.MigrateLegacyAdminUsers(bindingID, dbname)
+	if err != nil {
+		d.logger.Error("Migrate sql-error", err)
+	}
 
-	return "", "", err
+	return username, password, nil
 }
 
 func (d *PostgresEngine) MigrateLegacyAdminUsers(bindingID, dbname string) (err error) {
 	groupname := d.GeneratePostgresGroup(dbname)
-	users, err := d.ListLegacyAdminUsers()
+	usersMigrate, err := d.ListLegacyAdminUsers()
 	if err != nil {
 		return err
 	}
 
-	for _, user := range users {
+	for _, user := range usersMigrate {
 		grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s";`, groupname, user)
 		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
@@ -146,11 +160,11 @@ func (d *PostgresEngine) MigrateLegacyAdminUsers(bindingID, dbname string) (err 
 		}
 
 	}
-	return err
+	return nil
 }
 
 func (d *PostgresEngine) ListLegacyAdminUsers() ([]string, error) {
-	users := []string{}
+	usersMigrate := []string{}
 
 	rows, err := d.DB.Query("SELECT usename FROM pg_user WHERE usename LIKE '%owner';")
 	if err != nil {
@@ -165,9 +179,9 @@ func (d *PostgresEngine) ListLegacyAdminUsers() ([]string, error) {
 			d.logger.Error("sql-error", err)
 			return nil, err
 		}
-		users = append(users, username)
+		usersMigrate = append(usersMigrate, username)
 	}
-	return users, nil
+	return usersMigrate, nil
 }
 
 func (d *PostgresEngine) DropUser(bindingID string) error {
@@ -328,3 +342,20 @@ func (d *PostgresEngine) EnsureTrigger(groupname string) error {
 	return nil
 }
 
+func (d *PostgresEngine) EnsureUser(dbname string, username string, password string) error {
+	var ensureUserStatement bytes.Buffer
+	if err := ensureCreateUserTemplate.Execute(&ensureUserStatement, map[string]string{
+		"password": password,
+		"user": username,
+	}); err != nil {
+		return err
+	}
+	d.logger.Debug("ensure-user", lager.Data{"statement": ensureUserStatement.String()})
+
+	if _, err := d.DB.Exec(ensureUserStatement.String()); err != nil {
+		d.logger.Error("sql-error", err)
+		return err
+	}
+
+	return nil
+}
