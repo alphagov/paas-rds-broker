@@ -115,30 +115,23 @@ There are two forms of tests for the broker, the unit tests and the integration 
 
 ### Running the unit tests
 
-To run the tests of this broker, you need a postgres and MySQL running locally, without SSL.
+To run the tests of this broker, you need a Postgres and MySQL running locally, without SSL. The connection details can be configured using environment variables - see the `sqlengine` test suites for more information.
 
 In travis we use the [postgres service](https://docs.travis-ci.com/user/database-setup/#PostgreSQL) and the [mysql service](https://docs.travis-ci.com/user/database-setup/#MySQL)
 
-The tests can read from environment variables the server configuration, with the following defaults:
- * `POSTGRESQL_HOSTNAME=localhost`
- * `POSTGRESQL_PORT=5432`
- * `POSTGRESQL_USERNAME=postgres`
- * `POSTGRESQL_PASSWORD=`
-
-You can run locally a postgres docker container and a homebrew-installed MySQL to run the tests
+Locally you can use containers with [Docker for Mac](https://docs.docker.com/docker-for-mac/) or [Docker for Linux](https://docs.docker.com/engine/installation/linux/ubuntu/):
 
 ```
-docker run -p 5432:5432 --name postgres -e POSTGRES_PASSWORD= -d postgres
-export POSTGRESQL_HOSTNAME=${DOCKER_HOSTNAME:-localhost} # Change accordingly
+docker run -p 5432:5432 --name postgres -e POSTGRES_PASSWORD= -d postgres:9.5
 
-brew install mysql
-mysql.server start
+docker run -p 3306:3306 --name mysql -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -d mysql:5.7
+until docker exec mysql mysqladmin ping --silent; do
+  printf "."; sleep 1
+done
 
 make unit
 
-docker stop postgres
-docker rm postgres
-mysql.server stop
+docker rm -f postgres mysql
 ```
 
 ### Running the integration tests
