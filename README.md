@@ -122,9 +122,9 @@ In travis we use the [postgres service](https://docs.travis-ci.com/user/database
 Locally you can use containers with [Docker for Mac](https://docs.docker.com/docker-for-mac/) or [Docker for Linux](https://docs.docker.com/engine/installation/linux/ubuntu/):
 
 ```
-docker run -p 5432:5432 --name postgres -e POSTGRES_PASSWORD= -d postgres
+docker run -p 5432:5432 --name postgres -e POSTGRES_PASSWORD= -d postgres:9.5
 
-docker run -p 3306:3306 --name mysql -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -d mysql
+docker run -p 3306:3306 --name mysql -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -d mysql:5.7
 until docker exec mysql mysqladmin ping --silent; do
   printf "."; sleep 1
 done
