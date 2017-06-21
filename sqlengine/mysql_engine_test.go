@@ -108,6 +108,11 @@ var _ = Describe("MySQLEngine", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(createdUser).NotTo(BeEmpty())
 			Expect(createdPassword).NotTo(BeEmpty())
+
+			By("should connect to the DB with createdUser")
+
+			err = mysqlEngine.Open(address, port, dbname, createdUser, createdPassword)
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("DropUser() should drop the user successfully", func() {
