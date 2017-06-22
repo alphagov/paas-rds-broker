@@ -13,7 +13,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"bytes"
 	"code.cloudfoundry.org/lager"
 	"bytes"
 )
@@ -169,7 +168,7 @@ func migrationTest(connectionString, dbname string) {
 		}
 	}
 
-	usersStatement := "select usename from pg_user where usesuper != true and usename != current_user"
+	usersStatement := "select usename from pg_user where usesuper != true and usename != current_user;"
 	_, err = db.Exec(usersStatement)
 	Expect(err).ToNot(HaveOccurred())
 
