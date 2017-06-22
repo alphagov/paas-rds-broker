@@ -11,48 +11,6 @@ import (
 	"code.cloudfoundry.org/lager"
 )
 
-var ensureTriggerPattern = `
-create or replace function reassign_owned() returns event_trigger language plpgsql as $$
-begin
-	IF pg_has_role(current_user, '{{.role}}', 'member') AND
-	   NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true)
-	THEN
-		EXECUTE 'reassign owned by "' || current_user || '" to "{{.role}}"';
-	end if;
-end
-$$;
-`
-var ensureGroupPattern = `
-do
-$body$
-begin
-	IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = '{{.role}}') THEN
-		CREATE ROLE "{{.role}}";
-	END IF;
-end
-$body$
-`
-
-const ensureCreateUserPattern = `
-DO
-$body$
-BEGIN
-   IF NOT EXISTS (
-      SELECT *
-      FROM   pg_catalog.pg_user
-      WHERE  usename = '{{.user}}') THEN
-
-      CREATE USER {{.user}} WITH PASSWORD '{{.password}}';
-   END IF;
-END
-$body$;`
-
-var ensureTriggerTemplate = template.Must(template.New("ensureTrigger").Parse(ensureTriggerPattern))
-var ensureGroupTemplate = template.Must(template.New("ensureGroup").Parse(ensureGroupPattern))
-var ensureCreateUserTemplate = template.Must(template.New("ensureUser").Parse(ensureCreateUserPattern))
-
-const masterPasswordLength = 32
-
 type PostgresEngine struct {
 	logger     lager.Logger
 	DB         *sql.DB
@@ -280,6 +238,18 @@ func (d *PostgresEngine) GeneratePostgresGroup(dbname string) string {
 	return dbname + "_manager"
 }
 
+const ensureGroupPattern = `
+	do
+	$body$
+	begin
+		IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = '{{.role}}') THEN
+			CREATE ROLE "{{.role}}";
+		END IF;
+	end
+	$body$
+	`
+var ensureGroupTemplate = template.Must(template.New("ensureGroup").Parse(ensureGroupPattern))
+
 func (d *PostgresEngine) EnsureGroup(dbname, groupname string) error {
 	var ensureGroupStatement bytes.Buffer
 	if err := ensureGroupTemplate.Execute(&ensureGroupStatement, map[string]string{
@@ -296,6 +266,19 @@ func (d *PostgresEngine) EnsureGroup(dbname, groupname string) error {
 
 	return nil
 }
+
+const ensureTriggerPattern = `
+	create or replace function reassign_owned() returns event_trigger language plpgsql as $$
+	begin
+		IF pg_has_role(current_user, '{{.role}}', 'member') AND
+		   NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true)
+		THEN
+			EXECUTE 'reassign owned by "' || current_user || '" to "{{.role}}"';
+		end if;
+	end
+	$$;
+	`
+var ensureTriggerTemplate = template.Must(template.New("ensureTrigger").Parse(ensureTriggerPattern))
 
 func (d *PostgresEngine) EnsureTrigger(groupname string) error {
 	tx, err := d.DB.Begin()
@@ -341,6 +324,22 @@ func (d *PostgresEngine) EnsureTrigger(groupname string) error {
 
 	return nil
 }
+
+const ensureCreateUserPattern = `
+	DO
+	$body$
+	BEGIN
+	   IF NOT EXISTS (
+		  SELECT *
+		  FROM   pg_catalog.pg_user
+		  WHERE  usename = '{{.user}}') THEN
+
+		  CREATE USER {{.user}} WITH PASSWORD '{{.password}}';
+	   END IF;
+	END
+	$body$;`
+
+var ensureCreateUserTemplate = template.Must(template.New("ensureUser").Parse(ensureCreateUserPattern))
 
 func (d *PostgresEngine) EnsureUser(dbname string, username string, password string) error {
 	var ensureUserStatement bytes.Buffer
