@@ -349,7 +349,14 @@ func (d *PostgresEngine) EnsureUser(dbname string, username string, password str
 	}); err != nil {
 		return err
 	}
-	d.logger.Debug("ensure-user", lager.Data{"statement": ensureUserStatement.String()})
+	var ensureUserStatementSanitized bytes.Buffer
+	if err := ensureCreateUserTemplate.Execute(&ensureUserStatementSanitized, map[string]string{
+		"password": "REDACTED",
+		"user": username,
+	}); err != nil {
+		return err
+	}
+	d.logger.Debug("ensure-user", lager.Data{"statement": ensureUserStatementSanitized.String()})
 
 	if _, err := d.DB.Exec(ensureUserStatement.String()); err != nil {
 		d.logger.Error("sql-error", err)
