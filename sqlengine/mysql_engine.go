@@ -76,6 +76,11 @@ func (d *MySQLEngine) CreateUser(bindingID, dbname string) (username, password s
 		"TRIGGER",
 	}
 
+	ssl := ""
+	if d.requireSSL == true {
+		ssl = "REQUIRE SSL"
+	}
+
 	createUserStatement := "CREATE USER '" + username + "'@'%' IDENTIFIED BY '" + password + "';"
 	sanitizedCreateUserStatement := "CREATE USER '" + username + "'@'%' IDENTIFIED BY 'REDACTED';"
 	d.logger.Debug("create-user", lager.Data{"statement": sanitizedCreateUserStatement})
@@ -85,7 +90,7 @@ func (d *MySQLEngine) CreateUser(bindingID, dbname string) (username, password s
 		return "", "", err
 	}
 
-	grantPrivilegesStatement := "GRANT " + strings.Join(options, ", ") + " ON `" + dbname + "`.* TO '" + username + "'@'%';"
+	grantPrivilegesStatement := "GRANT " + strings.Join(options, ", ") + " ON `" + dbname + "`.* TO '" + username + "'@'%' " + ssl + ";"
 	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
@@ -116,7 +121,7 @@ func (d *MySQLEngine) ResetState() error {
 }
 
 func (d *MySQLEngine) URI(address string, port int64, dbname string, username string, password string) string {
-	return fmt.Sprintf("mysql://%s:%s@%s:%d/%s?reconnect=true&useSSL=%t", username, password, address, port, dbname, d.requireSSL)
+	return fmt.Sprintf("mysql://%s:%s@%s:%d/%s?tls=%t", username, password, address, port, dbname, d.requireSSL)
 }
 
 func (d *MySQLEngine) JDBCURI(address string, port int64, dbname string, username string, password string) string {
@@ -124,5 +129,5 @@ func (d *MySQLEngine) JDBCURI(address string, port int64, dbname string, usernam
 }
 
 func (d *MySQLEngine) connectionString(address string, port int64, dbname string, username string, password string) string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", username, password, address, port, dbname)
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?tls=skip-verify", username, password, address, port, dbname)
 }
