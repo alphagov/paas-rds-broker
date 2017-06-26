@@ -325,6 +325,7 @@ var _ = Describe("PostgresEngine", func() {
 				createdUser, createdPassword, err := postgresEngine.CreateUser(bindingID, dbname)
 				Expect(err).ToNot(HaveOccurred())
 				connectionStringNew = postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+
 			})
 
 			AfterEach(func() {
@@ -345,16 +346,16 @@ var _ = Describe("PostgresEngine", func() {
 
 			Context("When there are two different bindings", func() {
 				var (
-					otherBindingID       string
-					otherCreatedUser     string
-					otherCreatedPassword string
-					newcreatedUser       string
-					newcreatedPassword   string
+					otherBindingID         string
+					otherCreatedUser       string
+					otherCreatedPassword   string
+					newCreatedUser         string
+					newCreatedPassword     string
 				)
 
 				BeforeEach(func() {
 					var err error
-					newcreatedUser, newcreatedPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+					newCreatedUser, newCreatedPassword, err = postgresEngine.CreateUser(bindingID, dbname)
 					Expect(err).ToNot(HaveOccurred())
 					otherBindingID = "other-binding-id" + randomTestSuffix
 					otherCreatedUser, otherCreatedPassword, err = postgresEngine.CreateUser(otherBindingID, dbname)
@@ -371,7 +372,7 @@ var _ = Describe("PostgresEngine", func() {
 				It("Migrate legacy databases with multiple binds", func() {
 					err := postgresEngine.MigrateLegacyAdminUsers(bindingID, dbname)
 					Expect(err).ToNot(HaveOccurred())
-					connectionString1 := postgresEngine.URI(address, port, dbname, newcreatedUser, newcreatedPassword)
+					connectionString1 := postgresEngine.URI(address, port, dbname, newCreatedUser, newCreatedPassword)
 					connectionString2 := postgresEngine.URI(address, port, dbname, otherCreatedUser, otherCreatedPassword)
 					createObjects(connectionString1, "table1")
 					accessAndDeleteObjects(connectionString2, "table1")

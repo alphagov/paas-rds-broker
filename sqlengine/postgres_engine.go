@@ -62,11 +62,7 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, passwor
 	groupname := d.GeneratePostgresGroup(dbname)
 
 	if err = d.EnsureGroup(dbname, groupname); err != nil {
-		return "", "", err
-	}
-
-	if err = d.EnsureTrigger(groupname); err != nil {
-		return "", "", err
+		return "", "",err
 	}
 
 	username = generateUsername(bindingID)
@@ -74,7 +70,7 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, passwor
 
 
 	if err = d.EnsureUser(dbname, username, password); err != nil {
-		return "", "", err
+		return "", "",err
 	}
 
 	grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s";`, groupname, username)
@@ -90,18 +86,26 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, passwor
 		d.logger.Error("Migrate sql-error", err)
 	}
 
+	if err = d.EnsureTrigger(groupname); err != nil {
+		return "", "", err
+	}
+
 	return username, password, nil
 }
 
 func (d *PostgresEngine) MigrateLegacyAdminUsers(bindingID, dbname string) (err error) {
 	groupname := d.GeneratePostgresGroup(dbname)
+
+	addAdminPrivilegesStatement := fmt.Sprintf(`grant "%s" to current_user;`, groupname)
+	d.logger.Debug("grant-privileges", lager.Data{"statement": addAdminPrivilegesStatement})
+
 	usersMigrate, err := d.ListLegacyAdminUsers()
 	if err != nil {
 		return err
 	}
 
-	for _, user := range usersMigrate {
-		grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s";`, groupname, user)
+	for _, username := range usersMigrate {
+		grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s";`, groupname, username)
 		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 		if _, err := d.DB.Exec(grantPrivilegesStatement); err != nil {
@@ -109,7 +113,7 @@ func (d *PostgresEngine) MigrateLegacyAdminUsers(bindingID, dbname string) (err 
 			return err
 		}
 
-		reassignStatement := fmt.Sprintf(`reassign owned by "%s" to "%s";`, user, groupname)
+		reassignStatement := fmt.Sprintf(`reassign owned by "%s" to "%s";`, username, groupname)
 		d.logger.Debug("reassign-objects", lager.Data{"statement": reassignStatement})
 
 		if _, err := d.DB.Exec(reassignStatement); err != nil {
@@ -118,13 +122,17 @@ func (d *PostgresEngine) MigrateLegacyAdminUsers(bindingID, dbname string) (err 
 		}
 
 	}
+
+	removeAdminPrivilegesStatement := fmt.Sprintf(`revoke "%s" from current_user;`, groupname)
+	d.logger.Debug("grant-privileges", lager.Data{"statement": removeAdminPrivilegesStatement})
+	
 	return nil
 }
 
 func (d *PostgresEngine) ListLegacyAdminUsers() ([]string, error) {
 	usersMigrate := []string{}
 
-	rows, err := d.DB.Query("SELECT usename FROM pg_user WHERE usename LIKE '%owner';")
+	rows, err := d.DB.Query("SELECT usename FROM pg_user WHERE usename LIKE '%owner';" )
 	if err != nil {
 		d.logger.Error("sql-error", err)
 		return nil, err
