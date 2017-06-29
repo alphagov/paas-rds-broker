@@ -1,3 +1,6 @@
+dist: trusty
+sudo: required
+
 language: go
 
 go:
@@ -6,6 +9,9 @@ go:
 services:
   - postgresql
   - mysql
+
+addons:
+  postgresql: "9.5"
 
 before_install:
   - go get github.com/onsi/ginkgo/ginkgo
