@@ -11,31 +11,6 @@ import (
 	"code.cloudfoundry.org/lager"
 )
 
-var ensureTriggerPattern = `
-create or replace function reassign_owned() returns event_trigger language plpgsql as $$
-begin
-	IF pg_has_role(current_user, '{{.role}}', 'member') AND
-	   NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true)
-	THEN
-		execute 'reassign owned by "' || current_user || '" to "{{.role}}"';
-	end if;
-end
-$$;
-`
-var ensureGroupPattern = `
-do
-$body$
-begin
-	if not exists (select 1 from pg_catalog.pg_roles where rolname = '{{.role}}') then
-		create role "{{.role}}";
-	end if;
-end
-$body$
-`
-
-var ensureTriggerTemplate = template.Must(template.New("ensureTrigger").Parse(ensureTriggerPattern))
-var ensureGroupTemplate = template.Must(template.New("ensureGroup").Parse(ensureGroupPattern))
-
 type PostgresEngine struct {
 	logger     lager.Logger
 	db         *sql.DB
@@ -143,28 +118,15 @@ func (d *PostgresEngine) ResetState() error {
 		}
 	}()
 
-	users := []string{}
-
-	rows, err := tx.Query("select usename from pg_user where usesuper != true and usename != current_user")
+	users, err := d.listNonSuperUsers()
 	if err != nil {
-		d.logger.Error("sql-error", err)
 		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var username string
-		err = rows.Scan(&username)
-		if err != nil {
-			d.logger.Error("sql-error", err)
-			return err
-		}
-		users = append(users, username)
 	}
 
 	for _, username := range users {
 		dropUserStatement := fmt.Sprintf(`drop role "%s"`, username)
 		d.logger.Debug("reset-state", lager.Data{"statement": dropUserStatement})
-		if _, err := tx.Exec(dropUserStatement); err != nil {
+		if _, err = tx.Exec(dropUserStatement); err != nil {
 			d.logger.Error("sql-error", err)
 			return err
 		}
@@ -180,6 +142,27 @@ func (d *PostgresEngine) ResetState() error {
 	d.logger.Debug("reset-state.finish")
 
 	return nil
+}
+
+func (d *PostgresEngine) listNonSuperUsers() ([]string, error) {
+	users := []string{}
+
+	rows, err := d.db.Query("select usename from pg_user where usesuper != true and usename != current_user")
+	if err != nil {
+		d.logger.Error("sql-error", err)
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var username string
+		err = rows.Scan(&username)
+		if err != nil {
+			d.logger.Error("sql-error", err)
+			return nil, err
+		}
+		users = append(users, username)
+	}
+	return users, nil
 }
 
 func (d *PostgresEngine) URI(address string, port int64, dbname string, username string, password string) string {
@@ -200,6 +183,19 @@ func (d *PostgresEngine) generatePostgresGroup(dbname string) string {
 	return dbname + "_manager"
 }
 
+const ensureGroupPattern = `
+	do
+	$body$
+	begin
+		IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = '{{.role}}') THEN
+			CREATE ROLE "{{.role}}";
+		END IF;
+	end
+	$body$
+	`
+
+var ensureGroupTemplate = template.Must(template.New("ensureGroup").Parse(ensureGroupPattern))
+
 func (d *PostgresEngine) ensureGroup(dbname, groupname string) error {
 	var ensureGroupStatement bytes.Buffer
 	if err := ensureGroupTemplate.Execute(&ensureGroupStatement, map[string]string{
@@ -216,6 +212,20 @@ func (d *PostgresEngine) ensureGroup(dbname, groupname string) error {
 
 	return nil
 }
+
+const ensureTriggerPattern = `
+	create or replace function reassign_owned() returns event_trigger language plpgsql as $$
+	begin
+		IF pg_has_role(current_user, '{{.role}}', 'member') AND
+		   NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true)
+		THEN
+			EXECUTE 'reassign owned by "' || current_user || '" to "{{.role}}"';
+		end if;
+	end
+	$$;
+	`
+
+var ensureTriggerTemplate = template.Must(template.New("ensureTrigger").Parse(ensureTriggerPattern))
 
 func (d *PostgresEngine) ensureTrigger(groupname string) error {
 	tx, err := d.db.Begin()
