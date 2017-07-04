@@ -6,4 +6,4 @@ unit:
 	ginkgo -r --skipPackage=ci
 
 integration:
-	ginkgo -r ci/blackbox
+	ginkgo -p --nodes=8 -r ci/blackbox
