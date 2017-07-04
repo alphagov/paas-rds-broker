@@ -1,131 +1,141 @@
 {
-  "log_level": "DEBUG",
-  "username": "username",
-  "password": "password",
-  "state_encryption_key": "key",
-  "rds_config": {
-    "region": "eu-west-1",
-    "db_prefix": "build-test",
-    "allow_user_provision_parameters": true,
-    "allow_user_update_parameters": true,
-    "allow_user_bind_parameters": true,
-    "master_password_seed": "something-secret",
-    "broker_name": "rdsbroker-integration-test",
-    "catalog" : {
-      "services" : [
-         {
-            "id" : "Service-1",
-            "description" : "This is the Service 1",
-            "name" : "Service 1",
-            "plan_updateable" : true,
-            "plans" : [
-               {
-                  "rds_properties" : {
-                     "engine" : "postgres",
-                     "db_instance_class" : "db.t2.micro",
-                     "allocated_storage" : 10,
-                     "skip_final_snapshot" : true,
-                     "engine_version" : "9.5",
-                     "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
-                     "vpc_security_group_ids": ["POPULATED_BY_TEST_SUITE"]
-                  },
-                  "free" : false,
-                  "name" : "Plan 1",
-                  "description" : "This is the Plan 1",
-                  "id" : "Plan-1"
-               }
+    "log_level": "DEBUG",
+    "password": "password",
+    "rds_config": {
+        "allow_user_bind_parameters": true,
+        "allow_user_provision_parameters": true,
+        "allow_user_update_parameters": true,
+        "broker_name": "rdsbroker-integration-test",
+        "catalog": {
+            "services": [
+                {
+                    "description": "This is the Service 1",
+                    "id": "Service-1",
+                    "name": "Service 1",
+                    "plan_updateable": true,
+                    "plans": [
+                        {
+                            "description": "This is the Plan 1",
+                            "free": false,
+                            "id": "Plan-1",
+                            "name": "Plan 1",
+                            "rds_properties": {
+                                "allocated_storage": 10,
+                                "db_instance_class": "db.t2.micro",
+                                "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                                "engine": "postgres",
+                                "engine_version": "9.5",
+                                "skip_final_snapshot": true,
+                                "vpc_security_group_ids": [
+                                    "POPULATED_BY_TEST_SUITE"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "description": "This is the Service 2",
+                    "id": "Service-2",
+                    "name": "Service 2",
+                    "plan_updateable": true,
+                    "plans": [
+                        {
+                            "description": "This is the Plan 2",
+                            "free": false,
+                            "id": "Plan-2",
+                            "name": "Plan 2",
+                            "rds_properties": {
+                                "allocated_storage": 20,
+                                "db_instance_class": "db.t2.small",
+                                "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                                "engine": "postgres",
+                                "engine_version": "9.5",
+                                "skip_final_snapshot": false,
+                                "vpc_security_group_ids": [
+                                    "POPULATED_BY_TEST_SUITE"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "description": "This is the Service 3",
+                    "id": "Service-3",
+                    "name": "Service 3",
+                    "plan_updateable": true,
+                    "plans": [
+                        {
+                            "description": "This is the Plan 3",
+                            "free": false,
+                            "id": "Plan-3",
+                            "name": "Plan 3",
+                            "rds_properties": {
+                                "allocated_storage": 30,
+                                "db_instance_class": "db.t2.small",
+                                "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                                "engine": "postgres",
+                                "engine_version": "9.5",
+                                "vpc_security_group_ids": [
+                                    "POPULATED_BY_TEST_SUITE"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "description": "This is the Service 4",
+                    "id": "Service-4",
+                    "name": "Service 4",
+                    "plan_updateable": true,
+                    "plans": [
+                        {
+                            "description": "This is the Plan 4",
+                            "free": false,
+                            "id": "Plan-4",
+                            "name": "Plan 4",
+                            "rds_properties": {
+                                "allocated_storage": 30,
+                                "db_instance_class": "db.t2.small",
+                                "db_subnet_group_name": "DB_SUBNET_GROUP_NAME",
+                                "engine": "mysql",
+                                "engine_version": "5.7",
+                                "vpc_security_group_ids": [
+                                    "VPC_SECURITY_GROUP_ID"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "description": "This is the Service 5",
+                    "id": "Service-5",
+                    "name": "Service 5",
+                    "plan_updateable": true,
+                    "plans": [
+                        {
+                            "description": "This is the Plan 5",
+                            "free": false,
+                            "id": "Plan-5",
+                            "name": "Plan 5",
+                            "rds_properties": {
+                                "allocated_storage": 30,
+                                "db_instance_class": "db.t2.small",
+                                "db_subnet_group_name": "DB_SUBNET_GROUP_NAME",
+                                "engine": "mysql",
+                                "engine_version": "5.7",
+                                "vpc_security_group_ids": [
+                                    "VPC_SECURITY_GROUP_ID"
+                                ]
+                            }
+                        }
+                    ]
+                }
             ]
-         },
-         {
-            "plans" : [
-               {
-                  "name" : "Plan 2",
-                  "rds_properties" : {
-                     "engine_version" : "9.5",
-                     "skip_final_snapshot" : false,
-                     "allocated_storage" : 20,
-                     "engine" : "postgres",
-                     "db_instance_class" : "db.t2.small",
-                     "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
-                     "vpc_security_group_ids": ["POPULATED_BY_TEST_SUITE"]
-                  },
-                  "free" : false,
-                  "id" : "Plan-2",
-                  "description" : "This is the Plan 2"
-               }
-            ],
-            "plan_updateable" : true,
-            "name" : "Service 2",
-            "description" : "This is the Service 2",
-            "id" : "Service-2"
-         },
-         {
-            "plans" : [
-               {
-                  "rds_properties" : {
-                     "allocated_storage" : 30,
-                     "engine" : "postgres",
-                     "db_instance_class" : "db.t2.small",
-                     "engine_version" : "9.5",
-                     "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
-                     "vpc_security_group_ids": ["POPULATED_BY_TEST_SUITE"]
-                  },
-                  "free" : false,
-                  "name" : "Plan 3",
-                  "id" : "Plan-3",
-                  "description" : "This is the Plan 3"
-               }
-            ],
-            "name" : "Service 3",
-            "plan_updateable" : true,
-            "description" : "This is the Service 3",
-            "id" : "Service-3"
-         },
-        {
-          "plans" : [
-            {
-              "rds_properties" : {
-                "allocated_storage" : 30,
-                "engine" : "mysql",
-                "db_instance_class" : "db.t2.small",
-                "engine_version" : "5.7",
-                "db_subnet_group_name": "DB_SUBNET_GROUP_NAME",
-                "vpc_security_group_ids": ["VPC_SECURITY_GROUP_ID"]
-              },
-              "free" : false,
-              "name" : "Plan 4",
-              "id" : "Plan-4",
-              "description" : "This is the Plan 4"
-            }
-          ],
-          "name" : "Service 4",
-          "plan_updateable" : true,
-          "description" : "This is the Service 4",
-          "id" : "Service-4"
         },
-        {
-          "plans" : [
-            {
-              "rds_properties" : {
-                "allocated_storage" : 30,
-                "engine" : "mysql",
-                "db_instance_class" : "db.t2.small",
-                "engine_version" : "5.7",
-                "db_subnet_group_name": "DB_SUBNET_GROUP_NAME",
-                "vpc_security_group_ids": ["VPC_SECURITY_GROUP_ID"]
-              },
-              "free" : false,
-              "name" : "Plan 5",
-              "id" : "Plan-5",
-              "description" : "This is the Plan 5"
-            }
-          ],
-          "name" : "Service 5",
-          "plan_updateable" : true,
-          "description" : "This is the Service 5",
-          "id" : "Service-5"
-        }
-      ]
-    }
-  }
+        "db_prefix": "build-test",
+        "master_password_seed": "something-secret",
+        "region": "eu-west-1"
+    },
+    "state_encryption_key": "key",
+    "username": "username"
 }
