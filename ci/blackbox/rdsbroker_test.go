@@ -72,7 +72,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 		})
 	})
 
-	Describe("Postgres Instance Provision/Update/Deprovision", func() {
+	Describe("Postgres Instance Provision/Bind/Deprovision", func() {
 		var (
 			instanceID string
 			serviceID  string
@@ -134,7 +134,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 		})
 	})
 
-	Describe("MySQL Instance Provision/Update/Deprovision", func() {
+	Describe("MySQL Instance Provision/Bind/Deprovision", func() {
 		var (
 			instanceID string
 			serviceID  string
