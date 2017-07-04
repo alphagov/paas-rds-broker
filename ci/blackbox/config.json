@@ -9,16 +9,32 @@
         "catalog": {
             "services": [
                 {
-                    "description": "This is the Service 1",
-                    "id": "Service-1",
-                    "name": "Service 1",
+                    "description": "AWS RDS PostgreSQL service",
+                    "id": "postgres",
+                    "name": "postgres",
                     "plan_updateable": true,
                     "plans": [
                         {
-                            "description": "This is the Plan 1",
+                            "description": "Micro plan",
                             "free": false,
-                            "id": "Plan-1",
-                            "name": "Plan 1",
+                            "id": "micro",
+                            "name": "micro",
+                            "rds_properties": {
+                                "allocated_storage": 10,
+                                "db_instance_class": "db.t2.micro",
+                                "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                                "engine": "postgres",
+                                "engine_version": "9.5",
+                                "vpc_security_group_ids": [
+                                    "POPULATED_BY_TEST_SUITE"
+                                ]
+                            }
+                        },
+                        {
+                            "description": "Micro plan without final snapshot",
+                            "free": false,
+                            "id": "micro-without-snapshot",
+                            "name": "micro-without-snapshot",
                             "rds_properties": {
                                 "allocated_storage": 10,
                                 "db_instance_class": "db.t2.micro",
@@ -34,97 +50,41 @@
                     ]
                 },
                 {
-                    "description": "This is the Service 2",
-                    "id": "Service-2",
-                    "name": "Service 2",
+                    "description": "AWS RDS MySQL service",
+                    "id": "mysql",
+                    "name": "mysql",
                     "plan_updateable": true,
                     "plans": [
                         {
-                            "description": "This is the Plan 2",
+                            "description": "Micro plan",
                             "free": false,
-                            "id": "Plan-2",
-                            "name": "Plan 2",
+                            "id": "micro",
+                            "name": "micro",
                             "rds_properties": {
-                                "allocated_storage": 20,
-                                "db_instance_class": "db.t2.small",
+                                "allocated_storage": 10,
+                                "db_instance_class": "db.t2.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
-                                "engine": "postgres",
-                                "engine_version": "9.5",
-                                "skip_final_snapshot": false,
+                                "engine": "mysql",
+                                "engine_version": "5.7",
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
                                 ]
                             }
-                        }
-                    ]
-                },
-                {
-                    "description": "This is the Service 3",
-                    "id": "Service-3",
-                    "name": "Service 3",
-                    "plan_updateable": true,
-                    "plans": [
+                        },
                         {
-                            "description": "This is the Plan 3",
+                            "description": "Micro plan without final snapshot",
                             "free": false,
-                            "id": "Plan-3",
-                            "name": "Plan 3",
+                            "id": "micro-without-snapshot",
+                            "name": "micro-without-snapshot",
                             "rds_properties": {
-                                "allocated_storage": 30,
-                                "db_instance_class": "db.t2.small",
+                                "allocated_storage": 10,
+                                "db_instance_class": "db.t2.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
-                                "engine": "postgres",
-                                "engine_version": "9.5",
+                                "engine": "mysql",
+                                "engine_version": "5.7",
+                                "skip_final_snapshot": true,
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
-                                ]
-                            }
-                        }
-                    ]
-                },
-                {
-                    "description": "This is the Service 4",
-                    "id": "Service-4",
-                    "name": "Service 4",
-                    "plan_updateable": true,
-                    "plans": [
-                        {
-                            "description": "This is the Plan 4",
-                            "free": false,
-                            "id": "Plan-4",
-                            "name": "Plan 4",
-                            "rds_properties": {
-                                "allocated_storage": 30,
-                                "db_instance_class": "db.t2.small",
-                                "db_subnet_group_name": "DB_SUBNET_GROUP_NAME",
-                                "engine": "mysql",
-                                "engine_version": "5.7",
-                                "vpc_security_group_ids": [
-                                    "VPC_SECURITY_GROUP_ID"
-                                ]
-                            }
-                        }
-                    ]
-                },
-                {
-                    "description": "This is the Service 5",
-                    "id": "Service-5",
-                    "name": "Service 5",
-                    "plan_updateable": true,
-                    "plans": [
-                        {
-                            "description": "This is the Plan 5",
-                            "free": false,
-                            "id": "Plan-5",
-                            "name": "Plan 5",
-                            "rds_properties": {
-                                "allocated_storage": 30,
-                                "db_instance_class": "db.t2.small",
-                                "db_subnet_group_name": "DB_SUBNET_GROUP_NAME",
-                                "engine": "mysql",
-                                "engine_version": "5.7",
-                                "vpc_security_group_ids": [
-                                    "VPC_SECURITY_GROUP_ID"
                                 ]
                             }
                         }
