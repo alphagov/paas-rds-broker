@@ -168,10 +168,31 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(state).To(Equal("gone"))
 		})
 
-		It("can bind to the created MySQL service", func() {
+		It("handles binding properly", func() {
+			By("creating a binding")
 			resp, err := brokerAPIClient.DoBindRequest(instanceID, serviceID, planID, appGUID, bindingID)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(201))
+
+			By("using those credentials to create objects")
+			credentials, err := getCredentialsFromBindResponse(resp)
+			Expect(err).ToNot(HaveOccurred())
+			err = setupPermissionsTest(credentials.URI)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("re-binding")
+			resp, err = brokerAPIClient.DoUnbindRequest(instanceID, serviceID, planID, bindingID)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(200))
+			resp, err = brokerAPIClient.DoBindRequest(instanceID, serviceID, planID, appGUID, bindingID)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(201))
+
+			By("using the new credentials to alter existing objects")
+			credentials, err = getCredentialsFromBindResponse(resp)
+			Expect(err).ToNot(HaveOccurred())
+			err = permissionsTest(credentials.URI)
+			Expect(err).ToNot(HaveOccurred())
 		})
 	})
 
@@ -422,13 +443,31 @@ func getCredentialsFromBindResponse(resp *http.Response) (*rdsbroker.Credentials
 	return &bindingResponse.Credentials, nil
 }
 
-func setupPermissionsTest(databaseUri string) error {
-	dbURL, err := url.Parse(databaseUri)
+func openConnection(databaseURI string) (*sql.DB, error) {
+	dbURL, err := url.Parse(databaseURI)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	db, err := sql.Open("postgres", dbURL.String())
+	var dsn string
+	switch dbURL.Scheme {
+	case "postgres":
+		dsn = dbURL.String()
+	case "mysql":
+		dsn = fmt.Sprintf("%s@tcp(%s)%s",
+			dbURL.User.String(),
+			dbURL.Host,
+			dbURL.EscapedPath(),
+		)
+	default:
+		return nil, fmt.Errorf("unsupported DB scheme: %s", dbURL.Scheme)
+	}
+
+	return sql.Open(dbURL.Scheme, dsn)
+}
+
+func setupPermissionsTest(databaseURI string) error {
+	db, err := openConnection(databaseURI)
 	if err != nil {
 		return err
 	}
@@ -447,17 +486,11 @@ func setupPermissionsTest(databaseUri string) error {
 	return nil
 }
 
-func permissionsTest(databaseUri string) error {
-	dbURL, err := url.Parse(databaseUri)
+func permissionsTest(databaseURI string) error {
+	db, err := openConnection(databaseURI)
 	if err != nil {
 		return err
 	}
-
-	db, err := sql.Open("postgres", dbURL.String())
-	if err != nil {
-		return err
-	}
-
 	defer db.Close()
 
 	// Can we write?
