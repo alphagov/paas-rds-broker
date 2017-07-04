@@ -39,41 +39,30 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 			sort.Sort(ByServiceID(catalog.Services))
 
-			Expect(catalog.Services).To(HaveLen(5))
+			Expect(catalog.Services).To(HaveLen(2))
 			service1 := catalog.Services[0]
 			service2 := catalog.Services[1]
-			service3 := catalog.Services[2]
-			service4 := catalog.Services[3]
-			service5 := catalog.Services[4]
-			Expect(service1.ID).To(Equal("Service-1"))
-			Expect(service2.ID).To(Equal("Service-2"))
-			Expect(service3.ID).To(Equal("Service-3"))
-			Expect(service4.ID).To(Equal("Service-4"))
-			Expect(service5.ID).To(Equal("Service-5"))
 
-			Expect(service1.ID).To(Equal("Service-1"))
-			Expect(service1.Name).To(Equal("Service 1"))
-			Expect(service1.Description).To(Equal("This is the Service 1"))
+			Expect(service1.ID).To(Equal("mysql"))
+			Expect(service1.Name).To(Equal("mysql"))
+			Expect(service1.Description).To(Equal("AWS RDS MySQL service"))
 			Expect(service1.Bindable).To(BeTrue())
 			Expect(service1.PlanUpdatable).To(BeTrue())
-			Expect(service1.Plans).To(HaveLen(1))
-			Expect(service1.Plans[0].ID).To(Equal("Plan-1"))
-			Expect(service1.Plans[0].Name).To(Equal("Plan 1"))
-			Expect(service1.Plans[0].Description).To(Equal("This is the Plan 1"))
-			Expect(service5.ID).To(Equal("Service-5"))
-			Expect(service5.Name).To(Equal("Service 5"))
-			Expect(service5.Description).To(Equal("This is the Service 5"))
-			Expect(service5.Bindable).To(BeTrue())
-			Expect(service5.PlanUpdatable).To(BeTrue())
-			Expect(service5.Plans).To(HaveLen(1))
-			Expect(service5.Plans[0].ID).To(Equal("Plan-5"))
-			Expect(service5.Plans[0].Name).To(Equal("Plan 5"))
-			Expect(service5.Plans[0].Description).To(Equal("This is the Plan 5"))
+			Expect(service1.Plans).To(HaveLen(2))
+
+			Expect(service2.ID).To(Equal("postgres"))
+			Expect(service2.Name).To(Equal("postgres"))
+			Expect(service2.Description).To(Equal("AWS RDS PostgreSQL service"))
+			Expect(service2.Bindable).To(BeTrue())
+			Expect(service2.PlanUpdatable).To(BeTrue())
+			Expect(service2.Plans).To(HaveLen(2))
 		})
 	})
 
 	Describe("Instance Provision/Bind/Deprovision", func() {
-		TestProvisionBindDeprovision := func(serviceID, planID string) {
+		TestProvisionBindDeprovision := func(serviceID string) {
+			const planID = "micro-without-snapshot"
+
 			var (
 				instanceID string
 				appGUID    string
@@ -132,16 +121,18 @@ var _ = Describe("RDS Broker Daemon", func() {
 		}
 
 		Describe("Postgres", func() {
-			TestProvisionBindDeprovision("Service-1", "Plan-1")
+			TestProvisionBindDeprovision("postgres")
 		})
 
 		Describe("MySQL", func() {
-			TestProvisionBindDeprovision("Service-4", "Plan-4")
+			TestProvisionBindDeprovision("mysql")
 		})
 	})
 
 	Describe("Final snapshot enable/disable", func() {
-		TestFinalSnapshot := func(serviceID, planID string) {
+		TestFinalSnapshot := func(serviceID string) {
+			const planID = "micro"
+
 			var (
 				instanceID string
 				appGUID    string
@@ -238,11 +229,11 @@ var _ = Describe("RDS Broker Daemon", func() {
 		}
 
 		Describe("Postgres", func() {
-			TestFinalSnapshot("Service-2", "Plan-2")
+			TestFinalSnapshot("postgres")
 		})
 
 		Describe("MySQL", func() {
-			TestFinalSnapshot("Service-5", "Plan-5")
+			TestFinalSnapshot("mysql")
 		})
 	})
 })
