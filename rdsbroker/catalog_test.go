@@ -83,6 +83,7 @@ var _ = Describe("Catalog", func() {
 
 var _ = Describe("Service", func() {
 	var (
+		catalog Catalog
 		service Service
 
 		validService = Service{
@@ -99,19 +100,20 @@ var _ = Describe("Service", func() {
 	)
 
 	BeforeEach(func() {
+		catalog = Catalog{}
 		service = validService
 	})
 
 	Describe("Validate", func() {
 		It("does not return error if all fields are valid", func() {
-			err := service.Validate()
+			err := service.Validate(catalog)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("returns error if ID is empty", func() {
 			service.ID = ""
 
-			err := service.Validate()
+			err := service.Validate(catalog)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Must provide a non-empty ID"))
 		})
@@ -119,7 +121,7 @@ var _ = Describe("Service", func() {
 		It("returns error if Name is empty", func() {
 			service.Name = ""
 
-			err := service.Validate()
+			err := service.Validate(catalog)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Must provide a non-empty Name"))
 		})
@@ -127,7 +129,7 @@ var _ = Describe("Service", func() {
 		It("returns error if Description is empty", func() {
 			service.Description = ""
 
-			err := service.Validate()
+			err := service.Validate(catalog)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Must provide a non-empty Description"))
 		})
@@ -137,7 +139,7 @@ var _ = Describe("Service", func() {
 				ServicePlan{},
 			}
 
-			err := service.Validate()
+			err := service.Validate(catalog)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Validating Plans configuration"))
 		})
@@ -146,6 +148,7 @@ var _ = Describe("Service", func() {
 
 var _ = Describe("ServicePlan", func() {
 	var (
+		catalog     Catalog
 		servicePlan ServicePlan
 
 		validServicePlan = ServicePlan{
@@ -163,19 +166,20 @@ var _ = Describe("ServicePlan", func() {
 	)
 
 	BeforeEach(func() {
+		catalog = Catalog{}
 		servicePlan = validServicePlan
 	})
 
 	Describe("Validate", func() {
 		It("does not return error if all fields are valid", func() {
-			err := servicePlan.Validate()
+			err := servicePlan.Validate(catalog)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("returns error if ID is empty", func() {
 			servicePlan.ID = ""
 
-			err := servicePlan.Validate()
+			err := servicePlan.Validate(catalog)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Must provide a non-empty ID"))
 		})
@@ -183,7 +187,7 @@ var _ = Describe("ServicePlan", func() {
 		It("returns error if Name is empty", func() {
 			servicePlan.Name = ""
 
-			err := servicePlan.Validate()
+			err := servicePlan.Validate(catalog)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Must provide a non-empty Name"))
 		})
@@ -191,7 +195,7 @@ var _ = Describe("ServicePlan", func() {
 		It("returns error if Description is empty", func() {
 			servicePlan.Description = ""
 
-			err := servicePlan.Validate()
+			err := servicePlan.Validate(catalog)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Must provide a non-empty Description"))
 		})
@@ -199,7 +203,7 @@ var _ = Describe("ServicePlan", func() {
 		It("returns error if RDSProperties are not valid", func() {
 			servicePlan.RDSProperties = RDSProperties{}
 
-			err := servicePlan.Validate()
+			err := servicePlan.Validate(catalog)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Validating RDS Properties configuration"))
 		})
@@ -208,6 +212,7 @@ var _ = Describe("ServicePlan", func() {
 
 var _ = Describe("RDSProperties", func() {
 	var (
+		catalog       Catalog
 		rdsProperties RDSProperties
 
 		validRDSProperties = RDSProperties{
@@ -219,19 +224,25 @@ var _ = Describe("RDSProperties", func() {
 	)
 
 	BeforeEach(func() {
+		catalog = Catalog{}
 		rdsProperties = validRDSProperties
 	})
 
 	Describe("Validate", func() {
 		It("does not return error if all fields are valid", func() {
-			err := rdsProperties.Validate()
+			catalog.ExcludeEngines = []Engine{{
+				Engine:        "some-engine",
+				EngineVersion: "some-engine-version",
+			}}
+
+			err := rdsProperties.Validate(catalog)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("returns error if DBInstanceClass is empty", func() {
 			rdsProperties.DBInstanceClass = ""
 
-			err := rdsProperties.Validate()
+			err := rdsProperties.Validate(catalog)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Must provide a non-empty DBInstanceClass"))
 		})
@@ -239,7 +250,7 @@ var _ = Describe("RDSProperties", func() {
 		It("returns error if Engine is empty", func() {
 			rdsProperties.Engine = ""
 
-			err := rdsProperties.Validate()
+			err := rdsProperties.Validate(catalog)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Must provide a non-empty Engine"))
 		})
@@ -247,9 +258,20 @@ var _ = Describe("RDSProperties", func() {
 		It("returns error if Engine is not supported", func() {
 			rdsProperties.Engine = "unsupported"
 
-			err := rdsProperties.Validate()
+			err := rdsProperties.Validate(catalog)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("This broker does not support RDS engine"))
+		})
+
+		It("returns error if Engine is excluded", func() {
+			catalog.ExcludeEngines = []Engine{{
+				Engine:        rdsProperties.Engine,
+				EngineVersion: "^5\\.6\\.",
+			}}
+
+			err := rdsProperties.Validate(catalog)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("This broker does not support version"))
 		})
 	})
 })
