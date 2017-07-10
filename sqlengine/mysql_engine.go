@@ -116,7 +116,7 @@ func (d *MySQLEngine) ResetState() error {
 }
 
 func (d *MySQLEngine) URI(address string, port int64, dbname string, username string, password string) string {
-	return fmt.Sprintf("mysql://%s:%s@%s:%d/%s?reconnect=true&useSSL=%t", username, password, address, port, dbname, d.requireSSL)
+	return fmt.Sprintf("mysql://%s:%s@%s:%d/%s?reconnect=true&useSSL=l%t&sslca=/etc/ssl/certs", username, password, address, port, dbname, d.requireSSL)
 }
 
 func (d *MySQLEngine) JDBCURI(address string, port int64, dbname string, username string, password string) string {
