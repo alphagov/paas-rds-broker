@@ -17,8 +17,8 @@ import (
 	"github.com/alphagov/paas-rds-broker/utils"
 )
 
-const masterUsernameLength = 16
-const masterPasswordLength = 32
+const MasterUsernameLength = 16
+const MasterPasswordLength = 32
 
 const instanceIDLogKey = "instance-id"
 const bindingIDLogKey = "binding-id"
@@ -610,11 +610,11 @@ func (b *RDSBroker) dbInstanceIdentifierToServiceInstanceID(serviceInstanceID st
 }
 
 func (b *RDSBroker) generateMasterUsername() string {
-	return utils.RandomAlphaNum(masterUsernameLength)
+	return utils.RandomAlphaNum(MasterUsernameLength)
 }
 
 func (b *RDSBroker) generateMasterPassword(instanceID string) string {
-	return utils.GetMD5B64(b.masterPasswordSeed+instanceID, masterPasswordLength)
+	return utils.GetMD5B64(b.masterPasswordSeed+instanceID, MasterPasswordLength)
 }
 
 func (b *RDSBroker) dbName(instanceID string) string {
