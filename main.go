@@ -90,5 +90,8 @@ func main() {
 	server := buildHTTPHandler(serviceBroker, logger, config)
 
 	fmt.Println("RDS Service Broker started on port " + port + "...")
+	for {
+		fmt.Println("Cowbell")
+	}
 	http.ListenAndServe(":"+port, server)
 }
