@@ -126,6 +126,14 @@ func (d *PostgresEngine) MigrateLegacyAdminUsers(bindingID, dbname string) (err 
 			return err
 		}
 
+		revokeStatement := fmt.Sprintf(`revoke all privileges on database "%s" from "%s"`, dbname, username)
+		d.logger.Debug("revoke-permissions", lager.Data{"statement": revokeStatement})
+
+		if _, err := d.db.Exec(revokeStatement); err != nil {
+			d.logger.Error("sql-error", err)
+			return err
+		}
+
 		removeAdminPrivilegesStatement := fmt.Sprintf(`revoke "%s" from current_user`, username)
 		d.logger.Debug("grant-privileges", lager.Data{"statement": removeAdminPrivilegesStatement})
 

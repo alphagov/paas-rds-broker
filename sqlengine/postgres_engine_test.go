@@ -286,9 +286,7 @@ var _ = Describe("PostgresEngine", func() {
 				legacyUserName, legacyUserPassword = createLegacyUser(masterConnectionString, dbname)
 				connectionStringLegacy = postgresEngine.URI(address, port, dbname, legacyUserName, legacyUserPassword)
 				createObjects(connectionStringLegacy, "legacy_table")
-			})
 
-			BeforeEach(func() {
 				bindingID = "binding-id" + randomTestSuffix
 				err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
 				Expect(err).ToNot(HaveOccurred())
@@ -314,6 +312,11 @@ var _ = Describe("PostgresEngine", func() {
 				accessAndDeleteObjects(connectionStringLegacy, "new_table")
 			})
 
+			It("Leaves the legacy user with no ownerships and direct permissions so that ResetState() can drop it", func() {
+				// Otherwise restoring snapshots of databases with legacy users will fail
+				err := postgresEngine.ResetState()
+				Expect(err).ToNot(HaveOccurred())
+			})
 		})
 	})
 
