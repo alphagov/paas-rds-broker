@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"text/template"
 
 	"github.com/lib/pq" // PostgreSQL Driver
@@ -245,7 +246,14 @@ func (d *PostgresEngine) URI(address string, port int64, dbname string, username
 }
 
 func (d *PostgresEngine) JDBCURI(address string, port int64, dbname string, username string, password string) string {
-	return fmt.Sprintf("jdbc:postgresql://%s:%d/%s?user=%s&password=%s", address, port, dbname, username, password)
+	params := &url.Values{}
+	params.Set("user", username)
+	params.Set("password", password)
+
+	if d.requireSSL {
+		params.Set("ssl", "true")
+	}
+	return fmt.Sprintf("jdbc:postgresql://%s:%d/%s?%s", address, port, dbname, params.Encode())
 }
 
 // generatePostgresGroup produces a deterministic group name. This is because the role
