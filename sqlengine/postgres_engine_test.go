@@ -178,6 +178,21 @@ var _ = Describe("PostgresEngine", func() {
 		dropTestUser(template1ConnectionString, masterUsername)
 	})
 
+	Context("can construct JDBC URI", func() {
+
+		It("when SSL is enabled", func() {
+			postgresEngine.requireSSL = true
+			jdbcuri := postgresEngine.JDBCURI(address, port, dbname, masterUsername, masterPassword)
+			Expect(jdbcuri).To(ContainSubstring("ssl=true"))
+		})
+
+		It("when SSL is disabled", func() {
+			postgresEngine.requireSSL = false
+			jdbcuri := postgresEngine.JDBCURI(address, port, dbname, masterUsername, masterPassword)
+			Expect(jdbcuri).ToNot(ContainSubstring("ssl=true"))
+		})
+	})
+
 	It("can connect to the new DB", func() {
 		err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
 		defer postgresEngine.Close()
