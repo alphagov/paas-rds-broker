@@ -102,7 +102,7 @@ func (d *PostgresEngine) MigrateLegacyAdminUsers(bindingID, dbname string) (err 
 	}
 
 	for _, username := range usersMigrate {
-		addAdminPrivilegesStatement := fmt.Sprintf(`grant "%s" to current_user with admin option`, username)
+		addAdminPrivilegesStatement := fmt.Sprintf(`grant "%s" to session_user with admin option`, username)
 		d.logger.Debug("grant-privileges", lager.Data{"statement": addAdminPrivilegesStatement})
 
 		if _, err := d.db.Exec(addAdminPrivilegesStatement); err != nil {
@@ -126,7 +126,7 @@ func (d *PostgresEngine) MigrateLegacyAdminUsers(bindingID, dbname string) (err 
 			return err
 		}
 
-		removeAdminPrivilegesStatement := fmt.Sprintf(`revoke "%s" from current_user`, username)
+		removeAdminPrivilegesStatement := fmt.Sprintf(`revoke "%s" from session_user`, username)
 		d.logger.Debug("grant-privileges", lager.Data{"statement": removeAdminPrivilegesStatement})
 
 		if _, err := d.db.Exec(removeAdminPrivilegesStatement); err != nil {
@@ -219,7 +219,7 @@ func (d *PostgresEngine) ResetState() error {
 func (d *PostgresEngine) listNonSuperUsers() ([]string, error) {
 	users := []string{}
 
-	rows, err := d.db.Query("select usename from pg_user where usesuper != true and usename != current_user")
+	rows, err := d.db.Query("select usename from pg_user where usesuper != true and usename != session_user")
 	if err != nil {
 		d.logger.Error("sql-error", err)
 		return nil, err
@@ -295,10 +295,10 @@ func (d *PostgresEngine) ensureGroup(dbname, groupname string) error {
 const ensureTriggerPattern = `
 	create or replace function reassign_owned() returns event_trigger language plpgsql as $$
 	begin
-		IF pg_has_role(current_user, '{{.role}}', 'member') AND
-		   NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true)
+		IF pg_has_role(session_user, '{{.role}}', 'member') AND
+		   NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = session_user and usesuper = true)
 		THEN
-			EXECUTE 'reassign owned by "' || current_user || '" to "{{.role}}"';
+			EXECUTE 'reassign owned by "' || session_user || '" to "{{.role}}"';
 		end if;
 	end
 	$$;
