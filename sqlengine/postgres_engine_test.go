@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/alphagov/paas-rds-broker/utils"
 	"github.com/lib/pq"
@@ -203,6 +204,38 @@ var _ = Describe("PostgresEngine", func() {
 		err := postgresEngine.Open("localhost", 1, dbname, masterUsername, masterPassword)
 		defer postgresEngine.Close()
 		Expect(err).To(HaveOccurred())
+	})
+
+	Describe("Concurrency", func() {
+
+		It("Should be able to handle rapid parallel CreateUser/DropUser from multiple connections", func() {
+
+			var wg sync.WaitGroup
+
+			for i := 0; i < 25; i++ {
+				wg.Add(1)
+				go func(bindingID string) {
+					defer GinkgoRecover()
+					defer wg.Done()
+					postgresEngine := NewPostgresEngine(logger)
+					postgresEngine.requireSSL = false
+
+					err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
+					Expect(err).ToNot(HaveOccurred())
+					defer postgresEngine.Close()
+
+					_, _, err = postgresEngine.CreateUser(bindingID, dbname)
+					Expect(err).ToNot(HaveOccurred())
+
+					err = postgresEngine.DropUser(bindingID)
+					Expect(err).ToNot(HaveOccurred())
+				}(fmt.Sprintf("binding-id-%s", i))
+			}
+
+			wg.Wait()
+
+		})
+
 	})
 
 	Describe("CreateUser", func() {
