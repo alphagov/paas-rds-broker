@@ -102,14 +102,6 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 		return "", "", err
 	}
 
-	ensurePublicSchemaOwnedByGroup := fmt.Sprintf(`alter schema public owner to "%s"`, groupname)
-	d.logger.Debug("alter-owner", lager.Data{"statement": ensurePublicSchemaOwnedByGroup})
-
-	if _, err := tx.Exec(ensurePublicSchemaOwnedByGroup); err != nil {
-		d.logger.Error("Alter sql-error", err)
-		return "", "", err
-	}
-
 	err = d.MigrateLegacyAdminUsers(tx, bindingID, dbname)
 	if err != nil {
 		d.logger.Error("Migrate sql-error", err)

@@ -295,9 +295,6 @@ var _ = Describe("PostgresEngine", func() {
 			_, err = db.Exec("DROP SCHEMA bar CASCADE")
 			Expect(err).ToNot(HaveOccurred())
 
-			_, err = db.Exec("DROP SCHEMA public CASCADE")
-			Expect(err).ToNot(HaveOccurred())
-
 		})
 
 		Context("When there are two different bindings", func() {
