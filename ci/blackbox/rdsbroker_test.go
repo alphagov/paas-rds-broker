@@ -100,7 +100,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				By("using those credentials to create objects")
 				credentials, err := getCredentialsFromBindResponse(resp)
 				Expect(err).ToNot(HaveOccurred())
-				err = setupPermissionsTest(credentials.URI, serviceID)
+				err = setupPermissionsTest(credentials.URI)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("re-binding")
@@ -114,7 +114,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				By("using the new credentials to alter existing objects")
 				credentials, err = getCredentialsFromBindResponse(resp)
 				Expect(err).ToNot(HaveOccurred())
-				err = permissionsTest(credentials.URI, serviceID)
+				err = permissionsTest(credentials.URI)
 				Expect(err).ToNot(HaveOccurred())
 			})
 		}
@@ -305,7 +305,7 @@ func openConnection(databaseURI string) (*sql.DB, error) {
 	return sql.Open(dbURL.Scheme, dsn)
 }
 
-func setupPermissionsTest(databaseURI, serviceID string) error {
+func setupPermissionsTest(databaseURI string) error {
 	db, err := openConnection(databaseURI)
 	if err != nil {
 		return err
@@ -322,7 +322,11 @@ func setupPermissionsTest(databaseURI, serviceID string) error {
 		return fmt.Errorf("Error inserting record: %s", err.Error())
 	}
 
-	switch serviceID {
+	dbURL, err := url.Parse(databaseURI)
+	if err != nil {
+		return err
+	}
+	switch dbURL.Scheme {
 	case "postgres":
 
 		_, err = db.Exec("CREATE SCHEMA foo")
@@ -345,7 +349,7 @@ func setupPermissionsTest(databaseURI, serviceID string) error {
 	return nil
 }
 
-func permissionsTest(databaseURI, serviceID string) error {
+func permissionsTest(databaseURI string) error {
 	db, err := openConnection(databaseURI)
 	if err != nil {
 		return err
@@ -367,7 +371,11 @@ func permissionsTest(databaseURI, serviceID string) error {
 		return fmt.Errorf("Error DROPing table: %s", err.Error())
 	}
 
-	switch serviceID {
+	dbURL, err := url.Parse(databaseURI)
+	if err != nil {
+		return err
+	}
+	switch dbURL.Scheme {
 	case "postgres":
 
 		_, err = db.Exec("DROP SCHEMA foo CASCADE")
