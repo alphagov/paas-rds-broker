@@ -21,8 +21,7 @@ import (
 )
 
 const (
-	INSTANCE_CREATE_TIMEOUT  = 30 * time.Minute
-	permissionCheckTableName = "permissions_check"
+	INSTANCE_CREATE_TIMEOUT = 30 * time.Minute
 )
 
 var _ = Describe("RDS Broker Daemon", func() {
@@ -101,7 +100,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				By("using those credentials to create objects")
 				credentials, err := getCredentialsFromBindResponse(resp)
 				Expect(err).ToNot(HaveOccurred())
-				err = setupPermissionsTest(credentials.URI)
+				err = setupPermissionsTest(credentials.URI, serviceID)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("re-binding")
@@ -115,7 +114,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				By("using the new credentials to alter existing objects")
 				credentials, err = getCredentialsFromBindResponse(resp)
 				Expect(err).ToNot(HaveOccurred())
-				err = permissionsTest(credentials.URI)
+				err = permissionsTest(credentials.URI, serviceID)
 				Expect(err).ToNot(HaveOccurred())
 			})
 		}
@@ -306,49 +305,76 @@ func openConnection(databaseURI string) (*sql.DB, error) {
 	return sql.Open(dbURL.Scheme, dsn)
 }
 
-func setupPermissionsTest(databaseURI string) error {
+func setupPermissionsTest(databaseURI, serviceID string) error {
 	db, err := openConnection(databaseURI)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
-	_, err = db.Exec("CREATE TABLE " + permissionCheckTableName + " (id integer)")
+	_, err = db.Exec("CREATE TABLE permissions_check (id integer)")
 	if err != nil {
 		return fmt.Errorf("Error creating table: %s", err.Error())
 	}
 
-	_, err = db.Exec("INSERT INTO " + permissionCheckTableName + " VALUES(42)")
+	_, err = db.Exec("INSERT INTO permissions_check VALUES(42)")
 	if err != nil {
 		return fmt.Errorf("Error inserting record: %s", err.Error())
+	}
+
+	switch serviceID {
+	case "postgres":
+
+		_, err = db.Exec("CREATE SCHEMA foo")
+		if err != nil {
+			return fmt.Errorf("Error creating a schema: %s", err.Error())
+		}
+
+		_, err = db.Exec("CREATE TABLE foo.bar (id integer)")
+		if err != nil {
+			return fmt.Errorf("Error creating a table within a schema: %s", err.Error())
+		}
+
+		_, err = db.Exec("INSERT INTO foo.bar (id) VALUES (1)")
+		if err != nil {
+			return fmt.Errorf("Error inserting into table within a schema: %s", err.Error())
+		}
+
 	}
 
 	return nil
 }
 
-func permissionsTest(databaseURI string) error {
+func permissionsTest(databaseURI, serviceID string) error {
 	db, err := openConnection(databaseURI)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
-	// Can we write?
-	_, err = db.Exec("INSERT INTO " + permissionCheckTableName + " VALUES(43)")
+	_, err = db.Exec("INSERT INTO permissions_check VALUES (43)")
 	if err != nil {
 		return fmt.Errorf("Error inserting record: %s", err.Error())
 	}
 
-	// Can we ALTER?
-	_, err = db.Exec("ALTER TABLE " + permissionCheckTableName + " ADD COLUMN something INTEGER")
+	_, err = db.Exec("ALTER TABLE permissions_check ADD COLUMN something INTEGER")
 	if err != nil {
 		return fmt.Errorf("Error ALTERing table: %s", err.Error())
 	}
 
-	// Can we DROP?
-	_, err = db.Exec("DROP TABLE " + permissionCheckTableName)
+	_, err = db.Exec("DROP TABLE permissions_check")
 	if err != nil {
 		return fmt.Errorf("Error DROPing table: %s", err.Error())
+	}
+
+	switch serviceID {
+	case "postgres":
+
+		_, err = db.Exec("DROP SCHEMA foo CASCADE")
+		if err != nil {
+			return fmt.Errorf("Error dropping schema: %s", err.Error())
+		}
+
 	}
 
 	return nil

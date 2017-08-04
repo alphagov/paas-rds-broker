@@ -94,6 +94,22 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 		return "", "", err
 	}
 
+	grantAllOnDatabaseStatement := fmt.Sprintf(`grant all privileges on database "%s" to "%s"`, dbname, groupname)
+	d.logger.Debug("grant-privileges", lager.Data{"statement": grantAllOnDatabaseStatement})
+
+	if _, err := tx.Exec(grantAllOnDatabaseStatement); err != nil {
+		d.logger.Error("Grant sql-error", err)
+		return "", "", err
+	}
+
+	ensurePublicSchemaOwnedByGroup := fmt.Sprintf(`alter schema public owner to "%s"`, groupname)
+	d.logger.Debug("alter-owner", lager.Data{"statement": ensurePublicSchemaOwnedByGroup})
+
+	if _, err := tx.Exec(ensurePublicSchemaOwnedByGroup); err != nil {
+		d.logger.Error("Alter sql-error", err)
+		return "", "", err
+	}
+
 	err = d.MigrateLegacyAdminUsers(tx, bindingID, dbname)
 	if err != nil {
 		d.logger.Error("Migrate sql-error", err)
@@ -146,6 +162,7 @@ func (d *PostgresEngine) MigrateLegacyAdminUsers(tx *sql.Tx, bindingID, dbname s
 	}
 
 	for _, username := range usersMigrate {
+
 		addAdminPrivilegesStatement := fmt.Sprintf(`grant "%s" to current_user with admin option`, username)
 		d.logger.Debug("grant-privileges", lager.Data{"statement": addAdminPrivilegesStatement})
 

@@ -268,6 +268,38 @@ var _ = Describe("PostgresEngine", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		It("creates a user with the necessary permissions on the database", func() {
+			connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+			db, err := sql.Open("postgres", connectionString)
+			Expect(err).ToNot(HaveOccurred())
+			defer db.Close()
+
+			_, err = db.Exec("CREATE TABLE foo (col CHAR(8))")
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = db.Exec("INSERT INTO foo (col) VALUES ('value')")
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = db.Exec("CREATE SCHEMA bar")
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = db.Exec("CREATE TABLE bar.baz (col CHAR(8))")
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = db.Exec("INSERT INTO bar.baz (col) VALUES ('other')")
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = db.Exec("DROP TABLE bar.baz")
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = db.Exec("DROP SCHEMA bar CASCADE")
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = db.Exec("DROP SCHEMA public CASCADE")
+			Expect(err).ToNot(HaveOccurred())
+
+		})
+
 		Context("When there are two different bindings", func() {
 			var (
 				otherBindingID       string
