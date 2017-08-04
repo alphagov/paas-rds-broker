@@ -36,25 +36,6 @@ $ cp config-sample.json config.json
 $ cf push rds-broker
 ```
 
-### Docker
-
-If you want to run the AWS RDS Service Broker on a Docker container, you can use the [cfplatformeng/rds-broker](https://registry.hub.docker.com/u/cfplatformeng/rds-broker/) Docker image.
-
-```
-$ docker run -d --name rds-broker -p 3000:3000 \
-  -e AWS_ACCESS_KEY_ID=<your-aws-access-key-id> \
-  -e AWS_SECRET_ACCESS_KEY=<your-aws-secret-access-key> \
-  cfplatformeng/rds-broker
-```
-
-The Docker image cames with an [embedded sample configuration file](https://github.com/alphagov/paas-rds-broker/blob/master/config-sample.json). If you want to override it, you can create the Docker image with you custom configuration file by running:
-
-```
-$ git clone https://github.com/alphagov/paas-rds-broker.git
-$ cd rds-broker
-$ bin/build-docker-image
-```
-
 ### BOSH
 
 This broker can be deployed using the [AWS Service Broker BOSH Release](https://github.com/cf-platform-eng/aws-broker-boshrelease).
