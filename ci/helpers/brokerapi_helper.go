@@ -162,73 +162,73 @@ func (b *BrokerAPIClient) DoUpdateRequest(instanceID, serviceID, planID string, 
 func (b *BrokerAPIClient) ProvisionInstance(instanceID, serviceID, planID string, paramJSON string) (responseCode int, operation string, err error) {
 	resp, err := b.DoProvisionRequest(instanceID, serviceID, planID, paramJSON)
 	if err != nil {
+		return 0, "", err
+	}
+	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 202 {
+		return resp.StatusCode, "", nil
+	}
+
+	provisioningResponse := ProvisioningResponse{}
+
+	body, err := BodyBytes(resp)
+	if err != nil {
 		return resp.StatusCode, "", err
 	}
-	if resp.StatusCode == 200 || resp.StatusCode == 201 || resp.StatusCode == 202 {
-		provisioningResponse := ProvisioningResponse{}
 
-		body, err := BodyBytes(resp)
-		if err != nil {
-			return resp.StatusCode, "", err
-		}
-
-		err = json.Unmarshal(body, &provisioningResponse)
-		if err != nil {
-			return resp.StatusCode, "", err
-		}
-
-		return resp.StatusCode, provisioningResponse.Operation, err
+	err = json.Unmarshal(body, &provisioningResponse)
+	if err != nil {
+		return resp.StatusCode, "", err
 	}
 
-	return resp.StatusCode, "", nil
+	return resp.StatusCode, provisioningResponse.Operation, nil
 }
 
 func (b *BrokerAPIClient) DeprovisionInstance(instanceID, serviceID, planID string) (responseCode int, operation string, err error) {
 	resp, err := b.DoDeprovisionRequest(instanceID, serviceID, planID)
 	if err != nil {
+		return 0, "", err
+	}
+	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 202 {
+		return resp.StatusCode, "", nil
+	}
+
+	provisioningResponse := ProvisioningResponse{}
+
+	body, err := BodyBytes(resp)
+	if err != nil {
 		return resp.StatusCode, "", err
 	}
-	if resp.StatusCode == 200 || resp.StatusCode == 201 || resp.StatusCode == 202 {
-		provisioningResponse := ProvisioningResponse{}
 
-		body, err := BodyBytes(resp)
-		if err != nil {
-			return resp.StatusCode, "", err
-		}
-
-		err = json.Unmarshal(body, &provisioningResponse)
-		if err != nil {
-			return resp.StatusCode, "", err
-		}
-
-		return resp.StatusCode, provisioningResponse.Operation, err
+	err = json.Unmarshal(body, &provisioningResponse)
+	if err != nil {
+		return resp.StatusCode, "", err
 	}
 
-	return resp.StatusCode, "", nil
+	return resp.StatusCode, provisioningResponse.Operation, nil
 }
 
 func (b *BrokerAPIClient) UpdateInstance(instanceID, serviceID, planID string, newPlanID string, paramJSON string) (responseCode int, operation string, err error) {
 	resp, err := b.DoUpdateRequest(instanceID, serviceID, planID, newPlanID, paramJSON)
 	if err != nil {
+		return 0, "", err
+	}
+	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 202 {
+		return resp.StatusCode, "", nil
+	}
+
+	provisioningResponse := ProvisioningResponse{}
+
+	body, err := BodyBytes(resp)
+	if err != nil {
 		return resp.StatusCode, "", err
 	}
-	if resp.StatusCode == 200 || resp.StatusCode == 201 || resp.StatusCode == 202 {
-		provisioningResponse := ProvisioningResponse{}
 
-		body, err := BodyBytes(resp)
-		if err != nil {
-			return resp.StatusCode, "", err
-		}
-
-		err = json.Unmarshal(body, &provisioningResponse)
-		if err != nil {
-			return resp.StatusCode, "", err
-		}
-
-		return resp.StatusCode, provisioningResponse.Operation, err
+	err = json.Unmarshal(body, &provisioningResponse)
+	if err != nil {
+		return resp.StatusCode, "", err
 	}
 
-	return resp.StatusCode, "", nil
+	return resp.StatusCode, provisioningResponse.Operation, nil
 }
 
 func (b *BrokerAPIClient) DoLastOperationRequest(instanceID, serviceID, planID, operation string) (*http.Response, error) {

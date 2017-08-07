@@ -94,6 +94,14 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 		return "", "", err
 	}
 
+	grantAllOnDatabaseStatement := fmt.Sprintf(`grant all privileges on database "%s" to "%s"`, dbname, groupname)
+	d.logger.Debug("grant-privileges", lager.Data{"statement": grantAllOnDatabaseStatement})
+
+	if _, err := tx.Exec(grantAllOnDatabaseStatement); err != nil {
+		d.logger.Error("Grant sql-error", err)
+		return "", "", err
+	}
+
 	err = d.MigrateLegacyAdminUsers(tx, bindingID, dbname)
 	if err != nil {
 		d.logger.Error("Migrate sql-error", err)
@@ -146,6 +154,7 @@ func (d *PostgresEngine) MigrateLegacyAdminUsers(tx *sql.Tx, bindingID, dbname s
 	}
 
 	for _, username := range usersMigrate {
+
 		addAdminPrivilegesStatement := fmt.Sprintf(`grant "%s" to current_user with admin option`, username)
 		d.logger.Debug("grant-privileges", lager.Data{"statement": addAdminPrivilegesStatement})
 
@@ -173,7 +182,7 @@ func (d *PostgresEngine) MigrateLegacyAdminUsers(tx *sql.Tx, bindingID, dbname s
 		revokeStatement := fmt.Sprintf(`revoke all privileges on database "%s" from "%s"`, dbname, username)
 		d.logger.Debug("revoke-permissions", lager.Data{"statement": revokeStatement})
 
-		if _, err := d.db.Exec(revokeStatement); err != nil {
+		if _, err := tx.Exec(revokeStatement); err != nil {
 			d.logger.Error("sql-error", err)
 			return err
 		}
