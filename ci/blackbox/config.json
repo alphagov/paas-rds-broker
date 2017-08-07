@@ -27,6 +27,10 @@
                                 "engine_version": "9.5",
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
+                                ],
+                                "postgres_extensions": [
+                                    "uuid-ossp",
+                                    "postgis"
                                 ]
                             }
                         },
@@ -44,6 +48,10 @@
                                 "skip_final_snapshot": true,
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
+                                ],
+                                "postgres_extensions": [
+                                    "uuid-ossp",
+                                    "postgis"
                                 ]
                             }
                         }

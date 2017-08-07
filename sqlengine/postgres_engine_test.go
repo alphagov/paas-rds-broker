@@ -503,4 +503,26 @@ var _ = Describe("PostgresEngine", func() {
 		})
 	})
 
+	Describe("Extensions", func() {
+		It("can create extensions", func() {
+			err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
+			defer postgresEngine.Close()
+			Expect(err).ToNot(HaveOccurred())
+			err = postgresEngine.CreateExtensions([]string{"uuid-ossp", "pgcrypto"})
+			Expect(err).ToNot(HaveOccurred())
+			rows, err := postgresEngine.db.Query("SELECT extname FROM pg_catalog.pg_extension")
+			defer rows.Close()
+			Expect(err).ToNot(HaveOccurred())
+			extensions := []string{}
+			for rows.Next() {
+				var name string
+				err = rows.Scan(&name)
+				Expect(err).ToNot(HaveOccurred())
+				extensions = append(extensions, name)
+			}
+			Expect(rows.Err()).ToNot(HaveOccurred())
+			Expect(extensions).To(ContainElement("uuid-ossp"))
+			Expect(extensions).To(ContainElement("pgcrypto"))
+		})
+	})
 })

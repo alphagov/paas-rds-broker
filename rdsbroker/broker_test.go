@@ -115,7 +115,7 @@ var _ = Describe("RDS Broker", func() {
 
 		rdsProperties3 = RDSProperties{
 			DBInstanceClass:   "db.m3.test",
-			Engine:            "test-engine-3",
+			Engine:            "postgres",
 			EngineVersion:     "4.5.6",
 			AllocatedStorage:  300,
 			SkipFinalSnapshot: false,
@@ -2081,6 +2081,21 @@ var _ = Describe("RDS Broker", func() {
 				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+			})
+
+			Context("the SQL engine is Postgres", func() {
+				JustBeforeEach(func() {
+					dbInstance.DescribeDBInstanceDetails.Tags = map[string]string{
+						"Plan ID": "Plan-3",
+					}
+				})
+
+				It("attempts to create Postgres extenions", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(sqlEngine.CreateExtensionsCalled).To(BeTrue())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
 			})
 
 			Context("but has pending modifications", func() {
