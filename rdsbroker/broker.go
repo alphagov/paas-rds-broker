@@ -341,7 +341,7 @@ func (b *RDSBroker) Bind(
 	dbAddress := dbInstanceDetails.Address
 	dbPort := dbInstanceDetails.Port
 	masterUsername := dbInstanceDetails.MasterUsername
-	dbName := b.dbNameFromDetails(instanceID, dbInstanceDetails)
+	dbName := b.dbNameFromDetails(instanceID, &dbInstanceDetails)
 
 	sqlEngine, err := b.sqlProvider.GetSQLEngine(servicePlan.RDSProperties.Engine)
 	if err != nil {
@@ -400,7 +400,7 @@ func (b *RDSBroker) Unbind(
 	dbAddress = dbInstanceDetails.Address
 	dbPort = dbInstanceDetails.Port
 	masterUsername = dbInstanceDetails.MasterUsername
-	dbName = b.dbNameFromDetails(instanceID, dbInstanceDetails)
+	dbName = b.dbNameFromDetails(instanceID, &dbInstanceDetails)
 
 	sqlEngine, err := b.sqlProvider.GetSQLEngine(servicePlan.RDSProperties.Engine)
 	if err != nil {
@@ -493,7 +493,7 @@ func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstanceDetails 
 		dbAddress := dbInstanceDetails.Address
 		dbPort := dbInstanceDetails.Port
 		masterUsername := dbInstanceDetails.MasterUsername
-		dbName := b.dbNameFromDetails(instanceID, *dbInstanceDetails)
+		dbName := b.dbNameFromDetails(instanceID, dbInstanceDetails)
 
 		sqlEngine, err := b.sqlProvider.GetSQLEngine(servicePlan.RDSProperties.Engine)
 		if err != nil {
@@ -550,7 +550,7 @@ func (b *RDSBroker) changeUserPassword(instanceID string, dbInstanceDetails *aws
 	dbAddress := dbInstanceDetails.Address
 	dbPort := dbInstanceDetails.Port
 	masterUsername := dbInstanceDetails.MasterUsername
-	dbName := b.dbNameFromDetails(instanceID, *dbInstanceDetails)
+	dbName := b.dbNameFromDetails(instanceID, dbInstanceDetails)
 
 	sqlEngine, err := b.sqlProvider.GetSQLEngine(dbInstanceDetails.Engine)
 	if err != nil {
@@ -610,7 +610,7 @@ func (b *RDSBroker) CheckAndRotateCredentials() {
 		b.logger.Debug(fmt.Sprintf("Checking credentials for instance %v", dbDetails.Identifier))
 		serviceInstanceID := b.dbInstanceIdentifierToServiceInstanceID(dbDetails.Identifier)
 		masterPassword := b.generateMasterPassword(serviceInstanceID)
-		dbName := b.dbNameFromDetails(dbDetails.Identifier, *dbDetails)
+		dbName := b.dbNameFromDetails(dbDetails.Identifier, dbDetails)
 
 		sqlEngine, err := b.sqlProvider.GetSQLEngine(dbDetails.Engine)
 		if err != nil {
@@ -661,7 +661,7 @@ func (b *RDSBroker) dbName(instanceID string) string {
 	return fmt.Sprintf("%s_%s", strings.Replace(b.dbPrefix, "-", "_", -1), strings.Replace(instanceID, "-", "_", -1))
 }
 
-func (b *RDSBroker) dbNameFromDetails(instanceID string, dbInstanceDetails awsrds.DBInstanceDetails) string {
+func (b *RDSBroker) dbNameFromDetails(instanceID string, dbInstanceDetails *awsrds.DBInstanceDetails) string {
 	var dbName string
 	if dbInstanceDetails.DBName != "" {
 		dbName = dbInstanceDetails.DBName
