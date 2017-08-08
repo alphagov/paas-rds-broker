@@ -198,7 +198,7 @@ var _ = Describe("RDS Broker", func() {
 		rdsBrokerServer = brokerapi.New(rdsBroker, logger, credentials)
 	})
 
-	var _ = Describe("Services", func() {
+	Describe("Services", func() {
 		var (
 			properCatalogResponse []brokerapi.Service
 		)
@@ -298,7 +298,7 @@ var _ = Describe("RDS Broker", func() {
 
 	})
 
-	var _ = Describe("Provision", func() {
+	Describe("Provision", func() {
 		var (
 			provisionDetails  brokerapi.ProvisionDetails
 			acceptsIncomplete bool
@@ -993,7 +993,7 @@ var _ = Describe("RDS Broker", func() {
 
 	})
 
-	var _ = Describe("Update", func() {
+	Describe("Update", func() {
 		var (
 			updateDetails           brokerapi.UpdateDetails
 			acceptsIncomplete       bool
@@ -1489,7 +1489,7 @@ var _ = Describe("RDS Broker", func() {
 		})
 	})
 
-	var _ = Describe("Deprovision", func() {
+	Describe("Deprovision", func() {
 		var (
 			deprovisionDetails           brokerapi.DeprovisionDetails
 			acceptsIncomplete            bool
@@ -1584,7 +1584,7 @@ var _ = Describe("RDS Broker", func() {
 		})
 	})
 
-	var _ = Describe("Bind", func() {
+	Describe("Bind", func() {
 		var (
 			bindDetails brokerapi.BindDetails
 		)
@@ -1844,7 +1844,7 @@ var _ = Describe("RDS Broker", func() {
 		})
 	})
 
-	var _ = Describe("Unbind", func() {
+	Describe("Unbind", func() {
 		var (
 			unbindDetails brokerapi.UnbindDetails
 		)
@@ -1956,7 +1956,7 @@ var _ = Describe("RDS Broker", func() {
 		})
 	})
 
-	var _ = Describe("LastOperation", func() {
+	Describe("LastOperation", func() {
 		var (
 			dbInstanceStatus            string
 			lastOperationState          brokerapi.LastOperationState
@@ -2318,7 +2318,7 @@ var _ = Describe("RDS Broker", func() {
 
 	})
 
-	var _ = Describe("CheckAndRotateCredentials", func() {
+	Describe("CheckAndRotateCredentials", func() {
 		Context("when there is no DB instance", func() {
 			It("shouldn't try to connect to databases", func() {
 				rdsBroker.CheckAndRotateCredentials()
