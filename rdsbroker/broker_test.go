@@ -115,7 +115,7 @@ var _ = Describe("RDS Broker", func() {
 
 		rdsProperties3 = RDSProperties{
 			DBInstanceClass:   "db.m3.test",
-			Engine:            "test-engine-3",
+			Engine:            "postgres",
 			EngineVersion:     "4.5.6",
 			AllocatedStorage:  300,
 			SkipFinalSnapshot: false,
@@ -198,7 +198,7 @@ var _ = Describe("RDS Broker", func() {
 		rdsBrokerServer = brokerapi.New(rdsBroker, logger, credentials)
 	})
 
-	var _ = Describe("Services", func() {
+	Describe("Services", func() {
 		var (
 			properCatalogResponse []brokerapi.Service
 		)
@@ -298,7 +298,7 @@ var _ = Describe("RDS Broker", func() {
 
 	})
 
-	var _ = Describe("Provision", func() {
+	Describe("Provision", func() {
 		var (
 			provisionDetails  brokerapi.ProvisionDetails
 			acceptsIncomplete bool
@@ -993,7 +993,7 @@ var _ = Describe("RDS Broker", func() {
 
 	})
 
-	var _ = Describe("Update", func() {
+	Describe("Update", func() {
 		var (
 			updateDetails           brokerapi.UpdateDetails
 			acceptsIncomplete       bool
@@ -1489,7 +1489,7 @@ var _ = Describe("RDS Broker", func() {
 		})
 	})
 
-	var _ = Describe("Deprovision", func() {
+	Describe("Deprovision", func() {
 		var (
 			deprovisionDetails           brokerapi.DeprovisionDetails
 			acceptsIncomplete            bool
@@ -1584,7 +1584,7 @@ var _ = Describe("RDS Broker", func() {
 		})
 	})
 
-	var _ = Describe("Bind", func() {
+	Describe("Bind", func() {
 		var (
 			bindDetails brokerapi.BindDetails
 		)
@@ -1844,7 +1844,7 @@ var _ = Describe("RDS Broker", func() {
 		})
 	})
 
-	var _ = Describe("Unbind", func() {
+	Describe("Unbind", func() {
 		var (
 			unbindDetails brokerapi.UnbindDetails
 		)
@@ -1956,7 +1956,7 @@ var _ = Describe("RDS Broker", func() {
 		})
 	})
 
-	var _ = Describe("LastOperation", func() {
+	Describe("LastOperation", func() {
 		var (
 			dbInstanceStatus            string
 			lastOperationState          brokerapi.LastOperationState
@@ -2081,6 +2081,21 @@ var _ = Describe("RDS Broker", func() {
 				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+			})
+
+			Context("the SQL engine is Postgres", func() {
+				JustBeforeEach(func() {
+					dbInstance.DescribeDBInstanceDetails.Tags = map[string]string{
+						"Plan ID": "Plan-3",
+					}
+				})
+
+				It("attempts to create Postgres extenions", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(sqlEngine.CreateExtensionsCalled).To(BeTrue())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
 			})
 
 			Context("but has pending modifications", func() {
@@ -2303,7 +2318,7 @@ var _ = Describe("RDS Broker", func() {
 
 	})
 
-	var _ = Describe("CheckAndRotateCredentials", func() {
+	Describe("CheckAndRotateCredentials", func() {
 		Context("when there is no DB instance", func() {
 			It("shouldn't try to connect to databases", func() {
 				rdsBroker.CheckAndRotateCredentials()

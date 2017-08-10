@@ -29,6 +29,8 @@ type FakeSQLEngine struct {
 	DropUserBindingID string
 	DropUserError     error
 
+	CreateExtensionsCalled bool
+
 	ResetStateCalled bool
 	ResetStateError  error
 
@@ -82,4 +84,10 @@ func (f *FakeSQLEngine) URI(address string, port int64, dbname string, username 
 
 func (f *FakeSQLEngine) JDBCURI(address string, port int64, dbname string, username string, password string) string {
 	return fmt.Sprintf("jdbc:fake://%s:%d/%s?user=%s&password=%s", address, port, dbname, username, password)
+}
+
+func (f *FakeSQLEngine) CreateExtensions(extensions []string) error {
+	f.CreateExtensionsCalled = true
+
+	return nil
 }

@@ -341,7 +341,7 @@ func (b *RDSBroker) Bind(
 	dbAddress := dbInstanceDetails.Address
 	dbPort := dbInstanceDetails.Port
 	masterUsername := dbInstanceDetails.MasterUsername
-	dbName := b.dbNameFromDetails(instanceID, dbInstanceDetails)
+	dbName := b.dbNameFromDetails(instanceID, &dbInstanceDetails)
 
 	sqlEngine, err := b.sqlProvider.GetSQLEngine(servicePlan.RDSProperties.Engine)
 	if err != nil {
@@ -400,7 +400,7 @@ func (b *RDSBroker) Unbind(
 	dbAddress = dbInstanceDetails.Address
 	dbPort = dbInstanceDetails.Port
 	masterUsername = dbInstanceDetails.MasterUsername
-	dbName = b.dbNameFromDetails(instanceID, dbInstanceDetails)
+	dbName = b.dbNameFromDetails(instanceID, &dbInstanceDetails)
 
 	sqlEngine, err := b.sqlProvider.GetSQLEngine(servicePlan.RDSProperties.Engine)
 	if err != nil {
@@ -461,6 +461,11 @@ func (b *RDSBroker) LastOperation(
 					State:       brokerapi.InProgress,
 					Description: fmt.Sprintf("DB Instance '%s' has pending post restore modifications", b.dbInstanceIdentifier(instanceID)),
 				}
+			} else {
+				err = b.ensureCreateExtensions(instanceID, &dbInstanceDetails)
+				if err != nil {
+					return brokerapi.LastOperation{State: brokerapi.Failed}, err
+				}
 			}
 		}
 	}
@@ -471,6 +476,41 @@ func (b *RDSBroker) LastOperation(
 	})
 
 	return lastOperationResponse, nil
+}
+
+func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstanceDetails *awsrds.DBInstanceDetails) error {
+	b.logger.Debug("ensure-create-extensions", lager.Data{
+		instanceIDLogKey: instanceID,
+	})
+
+	planID := dbInstanceDetails.Tags[TagPlanID]
+	servicePlan, ok := b.catalog.FindServicePlan(planID)
+	if !ok {
+		return fmt.Errorf("Service Plan '%s' not found while ensuring extensions are created", planID)
+	}
+
+	if servicePlan.RDSProperties.Engine == "postgres" {
+		dbAddress := dbInstanceDetails.Address
+		dbPort := dbInstanceDetails.Port
+		masterUsername := dbInstanceDetails.MasterUsername
+		dbName := b.dbNameFromDetails(instanceID, dbInstanceDetails)
+
+		sqlEngine, err := b.sqlProvider.GetSQLEngine(servicePlan.RDSProperties.Engine)
+		if err != nil {
+			return err
+		}
+
+		if err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, b.generateMasterPassword(instanceID)); err != nil {
+			return err
+		}
+		defer sqlEngine.Close()
+
+		if err = sqlEngine.CreateExtensions(servicePlan.RDSProperties.PostgresExtensions); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (b *RDSBroker) updateDBSettings(instanceID string, dbInstanceDetails *awsrds.DBInstanceDetails) (asyncOperarionTriggered bool, err error) {
@@ -510,7 +550,7 @@ func (b *RDSBroker) changeUserPassword(instanceID string, dbInstanceDetails *aws
 	dbAddress := dbInstanceDetails.Address
 	dbPort := dbInstanceDetails.Port
 	masterUsername := dbInstanceDetails.MasterUsername
-	dbName := b.dbNameFromDetails(instanceID, *dbInstanceDetails)
+	dbName := b.dbNameFromDetails(instanceID, dbInstanceDetails)
 
 	sqlEngine, err := b.sqlProvider.GetSQLEngine(dbInstanceDetails.Engine)
 	if err != nil {
@@ -570,7 +610,7 @@ func (b *RDSBroker) CheckAndRotateCredentials() {
 		b.logger.Debug(fmt.Sprintf("Checking credentials for instance %v", dbDetails.Identifier))
 		serviceInstanceID := b.dbInstanceIdentifierToServiceInstanceID(dbDetails.Identifier)
 		masterPassword := b.generateMasterPassword(serviceInstanceID)
-		dbName := b.dbNameFromDetails(dbDetails.Identifier, *dbDetails)
+		dbName := b.dbNameFromDetails(dbDetails.Identifier, dbDetails)
 
 		sqlEngine, err := b.sqlProvider.GetSQLEngine(dbDetails.Engine)
 		if err != nil {
@@ -621,7 +661,7 @@ func (b *RDSBroker) dbName(instanceID string) string {
 	return fmt.Sprintf("%s_%s", strings.Replace(b.dbPrefix, "-", "_", -1), strings.Replace(instanceID, "-", "_", -1))
 }
 
-func (b *RDSBroker) dbNameFromDetails(instanceID string, dbInstanceDetails awsrds.DBInstanceDetails) string {
+func (b *RDSBroker) dbNameFromDetails(instanceID string, dbInstanceDetails *awsrds.DBInstanceDetails) string {
 	var dbName string
 	if dbInstanceDetails.DBName != "" {
 		dbName = dbInstanceDetails.DBName

@@ -97,10 +97,12 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(resp.StatusCode).To(Equal(201))
 
-				By("using those credentials to create objects")
+				By("using the credentials from the binding")
 				credentials, err := getCredentialsFromBindResponse(resp)
 				Expect(err).ToNot(HaveOccurred())
 				err = setupPermissionsTest(credentials.URI)
+				Expect(err).ToNot(HaveOccurred())
+				err = postgresExtensionsTest(credentials.URI)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("re-binding")
@@ -328,7 +330,6 @@ func setupPermissionsTest(databaseURI string) error {
 	}
 	switch dbURL.Scheme {
 	case "postgres":
-
 		_, err = db.Exec("CREATE SCHEMA foo")
 		if err != nil {
 			return fmt.Errorf("Error creating a schema: %s", err.Error())
@@ -343,7 +344,10 @@ func setupPermissionsTest(databaseURI string) error {
 		if err != nil {
 			return fmt.Errorf("Error inserting into table within a schema: %s", err.Error())
 		}
-
+	case "mysql":
+		// There are no MySQL-specific tests
+	default:
+		return fmt.Errorf("Scheme must either be postgres or mysql")
 	}
 
 	return nil
@@ -377,12 +381,49 @@ func permissionsTest(databaseURI string) error {
 	}
 	switch dbURL.Scheme {
 	case "postgres":
-
 		_, err = db.Exec("DROP SCHEMA foo CASCADE")
 		if err != nil {
 			return fmt.Errorf("Error dropping schema: %s", err.Error())
 		}
+	case "mysql":
+		// There are no MySQL-specific tests
+	default:
+		return fmt.Errorf("Scheme must either be postgres or mysql")
+	}
 
+	return nil
+}
+
+func postgresExtensionsTest(databaseURI string) error {
+	db, err := openConnection(databaseURI)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	dbURL, err := url.Parse(databaseURI)
+	if err != nil {
+		return err
+	}
+	switch dbURL.Scheme {
+	case "postgres":
+		rows, err := db.Query("SELECT extname FROM pg_catalog.pg_extension")
+		defer rows.Close()
+		Expect(err).ToNot(HaveOccurred())
+		extensions := []string{}
+		for rows.Next() {
+			var name string
+			err = rows.Scan(&name)
+			Expect(err).ToNot(HaveOccurred())
+			extensions = append(extensions, name)
+		}
+		Expect(rows.Err()).ToNot(HaveOccurred())
+		Expect(extensions).To(ContainElement("uuid-ossp"))
+		Expect(extensions).To(ContainElement("postgis"))
+	case "mysql":
+		// There are no MySQL-specific tests
+	default:
+		return fmt.Errorf("Scheme must either be postgres or mysql")
 	}
 
 	return nil

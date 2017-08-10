@@ -317,6 +317,22 @@ func (d *PostgresEngine) JDBCURI(address string, port int64, dbname string, user
 	return fmt.Sprintf("jdbc:postgresql://%s:%d/%s?%s", address, port, dbname, params.Encode())
 }
 
+const createExtensionPattern = `CREATE EXTENSION IF NOT EXISTS "{{.extension}}"`
+
+func (d *PostgresEngine) CreateExtensions(extensions []string) error {
+	for _, extension := range extensions {
+		createExtensionTemplate := template.Must(template.New(extension + "Extension").Parse(createExtensionPattern))
+		var createExtensionStatement bytes.Buffer
+		if err := createExtensionTemplate.Execute(&createExtensionStatement, map[string]string{"extension": extension}); err != nil {
+			return err
+		}
+		if _, err := d.db.Exec(createExtensionStatement.String()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // generatePostgresGroup produces a deterministic group name. This is because the role
 // will be persisted across all application bindings
 func (d *PostgresEngine) generatePostgresGroup(dbname string) string {

@@ -131,3 +131,7 @@ func (d *MySQLEngine) JDBCURI(address string, port int64, dbname string, usernam
 func (d *MySQLEngine) connectionString(address string, port int64, dbname string, username string, password string) string {
 	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", username, password, address, port, dbname)
 }
+
+func (d *MySQLEngine) CreateExtensions(extensions []string) error {
+	return nil
+}
