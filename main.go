@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -89,6 +90,10 @@ func main() {
 
 	server := buildHTTPHandler(serviceBroker, logger, config)
 
+	listener, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		log.Fatalf("Error listening to port %s: %s", port, err)
+	}
 	fmt.Println("RDS Service Broker started on port " + port + "...")
-	http.ListenAndServe(":"+port, server)
+	http.Serve(listener, server)
 }
