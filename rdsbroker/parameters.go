@@ -15,7 +15,7 @@ type ProvisionParameters struct {
 }
 
 type UpdateParameters struct {
-	ApplyImmediately           bool
+	ApplyAtMaintenanceWindow   bool `json:"apply_at_maintenance_window,omitempty"`
 	BackupRetentionPeriod      int64
 	PreferredBackupWindow      string
 	PreferredMaintenanceWindow string

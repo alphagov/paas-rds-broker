@@ -244,8 +244,11 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
 	}
 
+	// The following `applyImmediately` variable is simply inverted custom
+	// parameter to make things simpler to our tenants.
+	applyImmediately := !updateParameters.ApplyAtMaintenanceWindow
 	modifyDBInstance := b.modifyDBInstance(instanceID, servicePlan, updateParameters, details)
-	if err := b.dbInstance.Modify(b.dbInstanceIdentifier(instanceID), *modifyDBInstance, updateParameters.ApplyImmediately); err != nil {
+	if err := b.dbInstance.Modify(b.dbInstanceIdentifier(instanceID), *modifyDBInstance, applyImmediately); err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			return brokerapi.UpdateServiceSpec{}, brokerapi.ErrInstanceDoesNotExist
 		}
