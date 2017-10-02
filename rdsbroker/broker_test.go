@@ -944,15 +944,6 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 			Context("when Parameters are not valid", func() {
-				BeforeEach(func() {
-					provisionDetails.RawParameters = json.RawMessage(`{"skip_final_snapshot": "invalid"}`)
-				})
-
-				It("returns the proper error", func() {
-					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).To(ContainSubstring("skip_final_snapshot must be set to true or false, or not set at all"))
-				})
 
 				Context("and user provision parameters are not allowed", func() {
 					BeforeEach(func() {
@@ -1439,16 +1430,6 @@ var _ = Describe("RDS Broker", func() {
 		})
 
 		Context("when Parameters are not valid", func() {
-			BeforeEach(func() {
-				updateDetails.RawParameters = json.RawMessage(`{"skip_final_snapshot": "invalid"}`)
-			})
-
-			It("returns the proper error", func() {
-				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("skip_final_snapshot must be set to true or false, or not set at all"))
-			})
-
 			Context("and user update parameters are not allowed", func() {
 				BeforeEach(func() {
 					allowUserUpdateParameters = false
