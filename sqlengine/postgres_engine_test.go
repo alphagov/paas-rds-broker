@@ -82,25 +82,6 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return value
 }
 
-func createLegacyUser(connectionString, dbname string) (string, string) {
-	db, err := sql.Open("postgres", connectionString)
-	defer db.Close()
-	Expect(err).ToNot(HaveOccurred())
-
-	username := dbname + "_owner"
-	password := "mypass"
-
-	createUserStatement := "CREATE USER \"" + username + "\" WITH PASSWORD '" + password + "';"
-	_, err = db.Exec(createUserStatement)
-	Expect(err).ToNot(HaveOccurred())
-
-	grantPrivilegesStatement := "GRANT ALL PRIVILEGES ON DATABASE \"" + dbname + "\" TO \"" + username + "\";"
-	_, err = db.Exec(grantPrivilegesStatement)
-	Expect(err).ToNot(HaveOccurred())
-
-	return username, password
-}
-
 func createObjects(connectionString, tableName string) {
 	db, err := sql.Open("postgres", connectionString)
 	defer db.Close()
@@ -334,54 +315,6 @@ var _ = Describe("PostgresEngine", func() {
 		})
 	})
 
-	Describe("MigrateLegacyUsers", func() {
-		var (
-			bindingID              string
-			connectionStringNew    string
-			connectionStringLegacy string
-			legacyUserName         string
-			legacyUserPassword     string
-		)
-
-		Context("There is a user from a legacy binding", func() {
-			BeforeEach(func() {
-				legacyUserName, legacyUserPassword = createLegacyUser(masterConnectionString, dbname)
-				connectionStringLegacy = postgresEngine.URI(address, port, dbname, legacyUserName, legacyUserPassword)
-				createObjects(connectionStringLegacy, "legacy_table")
-
-				bindingID = "binding-id" + randomTestSuffix
-				err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
-				Expect(err).ToNot(HaveOccurred())
-
-				createdUser, createdPassword, err := postgresEngine.CreateUser(bindingID, dbname)
-				Expect(err).ToNot(HaveOccurred())
-
-				connectionStringNew = postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
-			})
-
-			AfterEach(func() {
-				err := postgresEngine.DropUser(bindingID)
-				Expect(err).ToNot(HaveOccurred())
-				dropTestUser(masterConnectionString, legacyUserName)
-			})
-
-			It("Should allow the new bindings to access objects created by the legacy user", func() {
-				accessAndDeleteObjects(connectionStringNew, "legacy_table")
-			})
-
-			It("Should allow the legacy user to access objects from new bindings", func() {
-				createObjects(connectionStringNew, "new_table")
-				accessAndDeleteObjects(connectionStringLegacy, "new_table")
-			})
-
-			It("Leaves the legacy user with no ownerships and direct permissions so that ResetState() can drop it", func() {
-				// Otherwise restoring snapshots of databases with legacy users will fail
-				err := postgresEngine.ResetState()
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-	})
-
 	Describe("DropUser", func() {
 		var (
 			bindingID       string
@@ -420,11 +353,14 @@ var _ = Describe("PostgresEngine", func() {
 				Expect(pqErr.Message).To(MatchRegexp("role .* does not exist"))
 			})
 
-			It("Calling DropUser() twice doesn't fail with 'role does not exist'", func() {
+			It("Calling DropUser() twice fails with 'role does not exist'", func() {
 				err := postgresEngine.DropUser(bindingID)
 				Expect(err).ToNot(HaveOccurred())
 				err = postgresEngine.DropUser(bindingID)
-				Expect(err).ToNot(HaveOccurred())
+				pqErr, ok := err.(*pq.Error)
+				Expect(ok).To(BeTrue())
+				Expect(pqErr.Code).To(BeEquivalentTo("42704"))
+				Expect(pqErr.Message).To(MatchRegexp("role .* does not exist"))
 			})
 
 			It("Other errors are not ignored", func() {

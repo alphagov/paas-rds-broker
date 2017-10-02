@@ -102,11 +102,6 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 		return "", "", err
 	}
 
-	err = d.MigrateLegacyAdminUsers(tx, bindingID, dbname)
-	if err != nil {
-		d.logger.Error("Migrate sql-error", err)
-	}
-
 	return username, password, nil
 }
 
@@ -145,90 +140,11 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, passwor
 
 }
 
-func (d *PostgresEngine) MigrateLegacyAdminUsers(tx *sql.Tx, bindingID, dbname string) (err error) {
-	groupname := d.generatePostgresGroup(dbname)
-
-	usersMigrate, err := d.listLegacyAdminUsers()
-	if err != nil {
-		return err
-	}
-
-	for _, username := range usersMigrate {
-
-		addAdminPrivilegesStatement := fmt.Sprintf(`grant "%s" to current_user with admin option`, username)
-		d.logger.Debug("grant-privileges", lager.Data{"statement": addAdminPrivilegesStatement})
-
-		if _, err := tx.Exec(addAdminPrivilegesStatement); err != nil {
-			d.logger.Error("sql-error", err)
-			return err
-		}
-
-		grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, username)
-		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
-
-		if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
-			d.logger.Error("sql-error", err)
-			return err
-		}
-
-		reassignStatement := fmt.Sprintf(`reassign owned by "%s" to "%s"`, username, groupname)
-		d.logger.Debug("reassign-objects", lager.Data{"statement": reassignStatement})
-
-		if _, err := tx.Exec(reassignStatement); err != nil {
-			d.logger.Error("sql-error", err)
-			return err
-		}
-
-		revokeStatement := fmt.Sprintf(`revoke all privileges on database "%s" from "%s"`, dbname, username)
-		d.logger.Debug("revoke-permissions", lager.Data{"statement": revokeStatement})
-
-		if _, err := tx.Exec(revokeStatement); err != nil {
-			d.logger.Error("sql-error", err)
-			return err
-		}
-
-		removeAdminPrivilegesStatement := fmt.Sprintf(`revoke "%s" from current_user`, username)
-		d.logger.Debug("grant-privileges", lager.Data{"statement": removeAdminPrivilegesStatement})
-
-		if _, err := tx.Exec(removeAdminPrivilegesStatement); err != nil {
-			d.logger.Error("sql-error", err)
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (d *PostgresEngine) listLegacyAdminUsers() ([]string, error) {
-	usersMigrate := []string{}
-
-	rows, err := d.db.Query("SELECT usename FROM pg_user WHERE usename LIKE '%owner'")
-	if err != nil {
-		d.logger.Error("sql-error", err)
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var username string
-		err = rows.Scan(&username)
-		if err != nil {
-			d.logger.Error("sql-error", err)
-			return nil, err
-		}
-		usersMigrate = append(usersMigrate, username)
-	}
-	return usersMigrate, nil
-}
-
 func (d *PostgresEngine) DropUser(bindingID string) error {
 	username := generateUsername(bindingID)
 	dropUserStatement := fmt.Sprintf(`drop role "%s"`, username)
 
 	if _, err := d.db.Exec(dropUserStatement); err != nil {
-		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "42704" {
-			d.logger.Info("warning", lager.Data{"warning": "User " + username + " does not exist"})
-			return nil
-		}
 		d.logger.Error("sql-error", err)
 		return err
 	}
@@ -378,11 +294,11 @@ const ensureTriggerPattern = `
 			RETURN;
 		END IF;
 
-		-- do not execute if not member of manager role	
+		-- do not execute if not member of manager role
 		IF NOT pg_has_role(current_user, '{{.role}}', 'member') THEN
 			RETURN;
 		END IF;
-		
+
 		-- do not execute if superuser
 		IF EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true) THEN
 			RETURN;
