@@ -244,8 +244,11 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
 	}
 
+	// The following `applyImmediately` variable is simply inverted custom
+	// parameter to make things simpler to our tenants.
+	applyImmediately := !updateParameters.ApplyAtMaintenanceWindow
 	modifyDBInstance := b.modifyDBInstance(instanceID, servicePlan, updateParameters, details)
-	if err := b.dbInstance.Modify(b.dbInstanceIdentifier(instanceID), *modifyDBInstance, updateParameters.ApplyImmediately); err != nil {
+	if err := b.dbInstance.Modify(b.dbInstanceIdentifier(instanceID), *modifyDBInstance, applyImmediately); err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			return brokerapi.UpdateServiceSpec{}, brokerapi.ErrInstanceDoesNotExist
 		}
@@ -699,9 +702,11 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		dbInstanceDetails.PreferredMaintenanceWindow = provisionParameters.PreferredMaintenanceWindow
 	}
 
-	skipFinalSnapshot := strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot)
-	if provisionParameters.SkipFinalSnapshot != "" {
-		skipFinalSnapshot = provisionParameters.SkipFinalSnapshot
+	var skipFinalSnapshot string
+	if provisionParameters.SkipFinalSnapshot != nil {
+		skipFinalSnapshot = strconv.FormatBool(*provisionParameters.SkipFinalSnapshot)
+	} else {
+		skipFinalSnapshot = strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot)
 	}
 
 	dbInstanceDetails.Tags = b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshot, "")
@@ -710,9 +715,11 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 
 func (b *RDSBroker) restoreDBInstance(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) *awsrds.DBInstanceDetails {
 	dbInstanceDetails := b.dbInstanceFromPlan(servicePlan)
-	skipFinalSnapshot := strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot)
-	if provisionParameters.SkipFinalSnapshot != "" {
-		skipFinalSnapshot = provisionParameters.SkipFinalSnapshot
+	var skipFinalSnapshot string
+	if provisionParameters.SkipFinalSnapshot != nil {
+		skipFinalSnapshot = strconv.FormatBool(*provisionParameters.SkipFinalSnapshot)
+	} else {
+		skipFinalSnapshot = strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot)
 	}
 
 	dbInstanceDetails.Tags = b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshot, snapshotIdentifier)
@@ -742,9 +749,11 @@ func (b *RDSBroker) modifyDBInstance(instanceID string, servicePlan ServicePlan,
 		dbInstanceDetails.PreferredMaintenanceWindow = updateParameters.PreferredMaintenanceWindow
 	}
 
-	skipFinalSnapshot := strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot)
-	if updateParameters.SkipFinalSnapshot != "" {
-		skipFinalSnapshot = updateParameters.SkipFinalSnapshot
+	var skipFinalSnapshot string
+	if updateParameters.SkipFinalSnapshot != nil {
+		skipFinalSnapshot = strconv.FormatBool(*updateParameters.SkipFinalSnapshot)
+	} else {
+		skipFinalSnapshot = strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot)
 	}
 
 	dbInstanceDetails.Tags = b.dbTags("Updated", details.ServiceID, details.PlanID, "", "", skipFinalSnapshot, "")

@@ -83,7 +83,7 @@ Update calls support the following optional [arbitrary parameters](https://docs.
 
 | Option                       | Type    | Description
 |:-----------------------------|:------- |:-----------
-| apply_immediately            | Boolean | Specifies whether the modifications in this request and any pending modifications are asynchronously applied as soon as possible, regardless of the Preferred Maintenance Window setting for the DB instance (*)
+| apply_at_maintenance_window  | Boolean | Specifies whether the modifications in this request and any pending modifications are asynchronously applied as soon as possible (default) or if they should be queued until the Preferred Maintenance Window setting for the DB instance (*)
 | backup_retention_period      | Integer | The number of days that Amazon RDS should retain automatic backups of the DB instance (between `0` and `35`) (*)
 | preferred_backup_window      | String  | The daily time range during which automated backups are created if automated backups are enabled (*)
 | preferred_maintenance_window | String  | The weekly time range during which system maintenance can occur (*)

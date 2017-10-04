@@ -173,7 +173,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 
 			It("should not create a final snapshot when `skip_final_snapshot` is set at provision time", func() {
-				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, `{"skip_final_snapshot": "true"}`)
+				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, `{"skip_final_snapshot":true}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state := pollForOperationCompletion(instanceID, serviceID, planID, operation)
@@ -204,7 +204,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				state := pollForOperationCompletion(instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
 
-				code, operation, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"skip_final_snapshot": "true"}`)
+				code, operation, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"skip_final_snapshot":true}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state = pollForOperationCompletion(instanceID, serviceID, planID, operation)

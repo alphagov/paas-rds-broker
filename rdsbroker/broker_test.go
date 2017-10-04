@@ -944,15 +944,6 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 			Context("when Parameters are not valid", func() {
-				BeforeEach(func() {
-					provisionDetails.RawParameters = json.RawMessage(`{"skip_final_snapshot": "invalid"}`)
-				})
-
-				It("returns the proper error", func() {
-					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).To(ContainSubstring("skip_final_snapshot must be set to true or false, or not set at all"))
-				})
 
 				Context("and user provision parameters are not allowed", func() {
 					BeforeEach(func() {
@@ -1017,7 +1008,6 @@ var _ = Describe("RDS Broker", func() {
 				IsAsync: true,
 			}
 		})
-
 		It("returns the proper response", func() {
 			updateServiceSpec, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 			Expect(updateServiceSpec).To(Equal(properUpdateServiceSpec))
@@ -1106,6 +1096,40 @@ var _ = Describe("RDS Broker", func() {
 				Expect(dbInstance.ModifyDBInstanceDetails.AvailabilityZone).To(Equal("test-az"))
 				Expect(err).ToNot(HaveOccurred())
 			})
+		})
+
+		Context("when has ApplyAtMaintanceWindow", func() {
+
+			var willApplyImmediately bool
+
+			BeforeEach(func() {
+				dbInstance.ModifyCallback = func(ID string, dbInstanceDetails awsrds.DBInstanceDetails, applyImmediately bool) error {
+					willApplyImmediately = applyImmediately
+					return nil
+				}
+			})
+
+			It("applies immediately when apply_at_maintenance_window param is not given", func() {
+				updateDetails.RawParameters = json.RawMessage(`{}`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(willApplyImmediately).To(Equal(true))
+			})
+
+			It("applies immediately when apply_at_maintenance_window param is false", func() {
+				updateDetails.RawParameters = json.RawMessage(`{"apply_at_maintenance_window": false}`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(willApplyImmediately).To(Equal(true))
+			})
+
+			It("does not apply immediately when apply_at_maintenance_window param is true", func() {
+				updateDetails.RawParameters = json.RawMessage(`{"apply_at_maintenance_window": true}`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(willApplyImmediately).To(Equal(false))
+			})
+
 		})
 
 		Context("when has BackupRetentionPeriod", func() {
@@ -1406,16 +1430,6 @@ var _ = Describe("RDS Broker", func() {
 		})
 
 		Context("when Parameters are not valid", func() {
-			BeforeEach(func() {
-				updateDetails.RawParameters = json.RawMessage(`{"skip_final_snapshot": "invalid"}`)
-			})
-
-			It("returns the proper error", func() {
-				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("skip_final_snapshot must be set to true or false, or not set at all"))
-			})
-
 			Context("and user update parameters are not allowed", func() {
 				BeforeEach(func() {
 					allowUserUpdateParameters = false

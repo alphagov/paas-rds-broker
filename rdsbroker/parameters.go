@@ -1,25 +1,21 @@
 package rdsbroker
 
-import (
-	"errors"
-)
-
 type ProvisionParameters struct {
-	BackupRetentionPeriod       int64
-	CharacterSetName            string
-	DBName                      string
-	PreferredBackupWindow       string
-	PreferredMaintenanceWindow  string
-	SkipFinalSnapshot           string  `json:"skip_final_snapshot"`
+	BackupRetentionPeriod       int64   `json:"backup_retention_period"`
+	CharacterSetName            string  `json:"character_set_name"`
+	DBName                      string  `json:"dbname"`
+	PreferredBackupWindow       string  `json:"preferred_backup_window"`
+	PreferredMaintenanceWindow  string  `json:"preferred_maintenance_window"`
+	SkipFinalSnapshot           *bool   `json:"skip_final_snapshot"`
 	RestoreFromLatestSnapshotOf *string `json:"restore_from_latest_snapshot_of"`
 }
 
 type UpdateParameters struct {
-	ApplyImmediately           bool
-	BackupRetentionPeriod      int64
-	PreferredBackupWindow      string
-	PreferredMaintenanceWindow string
-	SkipFinalSnapshot          string `json:"skip_final_snapshot"`
+	ApplyAtMaintenanceWindow   bool   `json:"apply_at_maintenance_window"`
+	BackupRetentionPeriod      int64  `json:"backup_retention_period"`
+	PreferredBackupWindow      string `json:"preferred_backup_window"`
+	PreferredMaintenanceWindow string `json:"preferred_maintenance_window"`
+	SkipFinalSnapshot          *bool  `json:"skip_final_snapshot"`
 }
 
 type BindParameters struct {
@@ -27,18 +23,10 @@ type BindParameters struct {
 	// bind-time parameters in future.
 }
 
-func Validate_SkipFinalSnapshot(SkipFinalSnapshot string) error {
-	switch SkipFinalSnapshot {
-	case "true", "false", "":
-		return nil
-	}
-	return errors.New("skip_final_snapshot must be set to true or false, or not set at all")
-}
-
 func (pp *ProvisionParameters) Validate() error {
-	return Validate_SkipFinalSnapshot(pp.SkipFinalSnapshot)
+	return nil
 }
 
 func (pp *UpdateParameters) Validate() error {
-	return Validate_SkipFinalSnapshot(pp.SkipFinalSnapshot)
+	return nil
 }
