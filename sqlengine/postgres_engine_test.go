@@ -353,17 +353,9 @@ var _ = Describe("PostgresEngine", func() {
 				Expect(pqErr.Message).To(MatchRegexp("role .* does not exist"))
 			})
 
-			It("Calling DropUser() twice fails with 'role does not exist'", func() {
-				err := postgresEngine.DropUser(bindingID)
-				Expect(err).ToNot(HaveOccurred())
-				err = postgresEngine.DropUser(bindingID)
-				pqErr, ok := err.(*pq.Error)
-				Expect(ok).To(BeTrue())
-				Expect(pqErr.Code).To(BeEquivalentTo("42704"))
-				Expect(pqErr.Message).To(MatchRegexp("role .* does not exist"))
-			})
+			It("Errors dropping the user are returned", func() {
+				// other than 'role does not exist' - see below
 
-			It("Other errors are not ignored", func() {
 				rootConnection, err := sql.Open("postgres", template1ConnectionString)
 				defer rootConnection.Close()
 				Expect(err).ToNot(HaveOccurred())
@@ -378,7 +370,13 @@ var _ = Describe("PostgresEngine", func() {
 				Expect(pqErr.Code).To(BeEquivalentTo("42501"))
 				Expect(pqErr.Message).To(MatchRegexp("permission denied to drop role"))
 			})
+		})
 
+		Context("A user doesn't exist", func() {
+			It("Calling DropUser() doesn't fail with 'role does not exist'", func() {
+				err := postgresEngine.DropUser(bindingID)
+				Expect(err).ToNot(HaveOccurred())
+			})
 		})
 
 	})

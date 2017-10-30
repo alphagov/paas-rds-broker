@@ -145,6 +145,13 @@ func (d *PostgresEngine) DropUser(bindingID string) error {
 	dropUserStatement := fmt.Sprintf(`drop role "%s"`, username)
 
 	if _, err := d.db.Exec(dropUserStatement); err != nil {
+		// When handling unbinds for bindings created before the switch to
+		// event-triggers based permissions the `username` won't exist. We
+		// swallow the error to prevent unbinding from failing.
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "42704" {
+			d.logger.Info("warning", lager.Data{"warning": "User " + username + " does not exist"})
+			return nil
+		}
 		d.logger.Error("sql-error", err)
 		return err
 	}
