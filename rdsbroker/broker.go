@@ -34,16 +34,30 @@ var (
 )
 
 var rdsStatus2State = map[string]brokerapi.LastOperationState{
-	"available":                    brokerapi.Succeeded,
-	"backing-up":                   brokerapi.InProgress,
-	"creating":                     brokerapi.InProgress,
-	"deleting":                     brokerapi.InProgress,
-	"maintenance":                  brokerapi.InProgress,
-	"modifying":                    brokerapi.InProgress,
-	"rebooting":                    brokerapi.InProgress,
-	"renaming":                     brokerapi.InProgress,
-	"resetting-master-credentials": brokerapi.InProgress,
-	"upgrading":                    brokerapi.InProgress,
+	"available":                           brokerapi.Succeeded,
+	"backing-up":                          brokerapi.InProgress,
+	"creating":                            brokerapi.InProgress,
+	"deleting":                            brokerapi.InProgress,
+	"maintenance":                         brokerapi.InProgress,
+	"modifying":                           brokerapi.InProgress,
+	"rebooting":                           brokerapi.InProgress,
+	"renaming":                            brokerapi.InProgress,
+	"resetting-master-credentials":        brokerapi.InProgress,
+	"upgrading":                           brokerapi.InProgress,
+	"configuring-enhanced-monitoring":     brokerapi.InProgress,
+	"starting":                            brokerapi.InProgress,
+	"stopping":                            brokerapi.InProgress,
+	"stopped":                             brokerapi.InProgress,
+	"storage-full":                        brokerapi.InProgress,
+	"storage-optimization":                brokerapi.InProgress,
+	"failed":                              brokerapi.Failed,
+	"incompatible-credentials":            brokerapi.Failed,
+	"incompatible-network":                brokerapi.Failed,
+	"incompatible-option-group":           brokerapi.Failed,
+	"incompatible-parameters":             brokerapi.Failed,
+	"incompatible-restore":                brokerapi.Failed,
+	"restore-error":                       brokerapi.Failed,
+	"inaccessible-encryption-credentials": brokerapi.Failed,
 }
 
 const StateUpdateSettings = "PendingUpdateSettings"
@@ -438,9 +452,9 @@ func (b *RDSBroker) LastOperation(
 		return brokerapi.LastOperation{State: brokerapi.Failed}, err
 	}
 
-	state := rdsStatus2State[dbInstanceDetails.Status]
-	if state == "" {
-		state = brokerapi.Failed
+	state, ok := rdsStatus2State[dbInstanceDetails.Status]
+	if !ok {
+		state = brokerapi.InProgress
 	}
 
 	lastOperationResponse := brokerapi.LastOperation{

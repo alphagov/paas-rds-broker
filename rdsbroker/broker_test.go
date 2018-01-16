@@ -2330,6 +2330,71 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
+		checkLastOperationResponse := func(instanceStatus string, expectedLastOperationState brokerapi.LastOperationState) func() {
+			return func() {
+				BeforeEach(func() {
+					dbInstanceStatus = instanceStatus
+					lastOperationState = expectedLastOperationState
+				})
+
+				It("returns the state "+string(expectedLastOperationState), func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
+			}
+		}
+
+		failureStatuses := []string{
+			"failed",
+			"inaccessible-encryption-credentials",
+			"incompatible-credentials",
+			"incompatible-network",
+			"incompatible-option-group",
+			"incompatible-parameters",
+			"incompatible-restore",
+			"restore-error",
+		}
+		for _, instanceStatus := range failureStatuses {
+			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.Failed))
+		}
+
+		successStatuses := []string{
+			"available",
+		}
+		for _, instanceStatus := range successStatuses {
+			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.Succeeded))
+		}
+
+		inProgressStatuses := []string{
+			"backing-up",
+			"configuring-enhanced-monitoring",
+			"creating",
+			"deleting",
+			"maintenance",
+			"modifying",
+			"rebooting",
+			"renaming",
+			"resetting-master-credentials",
+			"starting",
+			"stopping",
+			"stopped",
+			"storage-full",
+			"storage-optimization",
+			"upgrading",
+		}
+		for _, instanceStatus := range inProgressStatuses {
+			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.InProgress))
+		}
+
+		unexpectedStatuses := []string{
+			"",
+			"some-new-status",
+		}
+		for _, instanceStatus := range unexpectedStatuses {
+			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.InProgress))
+		}
+
 	})
 
 	Describe("CheckAndRotateCredentials", func() {
