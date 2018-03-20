@@ -21,6 +21,11 @@ type FakeDBInstance struct {
 	DescribeSnapshotsDBSnapshotsDetails []*awsrds.DBSnapshotDetails
 	DescribeSnapshotsError              error
 
+	DeleteSnapshotsCallCount   int
+	DeleteSnapshotsBrokerName  []string
+	DeleteSnapshotsKeepForDays []int
+	DeleteSnapshotsError       []error
+
 	CreateCalled            bool
 	CreateID                string
 	CreateDBInstanceDetails awsrds.DBInstanceDetails
@@ -86,6 +91,19 @@ func (f *FakeDBInstance) DescribeSnapshots(dbInstanceID string) ([]*awsrds.DBSna
 	f.DescribeSnapshotsDBInstanceID = dbInstanceID
 
 	return f.DescribeSnapshotsDBSnapshotsDetails, f.DescribeSnapshotsError
+}
+
+func (f *FakeDBInstance) DeleteSnapshots(brokerName string, keepForDays int) error {
+	defer func() {
+		f.DeleteSnapshotsCallCount++
+	}()
+	f.DeleteSnapshotsBrokerName = append(f.DeleteSnapshotsBrokerName, brokerName)
+	f.DeleteSnapshotsKeepForDays = append(f.DeleteSnapshotsKeepForDays, keepForDays)
+
+	if len(f.DeleteSnapshotsError) > f.DeleteSnapshotsCallCount {
+		return f.DeleteSnapshotsError[f.DeleteSnapshotsCallCount]
+	}
+	return nil
 }
 
 func (f *FakeDBInstance) Create(ID string, dbInstanceDetails awsrds.DBInstanceDetails) error {

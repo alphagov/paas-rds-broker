@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
 
 	"code.cloudfoundry.org/lager"
@@ -19,11 +20,14 @@ import (
 	"github.com/alphagov/paas-rds-broker/config"
 	"github.com/alphagov/paas-rds-broker/rdsbroker"
 	"github.com/alphagov/paas-rds-broker/sqlengine"
+	"github.com/robfig/cron"
 )
 
 var (
 	configFilePath string
 	port           string
+	cronFlag       bool
+	cronProcess    *cron.Cron
 
 	logLevels = map[string]lager.LogLevel{
 		"DEBUG": lager.DEBUG,
@@ -36,6 +40,7 @@ var (
 func init() {
 	flag.StringVar(&configFilePath, "config", "", "Location of the config file")
 	flag.StringVar(&port, "port", "3000", "Listen port")
+	flag.BoolVar(&cronFlag, "cron", false, "Start the cron process")
 }
 
 func buildLogger(logLevel string) lager.Logger {
@@ -74,16 +79,33 @@ func main() {
 	}
 
 	logger := buildLogger(config.LogLevel)
-
 	awsConfig := aws.NewConfig().WithRegion(config.RDSConfig.Region)
 	awsSession := session.New(awsConfig)
-
 	rdssvc := rds.New(awsSession)
-
 	dbInstance := awsrds.NewRDSDBInstance(config.RDSConfig.Region, config.RDSConfig.AWSPartition, rdssvc, logger)
-
 	sqlProvider := sqlengine.NewProviderService(logger)
 
+	go stopOnSignal()
+
+	if cronFlag {
+		err := startCron(config, dbInstance, logger)
+		if err != nil {
+			log.Fatalf("Failed to start cron process: %s", err)
+		}
+	} else {
+		err := startServiceBroker(config, dbInstance, sqlProvider, logger)
+		if err != nil {
+			log.Fatalf("Failed to start broker process: %s", err)
+		}
+	}
+}
+
+func startServiceBroker(
+	config *config.Config,
+	dbInstance awsrds.DBInstance,
+	sqlProvider sqlengine.Provider,
+	logger lager.Logger,
+) error {
 	serviceBroker := rdsbroker.New(*config.RDSConfig, dbInstance, sqlProvider, logger)
 
 	go serviceBroker.CheckAndRotateCredentials()
@@ -92,8 +114,45 @@ func main() {
 
 	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		log.Fatalf("Error listening to port %s: %s", port, err)
+		return fmt.Errorf("failed to listen on port %s: %s", port, err)
 	}
-	fmt.Println("RDS Service Broker started on port " + port + "...")
-	http.Serve(listener, server)
+
+	logger.Info("start", lager.Data{"port": port})
+	return http.Serve(listener, server)
+}
+
+func startCron(
+	config *config.Config,
+	dbInstance awsrds.DBInstance,
+	logger lager.Logger,
+) error {
+	cronProcess = cron.New()
+	err := cronProcess.AddFunc(config.CronSchedule, func() {
+		err := dbInstance.DeleteSnapshots(config.RDSConfig.BrokerName, config.KeepSnapshotsForDays)
+		if err != nil {
+			logger.Error("delete-snapshots", err)
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("cron_schedule is invalid: %s", err)
+	}
+
+	logger.Info("cron-start")
+	cronProcess.Run()
+	logger.Info("cron-stop")
+
+	return nil
+}
+
+func stopCron() {
+	if cronProcess != nil {
+		cronProcess.Stop()
+	}
+}
+
+func stopOnSignal() {
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, os.Kill)
+	<-signalChan
+	stopCron()
 }
