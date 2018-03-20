@@ -2,6 +2,8 @@
   "log_level": "DEBUG",
   "username": "username",
   "password": "password",
+  "cron_schedule": "@hourly",
+  "keep_snapshots_for_days": 35,
   "rds_config": {
     "region": "us-east-1",
     "db_prefix": "cf",

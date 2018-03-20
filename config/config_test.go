@@ -24,6 +24,8 @@ var _ = Describe("Config", func() {
 				AWSPartition:       "rds-partition",
 				MasterPasswordSeed: "secret",
 			},
+			CronSchedule:         "@hourly",
+			KeepSnapshotsForDays: 1,
 		}
 	)
 
@@ -67,6 +69,20 @@ var _ = Describe("Config", func() {
 			err := config.Validate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Validating RDS configuration"))
+		})
+
+		It("returns an error if cron schedule is empty", func() {
+			config.CronSchedule = ""
+
+			err := config.Validate()
+			Expect(err).To(MatchError("must provide a non-empty cron_schedule"))
+		})
+
+		It("returns an error if keep_snapshots_for_days is missing", func() {
+			config.KeepSnapshotsForDays = 0
+
+			err := config.Validate()
+			Expect(err).To(MatchError("must provide a valid number for keep_snapshots_for_days"))
 		})
 	})
 })
