@@ -20,6 +20,12 @@ $ go install github.com/alphagov/paas-rds-broker
 $ rds-broker -port=3000 -config=<path-to-your-config-file>
 ```
 
+To start the cron process:
+
+```
+$ rds-broker -cron -config=<path-to-your-config-file>
+```
+
 ### Cloud Foundry
 
 The broker can be deployed to an already existing [Cloud Foundry](https://www.cloudfoundry.org/) installation:
@@ -89,6 +95,18 @@ Update calls support the following optional [arbitrary parameters](https://docs.
 | preferred_maintenance_window | String  | The weekly time range during which system maintenance can occur (*)
 
 (*) Refer to the [Amazon Relational Database Service Documentation](https://aws.amazon.com/documentation/rds/) for more details about how to set these properties
+
+### Cron jobs
+
+You can start the cron job process with the following command:
+
+```
+$ rds-broker -cron -config=<path-to-your-config-file>
+```
+
+#### Delete old RDS snapshots
+
+The cron job process will delete the old RDS snapshot which was created by this broker. It will search for snapshots older than `keep_snapshots_for_days` and with the matching `Broker Name` tag (config: `rds_config.broker_name`).
 
 ## Running tests
 
