@@ -1757,7 +1757,9 @@ var _ = Describe("RDS DB Instance", func() {
 		)
 
 		BeforeEach(func() {
-			describeDBSnapshotsInput = &rds.DescribeDBSnapshotsInput{}
+			describeDBSnapshotsInput = &rds.DescribeDBSnapshotsInput{
+				SnapshotType: aws.String("manual"),
+			}
 			describeDBSnapshotsError = nil
 			describeDBSnapshotsRequestDone = false
 			describeDBSnapshots = []*rds.DBSnapshot{}

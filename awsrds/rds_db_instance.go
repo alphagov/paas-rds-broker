@@ -141,7 +141,9 @@ func (r *RDSDBInstance) DeleteSnapshots(brokerName string, keepForDays int) erro
 	oldSnapshots := []*rds.DBSnapshot{}
 
 	err := r.rdssvc.DescribeDBSnapshotsPages(
-		&rds.DescribeDBSnapshotsInput{},
+		&rds.DescribeDBSnapshotsInput{
+			SnapshotType: aws.String("manual"),
+		},
 		func(page *rds.DescribeDBSnapshotsOutput, lastPage bool) bool {
 			for _, snapshot := range page.DBSnapshots {
 				if snapshot.SnapshotCreateTime.Before(deleteBefore) {
