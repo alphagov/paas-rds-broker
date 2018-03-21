@@ -29,6 +29,16 @@ A sample configuration can be found at [config-sample.json](https://github.com/a
 ### Note
 When the seed is changed and the broker restarted, the instances master passwords will be updated.
 
+## Cron process configuration
+
+The cron process uses only the following configuration values:
+
+* log_level
+* cron_schedule
+* keep_snapshots_for_days
+* rds_config.region
+* rds_config.broker_name
+
 ## RDS Broker catalog
 
 Please refer to the [Catalog Documentation](https://docs.cloudfoundry.org/services/api.html#catalog-mgmt) for more details about these properties.

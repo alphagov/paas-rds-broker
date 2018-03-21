@@ -18,16 +18,16 @@ import (
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/alphagov/paas-rds-broker/config"
+	"github.com/alphagov/paas-rds-broker/cron"
 	"github.com/alphagov/paas-rds-broker/rdsbroker"
 	"github.com/alphagov/paas-rds-broker/sqlengine"
-	"github.com/robfig/cron"
 )
 
 var (
 	configFilePath string
 	port           string
 	cronFlag       bool
-	cronProcess    *cron.Cron
+	cronProcess    *cron.Process
 
 	logLevels = map[string]lager.LogLevel{
 		"DEBUG": lager.DEBUG,
@@ -70,30 +70,41 @@ func buildHTTPHandler(serviceBroker *rdsbroker.RDSBroker, logger lager.Logger, c
 	return mux
 }
 
-func main() {
-	flag.Parse()
-
-	config, err := config.LoadConfig(configFilePath)
-	if err != nil {
-		log.Fatalf("Error loading config file: %s", err)
-	}
-
-	logger := buildLogger(config.LogLevel)
-	awsConfig := aws.NewConfig().WithRegion(config.RDSConfig.Region)
+func buildDBInstance(region string, logger lager.Logger) awsrds.DBInstance {
+	awsConfig := aws.NewConfig().WithRegion(region)
 	awsSession := session.New(awsConfig)
 	rdssvc := rds.New(awsSession)
-	dbInstance := awsrds.NewRDSDBInstance(config.RDSConfig.Region, config.RDSConfig.AWSPartition, rdssvc, logger)
-	sqlProvider := sqlengine.NewProviderService(logger)
+	return awsrds.NewRDSDBInstance(region, "aws", rdssvc, logger)
+}
+
+func main() {
+	flag.Parse()
 
 	go stopOnSignal()
 
 	if cronFlag {
-		err := startCron(config, dbInstance, logger)
+		cfg, err := cron.LoadConfig(configFilePath)
+		if err != nil {
+			log.Fatalf("Error loading config file: %s", err)
+		}
+		logger := buildLogger(cfg.LogLevel)
+		dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
+		cronProcess = cron.NewProcess(cfg, dbInstance, logger)
+
+		err = cronProcess.Start()
 		if err != nil {
 			log.Fatalf("Failed to start cron process: %s", err)
 		}
 	} else {
-		err := startServiceBroker(config, dbInstance, sqlProvider, logger)
+		cfg, err := config.LoadConfig(configFilePath)
+		if err != nil {
+			log.Fatalf("Error loading config file: %s", err)
+		}
+		logger := buildLogger(cfg.LogLevel)
+		dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
+		sqlProvider := sqlengine.NewProviderService(logger)
+
+		err = startServiceBroker(cfg, dbInstance, sqlProvider, logger)
 		if err != nil {
 			log.Fatalf("Failed to start broker process: %s", err)
 		}
@@ -121,38 +132,11 @@ func startServiceBroker(
 	return http.Serve(listener, server)
 }
 
-func startCron(
-	config *config.Config,
-	dbInstance awsrds.DBInstance,
-	logger lager.Logger,
-) error {
-	cronProcess = cron.New()
-	err := cronProcess.AddFunc(config.CronSchedule, func() {
-		err := dbInstance.DeleteSnapshots(config.RDSConfig.BrokerName, config.KeepSnapshotsForDays)
-		if err != nil {
-			logger.Error("delete-snapshots", err)
-		}
-	})
-	if err != nil {
-		return fmt.Errorf("cron_schedule is invalid: %s", err)
-	}
-
-	logger.Info("cron-start")
-	cronProcess.Run()
-	logger.Info("cron-stop")
-
-	return nil
-}
-
-func stopCron() {
-	if cronProcess != nil {
-		cronProcess.Stop()
-	}
-}
-
 func stopOnSignal() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill)
 	<-signalChan
-	stopCron()
+	if cronProcess != nil {
+		cronProcess.Stop()
+	}
 }

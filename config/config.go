@@ -11,12 +11,10 @@ import (
 )
 
 type Config struct {
-	LogLevel             string            `json:"log_level"`
-	Username             string            `json:"username"`
-	Password             string            `json:"password"`
-	RDSConfig            *rdsbroker.Config `json:"rds_config"`
-	KeepSnapshotsForDays int               `json:"keep_snapshots_for_days"`
-	CronSchedule         string            `json:"cron_schedule"`
+	LogLevel  string            `json:"log_level"`
+	Username  string            `json:"username"`
+	Password  string            `json:"password"`
+	RDSConfig *rdsbroker.Config `json:"rds_config"`
 }
 
 func LoadConfig(configFile string) (config *Config, err error) {
@@ -67,14 +65,6 @@ func (c Config) Validate() error {
 
 	if err := c.RDSConfig.Validate(); err != nil {
 		return fmt.Errorf("Validating RDS configuration: %s", err)
-	}
-
-	if c.KeepSnapshotsForDays <= 0 {
-		return errors.New("must provide a valid number for keep_snapshots_for_days")
-	}
-
-	if c.CronSchedule == "" {
-		return errors.New("must provide a non-empty cron_schedule")
 	}
 
 	return nil
