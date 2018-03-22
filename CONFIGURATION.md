@@ -4,12 +4,14 @@ A sample configuration can be found at [config-sample.json](https://github.com/a
 
 ## General Configuration
 
-| Option               | Required | Type   | Description
-|:---------------------|:--------:|:------ |:-----------
-| log_level            | Y        | String | Broker Log Level (DEBUG, INFO, ERROR, FATAL)
-| username             | Y        | String | Broker Auth Username
-| password             | Y        | String | Broker Auth Password
-| rds_config           | Y        | Hash   | [RDS Broker configuration](https://github.com/alphagov/paas-rds-broker/blob/master/CONFIGURATION.md#rds-broker-configuration)
+| Option                 | Required | Type    | Description
+|:-----------------------|:--------:|:--------|:-----------
+| log_level              | Y        | String  | Broker Log Level (DEBUG, INFO, ERROR, FATAL)
+| username               | Y        | String  | Broker Auth Username
+| password               | Y        | String  | Broker Auth Password
+| cron_schedule          | Y        | String  | Schedule for cron jobs. A crontab-like expression with seconds precision (e.g. '0 0 * * * *' or '@hourly'), with fields: 'second minute hour dom month dow'
+| keep_snapshots_for_days| Y        | Integer | Number of days to keep old RDS snapshots for
+| rds_config             | Y        | Hash    | [RDS Broker configuration](https://github.com/alphagov/paas-rds-broker/blob/master/CONFIGURATION.md#rds-broker-configuration)
 
 ## RDS Broker Configuration
 
@@ -26,6 +28,16 @@ A sample configuration can be found at [config-sample.json](https://github.com/a
 
 ### Note
 When the seed is changed and the broker restarted, the instances master passwords will be updated.
+
+## Cron process configuration
+
+The cron process uses only the following configuration values:
+
+* log_level
+* cron_schedule
+* keep_snapshots_for_days
+* rds_config.region
+* rds_config.broker_name
 
 ## RDS Broker catalog
 

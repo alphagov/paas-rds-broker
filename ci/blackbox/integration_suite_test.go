@@ -94,7 +94,10 @@ func TestSuite(t *testing.T) {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Wait for it to be listening
-		Eventually(rdsBrokerSession, 10*time.Second).Should(gbytes.Say(fmt.Sprintf("RDS Service Broker started on port %d", rdsBrokerPort)))
+		Eventually(rdsBrokerSession, 10*time.Second).Should(And(
+			gbytes.Say("rds-broker.start"),
+			gbytes.Say(fmt.Sprintf(`{"port":"%d"}`, rdsBrokerPort)),
+		))
 
 		rdsBrokerUrl = fmt.Sprintf("http://localhost:%d", rdsBrokerPort)
 

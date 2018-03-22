@@ -1,6 +1,8 @@
 {
     "log_level": "DEBUG",
     "password": "password",
+    "cron_schedule": "0 0 * * *",
+    "keep_snapshots_for_days": 35,
     "rds_config": {
         "allow_user_bind_parameters": true,
         "allow_user_provision_parameters": true,

@@ -4,10 +4,21 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
+)
+
+const (
+	TagServiceID            = "Service ID"
+	TagPlanID               = "Plan ID"
+	TagOrganizationID       = "Organization ID"
+	TagSpaceID              = "Space ID"
+	TagSkipFinalSnapshot    = "SkipFinalSnapshot"
+	TagRestoredFromSnapshot = "Restored From Snapshot"
+	TagBrokerName           = "Broker Name"
 )
 
 type RDSDBInstance struct {
@@ -120,6 +131,58 @@ func (r *RDSDBInstance) DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDet
 
 	sort.Sort(ByCreateTime(dbSnapshotDetails))
 	return dbSnapshotDetails, nil
+}
+
+func (r *RDSDBInstance) DeleteSnapshots(brokerName string, keepForDays int) error {
+	r.logger.Info("delete-snapshots", lager.Data{"broker_name": brokerName, "keep_for_days": keepForDays})
+
+	deleteBefore := time.Now().Add(-1 * time.Duration(keepForDays) * 24 * time.Hour)
+
+	oldSnapshots := []*rds.DBSnapshot{}
+
+	err := r.rdssvc.DescribeDBSnapshotsPages(
+		&rds.DescribeDBSnapshotsInput{
+			SnapshotType: aws.String("manual"),
+		},
+		func(page *rds.DescribeDBSnapshotsOutput, lastPage bool) bool {
+			for _, snapshot := range page.DBSnapshots {
+				if snapshot.SnapshotCreateTime.Before(deleteBefore) {
+					oldSnapshots = append(oldSnapshots, snapshot)
+				}
+			}
+			return true
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to fetch snapshot list from AWS API: %s", err)
+	}
+
+	snapshotsToDelete := []string{}
+	for _, snapshot := range oldSnapshots {
+		tags, err := ListTagsForResource(*snapshot.DBSnapshotArn, r.rdssvc, r.logger)
+		if err != nil {
+			return fmt.Errorf("failed to list tags for %s: %s", *snapshot.DBSnapshotIdentifier, err)
+		}
+		for _, tag := range tags {
+			if *tag.Key == TagBrokerName && *tag.Value == brokerName {
+				snapshotsToDelete = append(snapshotsToDelete, *snapshot.DBSnapshotIdentifier)
+			}
+		}
+	}
+
+	if len(snapshotsToDelete) > 0 {
+		for _, snapshotID := range snapshotsToDelete {
+			r.logger.Info("delete-snapshot", lager.Data{"snapshot_id": snapshotID})
+			_, err := r.rdssvc.DeleteDBSnapshot(&rds.DeleteDBSnapshotInput{
+				DBSnapshotIdentifier: &snapshotID,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to delete %s: %s", snapshotID, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (r *RDSDBInstance) GetTag(ID, tagKey string) (string, error) {

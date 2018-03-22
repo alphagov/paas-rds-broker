@@ -1738,4 +1738,182 @@ var _ = Describe("RDS DB Instance", func() {
 			})
 		})
 	})
+
+	var _ = Describe("DeleteSnapshots", func() {
+		var (
+			describeDBSnapshotsInput       *rds.DescribeDBSnapshotsInput
+			describeDBSnapshotsError       error
+			describeDBSnapshotsRequestDone bool
+			describeDBSnapshots            []*rds.DBSnapshot
+
+			listTagsCnt              int
+			listTagsARNs             []string
+			listTags                 []map[string]string
+			listTagsForResourceError []error
+
+			deleteDBSnapshotCnt    int
+			deleteDBSnapshotInputs []*rds.DeleteDBSnapshotInput
+			deleteDBSnapshotErrors []error
+		)
+
+		BeforeEach(func() {
+			describeDBSnapshotsInput = &rds.DescribeDBSnapshotsInput{
+				SnapshotType: aws.String("manual"),
+			}
+			describeDBSnapshotsError = nil
+			describeDBSnapshotsRequestDone = false
+			describeDBSnapshots = []*rds.DBSnapshot{}
+
+			listTagsCnt = 0
+			listTagsARNs = []string{}
+			listTags = []map[string]string{}
+			listTagsForResourceError = []error{}
+
+			deleteDBSnapshotCnt = 0
+			deleteDBSnapshotInputs = []*rds.DeleteDBSnapshotInput{}
+			deleteDBSnapshotErrors = []error{}
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(MatchRegexp("DescribeDBSnapshots|ListTagsForResource|DeleteDBSnapshot"))
+				switch r.Operation.Name {
+				case "DescribeDBSnapshots":
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.DescribeDBSnapshotsInput{}))
+					Expect(r.Params).To(Equal(describeDBSnapshotsInput))
+					data := r.Data.(*rds.DescribeDBSnapshotsOutput)
+					data.DBSnapshots = describeDBSnapshots
+					r.Error = describeDBSnapshotsError
+					describeDBSnapshotsRequestDone = true
+				case "ListTagsForResource":
+					Expect(len(listTagsARNs)).To(BeNumerically(">", listTagsCnt), "unexpected ListTagsForResource call")
+					Expect(len(listTags)).To(BeNumerically(">", listTagsCnt), "unexpected ListTagsForResource call")
+
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
+					input := r.Params.(*rds.ListTagsForResourceInput)
+					Expect(aws.StringValue(input.ResourceName)).To(Equal(listTagsARNs[listTagsCnt]))
+					data := r.Data.(*rds.ListTagsForResourceOutput)
+					data.TagList = BuilRDSTags(listTags[listTagsCnt])
+					if len(listTagsForResourceError) > listTagsCnt {
+						r.Error = listTagsForResourceError[listTagsCnt]
+					}
+					listTagsCnt++
+				case "DeleteDBSnapshot":
+					Expect(len(deleteDBSnapshotInputs)).To(BeNumerically(">", deleteDBSnapshotCnt), "unexpected DeleteDBSnapshotInput call")
+
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.DeleteDBSnapshotInput{}))
+					Expect(r.Params).To(Equal(deleteDBSnapshotInputs[deleteDBSnapshotCnt]))
+					if len(deleteDBSnapshotErrors) > deleteDBSnapshotCnt {
+						r.Error = deleteDBSnapshotErrors[deleteDBSnapshotCnt]
+					}
+					deleteDBSnapshotCnt++
+				}
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		It("calls the DescribeDBSnapshots endpoint", func() {
+			rdsDBInstance.DeleteSnapshots("test-broker", 2)
+			Expect(describeDBSnapshotsRequestDone).To(BeTrue())
+		})
+
+		It("does not return error", func() {
+			err := rdsDBInstance.DeleteSnapshots("test-broker", 2)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("when there is a list of snapshots", func() {
+			var (
+				dbSnapshotOneDayOld             *rds.DBSnapshot
+				dbSnapshotTwoDayOld             *rds.DBSnapshot
+				dbSnapshotThreeDayOld           *rds.DBSnapshot
+				dbSnapshotFourDayOldOtherBroker *rds.DBSnapshot
+			)
+			BeforeEach(func() {
+				// Build DescribeDBSnapshots mock response with 3 instances
+				buildDBSnapshotAWSResponse := func(instanceID string, age time.Duration) *rds.DBSnapshot {
+					instanceCreateTime := time.Now().Add(-age)
+					return &rds.DBSnapshot{
+						DBInstanceIdentifier: aws.String(instanceID),
+						DBSnapshotIdentifier: aws.String(instanceID),
+						DBSnapshotArn:        aws.String(dbSnapshotArn + instanceID),
+						SnapshotCreateTime:   aws.Time(instanceCreateTime),
+					}
+				}
+
+				dbSnapshotOneDayOld = buildDBSnapshotAWSResponse("snapshot-one", 1*24*time.Hour)
+				dbSnapshotTwoDayOld = buildDBSnapshotAWSResponse("snapshot-two", 2*24*time.Hour)
+				dbSnapshotThreeDayOld = buildDBSnapshotAWSResponse("snapshot-three", 3*24*time.Hour)
+				dbSnapshotFourDayOldOtherBroker = buildDBSnapshotAWSResponse("snapshot-four", 4*24*time.Hour)
+
+				describeDBSnapshots = []*rds.DBSnapshot{
+					dbSnapshotThreeDayOld,
+					dbSnapshotOneDayOld,
+					dbSnapshotTwoDayOld,
+					dbSnapshotFourDayOldOtherBroker,
+				}
+
+				listTagsARNs = []string{
+					*dbSnapshotThreeDayOld.DBSnapshotArn,
+					*dbSnapshotTwoDayOld.DBSnapshotArn,
+					*dbSnapshotFourDayOldOtherBroker.DBSnapshotArn,
+				}
+
+				listTags = []map[string]string{
+					{TagBrokerName: "test-broker"},
+					{TagBrokerName: "test-broker"},
+					{TagBrokerName: "other-broker"},
+				}
+
+				deleteDBSnapshotInputs = []*rds.DeleteDBSnapshotInput{
+					{DBSnapshotIdentifier: dbSnapshotThreeDayOld.DBSnapshotIdentifier},
+					{DBSnapshotIdentifier: dbSnapshotTwoDayOld.DBSnapshotIdentifier},
+				}
+
+			})
+
+			It("deletes all snapshots older than 1 day which belongs to this broker", func() {
+				err := rdsDBInstance.DeleteSnapshots("test-broker", 2)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			Context("when deleting a snapshot fails", func() {
+				BeforeEach(func() {
+					deleteDBSnapshotErrors = []error{awserr.New("code", "message", errors.New("operation failed"))}
+				})
+
+				It("returns the proper AWS error", func() {
+					err := rdsDBInstance.DeleteSnapshots("test-broker", 2)
+					Expect(err).To(MatchError("failed to delete snapshot-three: code: message\ncaused by: operation failed"))
+				})
+			})
+
+			Context("when gettings the snapshot tags fails", func() {
+				BeforeEach(func() {
+					listTagsForResourceError = []error{awserr.New("code", "message", errors.New("operation failed"))}
+				})
+
+				It("returns the proper AWS error", func() {
+					err := rdsDBInstance.DeleteSnapshots("test-broker", 2)
+					Expect(err).To(MatchError("failed to list tags for snapshot-three: code: message"))
+				})
+			})
+
+		})
+
+		Context("when fetching the snapshots fails", func() {
+			BeforeEach(func() {
+				describeDBSnapshotsError = awserr.New("code", "message", errors.New("operation failed"))
+			})
+
+			It("returns the proper AWS error", func() {
+				err := rdsDBInstance.DeleteSnapshots("test-broker", 2)
+				Expect(err).To(MatchError("failed to fetch snapshot list from AWS API: code: message\ncaused by: operation failed"))
+			})
+		})
+
+	})
+
 })

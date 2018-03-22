@@ -68,5 +68,6 @@ var _ = Describe("Config", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Validating RDS configuration"))
 		})
+
 	})
 })

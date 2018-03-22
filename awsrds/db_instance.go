@@ -9,6 +9,7 @@ type DBInstance interface {
 	Describe(ID string) (DBInstanceDetails, error)
 	DescribeByTag(TagName, TagValue string) ([]*DBInstanceDetails, error)
 	DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDetails, error)
+	DeleteSnapshots(brokerName string, keepForDays int) error
 	Create(ID string, dbInstanceDetails DBInstanceDetails) error
 	Restore(ID, snapshotIdentifier string, dbInstanceDetails DBInstanceDetails) error
 	Modify(ID string, dbInstanceDetails DBInstanceDetails, applyImmediately bool) error

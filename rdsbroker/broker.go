@@ -66,13 +66,6 @@ const StateResetUserPassword = "PendingResetUserPassword"
 
 var restoreStateSequence = []string{StateUpdateSettings, StateReboot, StateResetUserPassword}
 
-const TagServiceID = "Service ID"
-const TagPlanID = "Plan ID"
-const TagOrganizationID = "Organization ID"
-const TagSpaceID = "Space ID"
-const TagSkipFinalSnapshot = "SkipFinalSnapshot"
-const TagRestoredFromSnapshot = "Restored From Snapshot"
-
 type RDSBroker struct {
 	dbPrefix                     string
 	masterPasswordSeed           string
@@ -188,10 +181,10 @@ func (b *RDSBroker) Provision(
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("No snapshots found for guid '%s'", *provisionParameters.RestoreFromLatestSnapshotOf)
 		}
 		snapshot := snapshots[0]
-		if snapshot.Tags[TagSpaceID] != details.SpaceGUID || snapshot.Tags[TagOrganizationID] != details.OrganizationGUID {
+		if snapshot.Tags[awsrds.TagSpaceID] != details.SpaceGUID || snapshot.Tags[awsrds.TagOrganizationID] != details.OrganizationGUID {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
 		}
-		if snapshot.Tags[TagPlanID] != details.PlanID {
+		if snapshot.Tags[awsrds.TagPlanID] != details.PlanID {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
 		}
 		snapshotIdentifier := snapshot.Identifier
@@ -295,7 +288,7 @@ func (b *RDSBroker) Deprovision(
 
 	skipDBInstanceFinalSnapshot := servicePlan.RDSProperties.SkipFinalSnapshot
 
-	skipFinalSnapshot, err := b.dbInstance.GetTag(b.dbInstanceIdentifier(instanceID), TagSkipFinalSnapshot)
+	skipFinalSnapshot, err := b.dbInstance.GetTag(b.dbInstanceIdentifier(instanceID), awsrds.TagSkipFinalSnapshot)
 	if err != nil {
 		return brokerapi.DeprovisionServiceSpec{}, err
 	}
@@ -500,7 +493,7 @@ func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstanceDetails 
 		instanceIDLogKey: instanceID,
 	})
 
-	planID := dbInstanceDetails.Tags[TagPlanID]
+	planID := dbInstanceDetails.Tags[awsrds.TagPlanID]
 	servicePlan, ok := b.catalog.FindServicePlan(planID)
 	if !ok {
 		return fmt.Errorf("Service Plan '%s' not found while ensuring extensions are created", planID)
@@ -531,14 +524,14 @@ func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstanceDetails 
 }
 
 func (b *RDSBroker) updateDBSettings(instanceID string, dbInstanceDetails *awsrds.DBInstanceDetails) (asyncOperarionTriggered bool, err error) {
-	serviceID := dbInstanceDetails.Tags[TagServiceID]
-	planID := dbInstanceDetails.Tags[TagPlanID]
-	organizationID := dbInstanceDetails.Tags[TagOrganizationID]
-	spaceID := dbInstanceDetails.Tags[TagSpaceID]
+	serviceID := dbInstanceDetails.Tags[awsrds.TagServiceID]
+	planID := dbInstanceDetails.Tags[awsrds.TagPlanID]
+	organizationID := dbInstanceDetails.Tags[awsrds.TagOrganizationID]
+	spaceID := dbInstanceDetails.Tags[awsrds.TagSpaceID]
 
 	servicePlan, ok := b.catalog.FindServicePlan(planID)
 	if !ok {
-		return false, fmt.Errorf("Service Plan '%s' not found", dbInstanceDetails.Tags[TagPlanID])
+		return false, fmt.Errorf("Service Plan '%s' not found", dbInstanceDetails.Tags[awsrds.TagPlanID])
 	}
 
 	newDbInstanceDetails := b.dbInstanceFromPlan(servicePlan)
@@ -865,34 +858,34 @@ func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID, s
 
 	tags["Owner"] = "Cloud Foundry"
 
-	tags["Broker Name"] = b.brokerName
+	tags[awsrds.TagBrokerName] = b.brokerName
 
 	tags[action+" by"] = "AWS RDS Service Broker"
 
 	tags[action+" at"] = time.Now().Format(time.RFC822Z)
 
 	if serviceID != "" {
-		tags[TagServiceID] = serviceID
+		tags[awsrds.TagServiceID] = serviceID
 	}
 
 	if planID != "" {
-		tags[TagPlanID] = planID
+		tags[awsrds.TagPlanID] = planID
 	}
 
 	if organizationID != "" {
-		tags[TagOrganizationID] = organizationID
+		tags[awsrds.TagOrganizationID] = organizationID
 	}
 
 	if spaceID != "" {
-		tags[TagSpaceID] = spaceID
+		tags[awsrds.TagSpaceID] = spaceID
 	}
 
 	if skipFinalSnapshot != "" {
-		tags[TagSkipFinalSnapshot] = skipFinalSnapshot
+		tags[awsrds.TagSkipFinalSnapshot] = skipFinalSnapshot
 	}
 
 	if originSnapshotIdentifier != "" {
-		tags[TagRestoredFromSnapshot] = originSnapshotIdentifier
+		tags[awsrds.TagRestoredFromSnapshot] = originSnapshotIdentifier
 		for _, state := range restoreStateSequence {
 			tags[state] = "true"
 		}
