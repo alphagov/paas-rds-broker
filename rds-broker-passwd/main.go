@@ -15,5 +15,5 @@ func main() {
 	fmt.Printf("instance uuid: ")
 	fmt.Scanln(&instance)
 
-	fmt.Printf("\n%s\n", utils.GetMD5B64(seed+instance, rdsbroker.MasterPasswordLength))
+	fmt.Printf("\n%s\n", utils.GenerateHash(seed+instance, rdsbroker.MasterPasswordLength))
 }

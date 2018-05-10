@@ -75,7 +75,7 @@ var _ = Describe("RDS Broker", func() {
 		dbInstanceIdentifier = "cf-instance-id"
 		dbName               = "cf_instance_id"
 		dbUsername           = "uvMSB820K_t3WvCX"
-		masterUserPassword   = "qOeiJ6AstR_mUQJxn6jyew=="
+		masterUserPassword   = "R2gfMWWb3naYDTL6rrBcGp-C5dmcThId"
 		instanceOrigID       = "instance-orig-id"
 	)
 
