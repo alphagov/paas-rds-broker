@@ -187,6 +187,13 @@ var _ = Describe("PostgresEngine", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
+	It("returns error LoginFailedError if the credentials are wrong", func() {
+		err := postgresEngine.Open(address, port, dbname, masterUsername, "wrong_password")
+		defer postgresEngine.Close()
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError(LoginFailedError))
+	})
+
 	Describe("Concurrency", func() {
 
 		It("Should be able to handle rapid parallel CreateUser/DropUser from multiple connections", func() {
