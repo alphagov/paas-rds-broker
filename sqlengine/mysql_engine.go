@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	_ "github.com/go-sql-driver/mysql" // MySQL Driver
+	"github.com/go-sql-driver/mysql" // MySQL Driver
 
 	"strings"
 
 	"code.cloudfoundry.org/lager"
 )
+
+const ER_ACCESS_DENIED_ERROR = 1045
 
 type MySQLEngine struct {
 	logger     lager.Logger
@@ -40,6 +42,12 @@ func (d *MySQLEngine) Open(address string, port int64, dbname string, username s
 	// Open() may not actually open the connection so we ping to validate it
 	err = d.db.Ping()
 	if err != nil {
+		// We specifically look for invalid password error and map it to a
+		// generic error that can be the same across other engines
+		// See: https://github.com/VividCortex/mysqlerr/blob/master/mysqlerr.go
+		if mysqlErr, ok := err.(*mysql.MySQLError); ok && mysqlErr.Number == ER_ACCESS_DENIED_ERROR {
+			return LoginFailedError
+		}
 		return err
 	}
 
