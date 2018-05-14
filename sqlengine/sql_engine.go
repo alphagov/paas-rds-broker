@@ -26,7 +26,7 @@ type SQLEngine interface {
 var LoginFailedError = errors.New("Login failed")
 
 func generateUsername(seed string) string {
-	usernameString := strings.ToLower(utils.GetMD5B64(seed, usernameLength-1))
+	usernameString := strings.ToLower(utils.GenerateHash(seed, usernameLength-1))
 	return "u" + strings.Replace(usernameString, "-", "_", -1)
 }
 

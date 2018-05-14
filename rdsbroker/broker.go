@@ -664,7 +664,7 @@ func (b *RDSBroker) generateMasterUsername() string {
 }
 
 func (b *RDSBroker) generateMasterPassword(instanceID string) string {
-	return utils.GetMD5B64(b.masterPasswordSeed+instanceID, MasterPasswordLength)
+	return utils.GenerateHash(b.masterPasswordSeed+instanceID, MasterPasswordLength)
 }
 
 func (b *RDSBroker) dbName(instanceID string) string {

@@ -14,23 +14,23 @@ var _ = Describe("RandomAlphaNum", func() {
 	})
 })
 
-var _ = Describe("GetMD5B64", func() {
-	It("returns the Base64 encoded MD5 hash of the given string", func() {
-		md5b64 := GetMD5B64("ce71b484-d542-40f7-9dd4-5526e38c81ba", 32)
+var _ = Describe("GenerateHash", func() {
+	It("returns the Base64 encoded SHA256 hash of the given string", func() {
+		hash := GenerateHash("ce71b484-d542-40f7-9dd4-5526e38c81ba", 64)
 		// Expectation generated with
-		// echo -n ce71b484-d542-40f7-9dd4-5526e38c81ba | openssl dgst -md5 -binary | openssl enc -base64
-		Expect(md5b64).To(Equal("OzUBBVyWFqGmb7pb54mPVQ=="))
+		// echo -n "ce71b484-d542-40f7-9dd4-5526e38c81ba" | openssl dgst -sha256 -binary | openssl enc -base64
+		Expect(hash).To(Equal("BJ3IzLRK6pmhB98A1S7RmgWkkgmK1MSQgKUMikmI7yQ="))
 	})
 
 	It("truncates the result when it's longer than the resuested max size", func() {
-		md5b64 := GetMD5B64("ce71b484-d542-40f7-9dd4-5526e38c81ba", 16)
-		Expect(md5b64).To(Equal("OzUBBVyWFqGmb7pb"))
+		hash := GenerateHash("ce71b484-d542-40f7-9dd4-5526e38c81ba", 32)
+		Expect(hash).To(Equal("BJ3IzLRK6pmhB98A1S7RmgWkkgmK1MSQ"))
 	})
 
 	It("Uses the URL safe base64 scheme", func() {
-		md5b64 := GetMD5B64("1123456678", 32)
+		hash := GenerateHash("1123456678", 64)
 		// Expectation generated with
-		// echo -n 1123456678 | openssl dgst -md5 -binary | openssl enc -base64 | tr '+/' '-_'
-		Expect(md5b64).To(Equal("4P7L73_9u3fGZbGG-GDHOw=="))
+		// echo -n 1123456678 | openssl dgst -sha256 -binary | openssl enc -base64 | tr '+/' '-_'
+		Expect(hash).To(Equal("180NZHG1Cx3N4mkrcboPAzOeJlXlYth4mKxjtzGhXMI="))
 	})
 })
