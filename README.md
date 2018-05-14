@@ -116,19 +116,21 @@ There are two forms of tests for the broker, the unit tests and the integration 
 
 To run the tests of this broker, you need a Postgres and MySQL running locally, without SSL. The connection details can be configured using environment variables - see the `sqlengine` test suites for more information.
 
-In travis we use the [postgres service](https://docs.travis-ci.com/user/database-setup/#PostgreSQL) and the [mysql service](https://docs.travis-ci.com/user/database-setup/#MySQL)
+In travis we use the [postgres service](https://docs.travis-ci.com/user/database-setup/#PostgreSQL) and the [mysql service](https://docs.travis-ci.com/user/database-setup/#MySQL).
+
+We need to enable authentication on the postgres in order to test the wrong credential tests, as any password would be considered valid. In mysql is fine as only empty password is valid.
 
 Locally you can use containers with [Docker for Mac](https://docs.docker.com/docker-for-mac/) or [Docker for Linux](https://docs.docker.com/engine/installation/linux/ubuntu/):
 
 ```
-docker run -p 5432:5432 --name postgres -e POSTGRES_PASSWORD= -d postgres:9.5
+docker run -p 5432:5432 --name postgres -e POSTGRES_PASSWORD=abc123 -d postgres:9.5
 
 docker run -p 3306:3306 --name mysql -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -d mysql:5.7
 until docker exec mysql mysqladmin ping --silent; do
   printf "."; sleep 1
 done
 
-make unit
+make unit POSTGRESQL_PASSWORD=abc123
 
 docker rm -f postgres mysql
 ```
