@@ -7,16 +7,21 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
 	"sort"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/onsi/gomega/gexec"
+	"github.com/phayes/freeport"
 
 	uuid "github.com/satori/go.uuid"
 
 	. "github.com/alphagov/paas-rds-broker/ci/helpers"
+	"github.com/alphagov/paas-rds-broker/config"
 	"github.com/alphagov/paas-rds-broker/rdsbroker"
 )
 
@@ -25,8 +30,19 @@ const (
 )
 
 var _ = Describe("RDS Broker Daemon", func() {
-	It("should check the instance credentials", func() {
-		Eventually(rdsBrokerSession, 30*time.Second).Should(gbytes.Say("credentials check has ended"))
+
+	var (
+		rdsBrokerSession *gexec.Session
+		brokerAPIClient  *BrokerAPIClient
+		rdsClient        *RDSClient
+	)
+
+	BeforeEach(func() {
+		rdsBrokerSession, brokerAPIClient, rdsClient = startNewBroker(rdsBrokerConfig)
+	})
+
+	AfterEach(func() {
+		rdsBrokerSession.Kill()
 	})
 
 	Describe("Services", func() {
@@ -58,7 +74,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 		})
 	})
 
-	Describe("Instance Provision/Bind/Deprovision", func() {
+	Describe("Instance Provision/Bind/Deprovision and MasterPasswordSeed update", func() {
+
 		TestProvisionBindDeprovision := func(serviceID string) {
 			const planID = "micro-without-snapshot"
 
@@ -78,7 +95,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(instanceID, serviceID, planID, operation)
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
 			})
 
@@ -87,11 +104,14 @@ var _ = Describe("RDS Broker Daemon", func() {
 				code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(instanceID, serviceID, planID, operation)
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("gone"))
 			})
 
 			It("handles binding properly", func() {
+				By("checking the instance credentials")
+				Eventually(rdsBrokerSession, 30*time.Second).Should(gbytes.Say("credentials check has ended"))
+
 				By("creating a binding")
 				resp, err := brokerAPIClient.DoBindRequest(instanceID, serviceID, planID, appGUID, bindingID)
 				Expect(err).ToNot(HaveOccurred())
@@ -109,6 +129,43 @@ var _ = Describe("RDS Broker Daemon", func() {
 				resp, err = brokerAPIClient.DoUnbindRequest(instanceID, serviceID, planID, bindingID)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(resp.StatusCode).To(Equal(200))
+				resp, err = brokerAPIClient.DoBindRequest(instanceID, serviceID, planID, appGUID, bindingID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(resp.StatusCode).To(Equal(201))
+
+				By("using the new credentials to alter existing objects")
+				credentials, err = getCredentialsFromBindResponse(resp)
+				Expect(err).ToNot(HaveOccurred())
+				err = permissionsTest(credentials.URI)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("restarting the broker with a new master password seed")
+				rdsBrokerSession.Kill()
+				newRDSConfig := *rdsBrokerConfig.RDSConfig
+				newRDSConfig.MasterPasswordSeed = "otherseed"
+				newRDSBrokerConfig := *rdsBrokerConfig
+				newRDSBrokerConfig.RDSConfig = &newRDSConfig
+				rdsBrokerSession, brokerAPIClient, rdsClient = startNewBroker(&newRDSBrokerConfig)
+
+				Eventually(rdsBrokerSession, 30*time.Second).Should(gbytes.Say("Will attempt to reset the password."))
+				Eventually(rdsBrokerSession, 30*time.Second).Should(gbytes.Say("credentials check has ended"))
+
+				By("immediately using the previous credentials to alter objects")
+				err = setupPermissionsTest(credentials.URI)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("re-binding shall eventually work")
+				Eventually(
+					func() bool {
+						resp, err = brokerAPIClient.DoUnbindRequest(instanceID, serviceID, planID, bindingID)
+						return (err == nil && resp.StatusCode == 200)
+					},
+					120*time.Second,
+					15*time.Second,
+				).Should(
+					BeTrue(),
+					"MasterPassword did not get updated",
+				)
 				resp, err = brokerAPIClient.DoBindRequest(instanceID, serviceID, planID, appGUID, bindingID)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(resp.StatusCode).To(Equal(201))
@@ -151,13 +208,13 @@ var _ = Describe("RDS Broker Daemon", func() {
 				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(instanceID, serviceID, planID, operation)
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
 
 				code, operation, err = brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
-				state = pollForOperationCompletion(instanceID, serviceID, planID, operation)
+				state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("gone"))
 
 				snapshots, err := rdsClient.GetDBFinalSnapshots(instanceID)
@@ -176,13 +233,13 @@ var _ = Describe("RDS Broker Daemon", func() {
 				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, `{"skip_final_snapshot":true}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(instanceID, serviceID, planID, operation)
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
 
 				code, operation, err = brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
-				state = pollForOperationCompletion(instanceID, serviceID, planID, operation)
+				state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("gone"))
 
 				snapshots, err := rdsClient.GetDBFinalSnapshots(instanceID)
@@ -201,19 +258,19 @@ var _ = Describe("RDS Broker Daemon", func() {
 				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(instanceID, serviceID, planID, operation)
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
 
 				code, operation, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"skip_final_snapshot":true}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
-				state = pollForOperationCompletion(instanceID, serviceID, planID, operation)
+				state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
 
 				code, operation, err = brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
-				state = pollForOperationCompletion(instanceID, serviceID, planID, operation)
+				state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("gone"))
 
 				snapshots, err := rdsClient.GetDBFinalSnapshots(instanceID)
@@ -239,7 +296,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 	})
 })
 
-func pollForOperationCompletion(instanceID, serviceID, planID, operation string) string {
+func pollForOperationCompletion(brokerAPIClient *BrokerAPIClient, instanceID, serviceID, planID, operation string) string {
 	var state string
 	var err error
 
@@ -267,6 +324,41 @@ func pollForOperationCompletion(instanceID, serviceID, planID, operation string)
 
 type bindingResponse struct {
 	Credentials rdsbroker.Credentials `json:"credentials"`
+}
+
+func startNewBroker(rdsBrokerConfig *config.Config) (*gexec.Session, *BrokerAPIClient, *RDSClient) {
+	configFile, err := ioutil.TempFile("", "rds-broker")
+	Expect(err).ToNot(HaveOccurred())
+	defer os.Remove(configFile.Name())
+
+	configJSON, err := json.Marshal(rdsBrokerConfig)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(ioutil.WriteFile(configFile.Name(), configJSON, 0644)).To(Succeed())
+	Expect(configFile.Close()).To(Succeed())
+
+	// start the broker in a random port
+	rdsBrokerPort := freeport.GetPort()
+	command := exec.Command(rdsBrokerPath,
+		fmt.Sprintf("-port=%d", rdsBrokerPort),
+		fmt.Sprintf("-config=%s", configFile.Name()),
+	)
+	rdsBrokerSession, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+	Expect(err).ShouldNot(HaveOccurred())
+
+	// Wait for it to be listening
+	Eventually(rdsBrokerSession, 10*time.Second).Should(And(
+		gbytes.Say("rds-broker.start"),
+		gbytes.Say(fmt.Sprintf(`{"port":"%d"}`, rdsBrokerPort)),
+	))
+
+	rdsBrokerUrl := fmt.Sprintf("http://localhost:%d", rdsBrokerPort)
+
+	brokerAPIClient := NewBrokerAPIClient(rdsBrokerUrl, rdsBrokerConfig.Username, rdsBrokerConfig.Password)
+	rdsClient, err := NewRDSClient(rdsBrokerConfig.RDSConfig.Region, rdsBrokerConfig.RDSConfig.DBPrefix)
+
+	Expect(err).ToNot(HaveOccurred())
+
+	return rdsBrokerSession, brokerAPIClient, rdsClient
 }
 
 func getCredentialsFromBindResponse(resp *http.Response) (*rdsbroker.Credentials, error) {
