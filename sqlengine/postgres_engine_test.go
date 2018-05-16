@@ -187,6 +187,13 @@ var _ = Describe("PostgresEngine", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
+	It("returns error LoginFailedError if the credentials are wrong", func() {
+		err := postgresEngine.Open(address, port, dbname, masterUsername, "wrong_password")
+		defer postgresEngine.Close()
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError(LoginFailedError))
+	})
+
 	Describe("Concurrency", func() {
 
 		It("Should be able to handle rapid parallel CreateUser/DropUser from multiple connections", func() {
@@ -349,8 +356,14 @@ var _ = Describe("PostgresEngine", func() {
 
 				pqErr, ok := err.(*pq.Error)
 				Expect(ok).To(BeTrue())
-				Expect(pqErr.Code).To(BeEquivalentTo("28000"))
-				Expect(pqErr.Message).To(MatchRegexp("role .* does not exist"))
+				Expect(pqErr.Code).To(SatisfyAny(
+					BeEquivalentTo("28P01"),
+					BeEquivalentTo("28000"),
+				))
+				Expect(pqErr.Message).To(SatisfyAny(
+					MatchRegexp("authentication failed for user"),
+					MatchRegexp("role .* does not exist"),
+				))
 			})
 
 			It("Errors dropping the user are returned", func() {
@@ -423,8 +436,14 @@ var _ = Describe("PostgresEngine", func() {
 
 				pqErr, ok := err.(*pq.Error)
 				Expect(ok).To(BeTrue())
-				Expect(pqErr.Code).To(BeEquivalentTo("28000"))
-				Expect(pqErr.Message).To(MatchRegexp("role .* does not exist"))
+				Expect(pqErr.Code).To(SatisfyAny(
+					BeEquivalentTo("28P01"),
+					BeEquivalentTo("28000"),
+				))
+				Expect(pqErr.Message).To(SatisfyAny(
+					MatchRegexp("authentication failed for user"),
+					MatchRegexp("role .* does not exist"),
+				))
 			})
 
 			It("CreateUser() returns the same user and different password", func() {

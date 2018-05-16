@@ -88,6 +88,13 @@ var _ = Describe("MySQLEngine", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
+	It("returns error LoginFailedError if the credentials are wrong", func() {
+		err := mysqlEngine.Open(address, port, dbname, username, "wrong_password")
+		defer mysqlEngine.Close()
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError(LoginFailedError))
+	})
+
 	Describe("User modification tests", func() {
 		var (
 			bindingID string
