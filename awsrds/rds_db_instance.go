@@ -77,12 +77,18 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string) ([]*DBInstanceDet
 
 	describeDBInstancesInput := &rds.DescribeDBInstancesInput{}
 
-	dbInstances, err := r.rdssvc.DescribeDBInstances(describeDBInstancesInput)
+	var dbInstances []*rds.DBInstance
+	err := r.rdssvc.DescribeDBInstancesPages(describeDBInstancesInput,
+		func(page *rds.DescribeDBInstancesOutput, lastPage bool) bool {
+			dbInstances = append(dbInstances, page.DBInstances...)
+			return true
+		},
+	)
 
 	if err != nil {
 		return dbInstanceDetails, err
 	}
-	for _, dbInstance := range dbInstances.DBInstances {
+	for _, dbInstance := range dbInstances {
 		listTagsForResourceInput := &rds.ListTagsForResourceInput{
 			ResourceName: dbInstance.DBInstanceArn,
 		}
