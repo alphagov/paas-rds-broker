@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -45,6 +46,16 @@ func randChar(length int, chars []byte) string {
 func GenerateHash(text string, maxLength int) string {
 	hash := sha256.Sum256([]byte(text))
 	encoded := base64.URLEncoding.EncodeToString(hash[:])
+	if len(encoded) > maxLength {
+		return encoded[0:maxLength]
+	} else {
+		return encoded
+	}
+}
+
+func GetMD5B64(text string, maxLength int) string {
+	md5 := md5.Sum([]byte(text))
+	encoded := base64.URLEncoding.EncodeToString(md5[:])
 	if len(encoded) > maxLength {
 		return encoded[0:maxLength]
 	} else {

@@ -30,6 +30,11 @@ func generateUsername(seed string) string {
 	return "u" + strings.Replace(usernameString, "-", "_", -1)
 }
 
+func generateUsernameOld(seed string) string {
+	usernameString := strings.ToLower(utils.GetMD5B64(seed, usernameLength-1))
+	return "u" + strings.Replace(usernameString, "-", "_", -1)
+}
+
 func generatePassword() string {
 	return utils.RandomAlphaNum(passwordLength)
 }
