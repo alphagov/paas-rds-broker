@@ -392,6 +392,41 @@ var _ = Describe("PostgresEngine", func() {
 			})
 		})
 
+		Context("A user exists with a username generated the old way", func() {
+
+			BeforeEach(func() {
+				var err error
+				postgresEngine.UsernameGenerator = generateUsernameOld
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				postgresEngine.UsernameGenerator = generateUsername
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("DropUser() removes the credentials", func() {
+				err := postgresEngine.DropUser(bindingID)
+				Expect(err).ToNot(HaveOccurred())
+
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				defer db.Close()
+				Expect(err).ToNot(HaveOccurred())
+				err = db.Ping()
+				Expect(err).To(HaveOccurred())
+
+				pqErr, ok := err.(*pq.Error)
+				Expect(ok).To(BeTrue())
+				Expect(pqErr.Code).To(SatisfyAny(
+					BeEquivalentTo("28P01"),
+					BeEquivalentTo("28000"),
+				))
+				Expect(pqErr.Message).To(SatisfyAny(
+					MatchRegexp("authentication failed for user"),
+					MatchRegexp("role .* does not exist"),
+				))
+			})
+
+		})
+
 	})
 
 	Describe("ResetState", func() {

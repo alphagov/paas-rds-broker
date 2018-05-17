@@ -22,15 +22,17 @@ const (
 )
 
 type PostgresEngine struct {
-	logger     lager.Logger
-	db         *sql.DB
-	requireSSL bool
+	logger            lager.Logger
+	db                *sql.DB
+	requireSSL        bool
+	UsernameGenerator func(string) string
 }
 
 func NewPostgresEngine(logger lager.Logger) *PostgresEngine {
 	return &PostgresEngine{
-		logger:     logger.Session("postgres-engine"),
-		requireSSL: true,
+		logger:            logger.Session("postgres-engine"),
+		requireSSL:        true,
+		UsernameGenerator: generateUsername,
 	}
 }
 
@@ -79,7 +81,7 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 		return "", "", err
 	}
 
-	username = generateUsername(bindingID)
+	username = d.UsernameGenerator(bindingID)
 	password = generatePassword()
 
 	if err = d.ensureUser(tx, dbname, username, password); err != nil {
@@ -141,7 +143,7 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, passwor
 }
 
 func (d *PostgresEngine) DropUser(bindingID string) error {
-	username := generateUsername(bindingID)
+	username := d.UsernameGenerator(bindingID)
 	dropUserStatement := fmt.Sprintf(`drop role "%s"`, username)
 
 	_, err := d.db.Exec(dropUserStatement)
@@ -169,6 +171,8 @@ func (d *PostgresEngine) DropUser(bindingID string) error {
 
 		return nil
 	}
+
+	d.logger.Error("sql-error", err)
 
 	return err
 }

@@ -15,15 +15,17 @@ import (
 const ER_ACCESS_DENIED_ERROR = 1045
 
 type MySQLEngine struct {
-	logger     lager.Logger
-	db         *sql.DB
-	requireSSL bool
+	logger            lager.Logger
+	db                *sql.DB
+	requireSSL        bool
+	UsernameGenerator func(string) string
 }
 
 func NewMySQLEngine(logger lager.Logger) *MySQLEngine {
 	return &MySQLEngine{
-		logger:     logger.Session("mysql-engine"),
-		requireSSL: true,
+		logger:            logger.Session("mysql-engine"),
+		requireSSL:        true,
+		UsernameGenerator: generateUsername,
 	}
 }
 
@@ -61,7 +63,7 @@ func (d *MySQLEngine) Close() {
 }
 
 func (d *MySQLEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
-	username = generateUsername(bindingID)
+	username = d.UsernameGenerator(bindingID)
 	password = generatePassword()
 	options := []string{
 		"SELECT",
@@ -110,7 +112,7 @@ func (d *MySQLEngine) CreateUser(bindingID, dbname string) (username, password s
 }
 
 func (d *MySQLEngine) DropUser(bindingID string) error {
-	username := generateUsername(bindingID)
+	username := d.UsernameGenerator(bindingID)
 
 	dropUserStatement := "DROP USER '" + username + "'@'%';"
 	d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
@@ -119,6 +121,8 @@ func (d *MySQLEngine) DropUser(bindingID string) error {
 	if err == nil {
 		return nil
 	}
+
+	d.logger.Error("sql-error", err)
 
 	// Try to drop the username generated the old way
 
