@@ -115,7 +115,20 @@ func (d *MySQLEngine) DropUser(bindingID string) error {
 	dropUserStatement := "DROP USER '" + username + "'@'%';"
 	d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
 
-	if _, err := d.db.Exec(dropUserStatement); err != nil {
+	_, err := d.db.Exec(dropUserStatement)
+	if err == nil {
+		return nil
+	}
+
+	// Try to drop the username generated the old way
+
+	username = generateUsernameOld(bindingID)
+
+	dropUserStatement = "DROP USER '" + username + "'@'%';"
+	d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
+
+	_, err = d.db.Exec(dropUserStatement)
+	if err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
