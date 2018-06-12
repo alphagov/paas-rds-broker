@@ -2,6 +2,7 @@ package awsrds
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -340,7 +341,7 @@ func (r *RDSDBInstance) buildDBInstance(dbInstance *rds.DBInstance) DBInstanceDe
 
 	if dbInstance.PendingModifiedValues != nil {
 		emptyPendingModifiedValues := &rds.PendingModifiedValues{}
-		if *dbInstance.PendingModifiedValues != *emptyPendingModifiedValues {
+		if !reflect.DeepEqual(*dbInstance.PendingModifiedValues, *emptyPendingModifiedValues) {
 			dbInstanceDetails.PendingModifications = true
 		}
 	}
