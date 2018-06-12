@@ -43,6 +43,8 @@ func randChar(length int, chars []byte) string {
 	}
 }
 
+// It is noted that masterPassword and binding username are generated deterministically by this function.
+// If you want to change the hashing method, check the implications on creating and dropping users.
 func GenerateHash(text string, maxLength int) string {
 	hash := sha256.Sum256([]byte(text))
 	encoded := base64.URLEncoding.EncodeToString(hash[:])
