@@ -22,30 +22,34 @@
     "aws/credentials/ec2rolecreds",
     "aws/credentials/endpointcreds",
     "aws/credentials/stscreds",
+    "aws/csm",
     "aws/defaults",
     "aws/ec2metadata",
     "aws/endpoints",
     "aws/request",
     "aws/session",
     "aws/signer/v4",
+    "internal/sdkio",
+    "internal/sdkrand",
+    "internal/shareddefaults",
     "private/protocol",
     "private/protocol/ec2query",
     "private/protocol/query",
     "private/protocol/query/queryutil",
     "private/protocol/rest",
     "private/protocol/xml/xmlutil",
-    "private/waiter",
     "service/ec2",
     "service/rds",
     "service/sts"
   ]
-  revision = "6669bce73b4e3bc922ff5ea3a3983ede26e02b39"
-  version = "v1.7.3"
+  revision = "d2d4fca90395039f60821c231da759cab8f318c7"
+  version = "v1.14.4"
 
 [[projects]]
   name = "github.com/go-ini/ini"
   packages = ["."]
-  revision = "467243bad6cb295e0fe72366da5ba85b069874cb"
+  revision = "06f5f3d67269ccec1fe5fe4134ba6e982984f7f5"
+  version = "v1.37.0"
 
 [[projects]]
   name = "github.com/go-sql-driver/mysql"
@@ -65,7 +69,7 @@
 [[projects]]
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
-  revision = "c01cf91b011868172fdcd9f41838e80c9d716264"
+  revision = "0b12d6b5"
 
 [[projects]]
   name = "github.com/lib/pq"
