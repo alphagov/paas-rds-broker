@@ -28,13 +28,6 @@ var (
 	port           string
 	cronFlag       bool
 	cronProcess    *cron.Process
-
-	logLevels = map[string]lager.LogLevel{
-		"DEBUG": lager.DEBUG,
-		"INFO":  lager.INFO,
-		"ERROR": lager.ERROR,
-		"FATAL": lager.FATAL,
-	}
 )
 
 func init() {
@@ -44,13 +37,13 @@ func init() {
 }
 
 func buildLogger(logLevel string) lager.Logger {
-	laggerLogLevel, ok := logLevels[strings.ToUpper(logLevel)]
-	if !ok {
-		log.Fatal("Invalid log level: ", logLevel)
+	lagerLogLevel, err := lager.LogLevelFromString(strings.ToLower(logLevel))
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	logger := lager.NewLogger("rds-broker")
-	logger.RegisterSink(lager.NewWriterSink(os.Stdout, laggerLogLevel))
+	logger.RegisterSink(lager.NewWriterSink(os.Stdout, lagerLogLevel))
 
 	return logger
 }
