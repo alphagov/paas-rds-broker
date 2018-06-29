@@ -29,10 +29,34 @@ var (
 	cronFlag       bool
 )
 
-func init() {
+func main() {
 	flag.StringVar(&configFilePath, "config", "", "Location of the config file")
 	flag.StringVar(&port, "port", "3000", "Listen port")
 	flag.BoolVar(&cronFlag, "cron", false, "Start the cron process")
+	flag.Parse()
+
+	cfg, err := config.LoadConfig(configFilePath)
+	if err != nil {
+		log.Fatalf("Error loading config file: %s", err)
+	}
+	logger := buildLogger(cfg.LogLevel)
+	dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
+
+	if cronFlag {
+		err := startCronProcess(cfg, dbInstance, logger)
+		if err != nil {
+			log.Fatalf("Failed to start cron process: %s", err)
+		}
+	} else {
+		sqlProvider := sqlengine.NewProviderService(logger)
+		broker := rdsbroker.New(*cfg.RDSConfig, dbInstance, sqlProvider, logger)
+		go broker.CheckAndRotateCredentials()
+
+		err := startHTTPServer(cfg, port, broker, logger)
+		if err != nil {
+			log.Fatalf("Failed to start broker process: %s", err)
+		}
+	}
 }
 
 func buildLogger(logLevel string) lager.Logger {
@@ -67,33 +91,6 @@ func buildDBInstance(region string, logger lager.Logger) awsrds.DBInstance {
 	awsSession := session.New(awsConfig)
 	rdssvc := rds.New(awsSession)
 	return awsrds.NewRDSDBInstance(region, "aws", rdssvc, logger)
-}
-
-func main() {
-	flag.Parse()
-
-	cfg, err := config.LoadConfig(configFilePath)
-	if err != nil {
-		log.Fatalf("Error loading config file: %s", err)
-	}
-	logger := buildLogger(cfg.LogLevel)
-	dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
-
-	if cronFlag {
-		err := startCronProcess(cfg, dbInstance, logger)
-		if err != nil {
-			log.Fatalf("Failed to start cron process: %s", err)
-		}
-	} else {
-		sqlProvider := sqlengine.NewProviderService(logger)
-		broker := rdsbroker.New(*cfg.RDSConfig, dbInstance, sqlProvider, logger)
-		go broker.CheckAndRotateCredentials()
-
-		err := startHTTPServer(cfg, port, broker, logger)
-		if err != nil {
-			log.Fatalf("Failed to start broker process: %s", err)
-		}
-	}
 }
 
 func startHTTPServer(
