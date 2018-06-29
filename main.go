@@ -23,26 +23,22 @@ import (
 	"github.com/alphagov/paas-rds-broker/sqlengine"
 )
 
-var (
-	configFilePath string
-	port           string
-	cronFlag       bool
-)
-
 func main() {
-	flag.StringVar(&configFilePath, "config", "", "Location of the config file")
-	flag.StringVar(&port, "port", "3000", "Listen port")
-	flag.BoolVar(&cronFlag, "cron", false, "Start the cron process")
+	var (
+		configFilePath = flag.String("config", "", "Location of the config file")
+		port           = flag.String("port", "3000", "Listen port")
+		cronFlag       = flag.Bool("cron", false, "Start the cron process")
+	)
 	flag.Parse()
 
-	cfg, err := config.LoadConfig(configFilePath)
+	cfg, err := config.LoadConfig(*configFilePath)
 	if err != nil {
 		log.Fatalf("Error loading config file: %s", err)
 	}
 	logger := buildLogger(cfg.LogLevel)
 	dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
 
-	if cronFlag {
+	if *cronFlag {
 		err := startCronProcess(cfg, dbInstance, logger)
 		if err != nil {
 			log.Fatalf("Failed to start cron process: %s", err)
@@ -52,7 +48,7 @@ func main() {
 		broker := rdsbroker.New(*cfg.RDSConfig, dbInstance, sqlProvider, logger)
 		go broker.CheckAndRotateCredentials()
 
-		err := startHTTPServer(cfg, port, broker, logger)
+		err := startHTTPServer(cfg, *port, broker, logger)
 		if err != nil {
 			log.Fatalf("Failed to start broker process: %s", err)
 		}
