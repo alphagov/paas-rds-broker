@@ -8,19 +8,21 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/alphagov/paas-rds-broker/awsrds/fakes"
+	"github.com/alphagov/paas-rds-broker/config"
 	. "github.com/alphagov/paas-rds-broker/cron"
+	"github.com/alphagov/paas-rds-broker/rdsbroker"
 )
 
 var _ = Describe("Process", func() {
 
-	var cfg *Config
+	var cfg *config.Config
 	var dbInstance *fakes.FakeDBInstance
 	var logger lager.Logger
 	var process *Process
 
 	BeforeEach(func() {
-		cfg = &Config{
-			RDSConfig: RDSConfig{
+		cfg = &config.Config{
+			RDSConfig: &rdsbroker.Config{
 				Region:     "eu-west-1",
 				BrokerName: "test-broker",
 			},

@@ -80,15 +80,16 @@ func buildDBInstance(region string, logger lager.Logger) awsrds.DBInstance {
 func main() {
 	flag.Parse()
 
+	cfg, err := config.LoadConfig(configFilePath)
+	if err != nil {
+		log.Fatalf("Error loading config file: %s", err)
+	}
+	logger := buildLogger(cfg.LogLevel)
+	dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
+
 	go stopOnSignal()
 
 	if cronFlag {
-		cfg, err := cron.LoadConfig(configFilePath)
-		if err != nil {
-			log.Fatalf("Error loading config file: %s", err)
-		}
-		logger := buildLogger(cfg.LogLevel)
-		dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
 		cronProcess = cron.NewProcess(cfg, dbInstance, logger)
 
 		err = cronProcess.Start()
@@ -96,12 +97,6 @@ func main() {
 			log.Fatalf("Failed to start cron process: %s", err)
 		}
 	} else {
-		cfg, err := config.LoadConfig(configFilePath)
-		if err != nil {
-			log.Fatalf("Error loading config file: %s", err)
-		}
-		logger := buildLogger(cfg.LogLevel)
-		dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
 		sqlProvider := sqlengine.NewProviderService(logger)
 
 		err = startServiceBroker(cfg, dbInstance, sqlProvider, logger)

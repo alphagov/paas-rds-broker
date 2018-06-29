@@ -14,9 +14,11 @@ var _ = Describe("Config", func() {
 		config Config
 
 		validConfig = Config{
-			LogLevel: "DEBUG",
-			Username: "broker-username",
-			Password: "broker-password",
+			LogLevel:             "DEBUG",
+			Username:             "broker-username",
+			Password:             "broker-password",
+			KeepSnapshotsForDays: 7,
+			CronSchedule:         "@hourly",
 			RDSConfig: &rdsbroker.Config{
 				Region:             "rds-region",
 				DBPrefix:           "cf",
@@ -59,6 +61,20 @@ var _ = Describe("Config", func() {
 			err := config.Validate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Must provide a non-empty Password"))
+		})
+
+		It("returns an error if cron schedule is empty", func() {
+			config.CronSchedule = ""
+
+			err := config.Validate()
+			Expect(err).To(MatchError("must provide a non-empty cron_schedule"))
+		})
+
+		It("returns an error if keep_snapshots_for_days is missing", func() {
+			config.KeepSnapshotsForDays = 0
+
+			err := config.Validate()
+			Expect(err).To(MatchError("must provide a valid number for keep_snapshots_for_days"))
 		})
 
 		It("returns error if RDS configuration is not valid", func() {
