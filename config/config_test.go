@@ -10,26 +10,33 @@ import (
 )
 
 var _ = Describe("Config", func() {
-	var (
-		config Config
 
-		validConfig = Config{
-			LogLevel:             "DEBUG",
-			Username:             "broker-username",
-			Password:             "broker-password",
-			KeepSnapshotsForDays: 7,
-			CronSchedule:         "@hourly",
-			RDSConfig: &rdsbroker.Config{
-				Region:             "rds-region",
-				DBPrefix:           "cf",
-				BrokerName:         "mybroker",
-				AWSPartition:       "rds-partition",
-				MasterPasswordSeed: "secret",
-			},
-		}
-	)
+	It("parses the example config file", func() {
+		config, err := LoadConfig("../config-sample.json")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(config.Password).To(Equal("password"))
+		Expect(config.RDSConfig.DBPrefix).To(Equal("cf"))
+	})
 
 	Describe("Validate", func() {
+		var (
+			config Config
+
+			validConfig = Config{
+				LogLevel:             "DEBUG",
+				Username:             "broker-username",
+				Password:             "broker-password",
+				KeepSnapshotsForDays: 7,
+				CronSchedule:         "@hourly",
+				RDSConfig: &rdsbroker.Config{
+					Region:             "rds-region",
+					DBPrefix:           "cf",
+					BrokerName:         "mybroker",
+					AWSPartition:       "rds-partition",
+					MasterPasswordSeed: "secret",
+				},
+			}
+		)
 		BeforeEach(func() {
 			config = validConfig
 		})

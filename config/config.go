@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/alphagov/paas-rds-broker/rdsbroker"
@@ -30,12 +29,7 @@ func LoadConfig(configFile string) (config *Config, err error) {
 	}
 	defer file.Close()
 
-	bytes, err := ioutil.ReadAll(file)
-	if err != nil {
-		return config, err
-	}
-
-	if err = json.Unmarshal(bytes, &config); err != nil {
+	if err = json.NewDecoder(file).Decode(&config); err != nil {
 		return config, err
 	}
 
