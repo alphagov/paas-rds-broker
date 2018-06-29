@@ -27,7 +27,6 @@ func main() {
 	var (
 		configFilePath = flag.String("config", "", "Location of the config file")
 		port           = flag.String("port", "3000", "Listen port")
-		cronFlag       = flag.Bool("cron", false, "Start the cron process")
 	)
 	flag.Parse()
 
@@ -37,21 +36,17 @@ func main() {
 	}
 	logger := buildLogger(cfg.LogLevel)
 	dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
+	sqlProvider := sqlengine.NewProviderService(logger)
+	broker := rdsbroker.New(*cfg.RDSConfig, dbInstance, sqlProvider, logger)
+	go broker.CheckAndRotateCredentials()
 
-	if *cronFlag {
-		err := startCronProcess(cfg, dbInstance, logger)
-		if err != nil {
-			log.Fatalf("Failed to start cron process: %s", err)
-		}
-	} else {
-		sqlProvider := sqlengine.NewProviderService(logger)
-		broker := rdsbroker.New(*cfg.RDSConfig, dbInstance, sqlProvider, logger)
-		go broker.CheckAndRotateCredentials()
+	if cfg.RunHousekeeping {
+		go startCronProcess(cfg, dbInstance, logger)
+	}
 
-		err := startHTTPServer(cfg, *port, broker, logger)
-		if err != nil {
-			log.Fatalf("Failed to start broker process: %s", err)
-		}
+	err = startHTTPServer(cfg, *port, broker, logger)
+	if err != nil {
+		log.Fatalf("Failed to start broker process: %s", err)
 	}
 }
 
@@ -113,12 +108,15 @@ func startCronProcess(
 	cfg *config.Config,
 	dbInstance awsrds.DBInstance,
 	logger lager.Logger,
-) error {
+) {
 	cronProcess := cron.NewProcess(cfg, dbInstance, logger)
 	go stopOnSignal(cronProcess)
 
 	logger.Info("cron.starting")
-	return cronProcess.Start()
+	err := cronProcess.Start()
+	if err != nil {
+		log.Fatalf("Failed to start cron process: %s", err)
+	}
 }
 
 func stopOnSignal(cronProcess *cron.Process) {

@@ -13,6 +13,7 @@ type Config struct {
 	LogLevel             string            `json:"log_level"`
 	Username             string            `json:"username"`
 	Password             string            `json:"password"`
+	RunHousekeeping      bool              `json:"run_housekeeping"`
 	KeepSnapshotsForDays int               `json:"keep_snapshots_for_days"`
 	CronSchedule         string            `json:"cron_schedule"`
 	RDSConfig            *rdsbroker.Config `json:"rds_config"`
