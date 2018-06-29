@@ -38,9 +38,9 @@ func main() {
 	dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
 	sqlProvider := sqlengine.NewProviderService(logger)
 	broker := rdsbroker.New(*cfg.RDSConfig, dbInstance, sqlProvider, logger)
-	go broker.CheckAndRotateCredentials()
 
 	if cfg.RunHousekeeping {
+		go broker.CheckAndRotateCredentials()
 		go startCronProcess(cfg, dbInstance, logger)
 	}
 
