@@ -86,26 +86,27 @@ func main() {
 		}
 	} else {
 		sqlProvider := sqlengine.NewProviderService(logger)
+		broker := rdsbroker.New(*cfg.RDSConfig, dbInstance, sqlProvider, logger)
+		go broker.CheckAndRotateCredentials()
 
-		err = startServiceBroker(cfg, dbInstance, sqlProvider, logger)
+		err := startHTTPServer(cfg, port, broker, logger)
 		if err != nil {
 			log.Fatalf("Failed to start broker process: %s", err)
 		}
 	}
 }
 
-func startServiceBroker(
-	config *config.Config,
-	dbInstance awsrds.DBInstance,
-	sqlProvider sqlengine.Provider,
+func startHTTPServer(
+	cfg *config.Config,
+	port string,
+	serviceBroker *rdsbroker.RDSBroker,
 	logger lager.Logger,
 ) error {
-	serviceBroker := rdsbroker.New(*config.RDSConfig, dbInstance, sqlProvider, logger)
+	server := buildHTTPHandler(serviceBroker, logger, cfg)
 
-	go serviceBroker.CheckAndRotateCredentials()
-
-	server := buildHTTPHandler(serviceBroker, logger, config)
-
+	// We don't use http.ListenAndServe here so that the "start" log message is
+	// logged after the socket is listening. This log message is used by the
+	// tests to wait until the broker is ready.
 	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		return fmt.Errorf("failed to listen on port %s: %s", port, err)
