@@ -27,7 +27,6 @@ var (
 	configFilePath string
 	port           string
 	cronFlag       bool
-	cronProcess    *cron.Process
 )
 
 func init() {
@@ -80,12 +79,8 @@ func main() {
 	logger := buildLogger(cfg.LogLevel)
 	dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
 
-	go stopOnSignal()
-
 	if cronFlag {
-		cronProcess = cron.NewProcess(cfg, dbInstance, logger)
-
-		err = cronProcess.Start()
+		err := startCronProcess(cfg, dbInstance, logger)
 		if err != nil {
 			log.Fatalf("Failed to start cron process: %s", err)
 		}
@@ -120,7 +115,19 @@ func startServiceBroker(
 	return http.Serve(listener, server)
 }
 
-func stopOnSignal() {
+func startCronProcess(
+	cfg *config.Config,
+	dbInstance awsrds.DBInstance,
+	logger lager.Logger,
+) error {
+	cronProcess := cron.NewProcess(cfg, dbInstance, logger)
+	go stopOnSignal(cronProcess)
+
+	logger.Info("cron.starting")
+	return cronProcess.Start()
+}
+
+func stopOnSignal(cronProcess *cron.Process) {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill)
 	<-signalChan
