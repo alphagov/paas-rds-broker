@@ -629,6 +629,7 @@ func (b *RDSBroker) CheckAndRotateCredentials() {
 		}
 
 		err = sqlEngine.Open(dbDetails.Address, dbDetails.Port, dbName, dbDetails.MasterUsername, masterPassword)
+		sqlEngine.Close()
 
 		if err != nil {
 			if err == sqlengine.LoginFailedError {
@@ -639,14 +640,11 @@ func (b *RDSBroker) CheckAndRotateCredentials() {
 				err = b.dbInstance.Modify(dbDetails.Identifier, *dbDetails, true)
 				if err != nil {
 					b.logger.Error(fmt.Sprintf("Could not reset the master password of instance %v", dbDetails.Identifier), err)
-					continue
 				}
 			} else {
 				b.logger.Error(fmt.Sprintf("Unknown error when connecting to DB %v at %v", dbName, dbDetails.Address), err)
-				continue
 			}
 		}
-		defer sqlEngine.Close()
 	}
 	b.logger.Info(fmt.Sprintf("Instances credentials check has ended"))
 }
