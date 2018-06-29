@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"code.cloudfoundry.org/lager"
@@ -23,10 +24,12 @@ const (
 )
 
 type RDSDBInstance struct {
-	region    string
-	partition string
-	rdssvc    *rds.RDS
-	logger    lager.Logger
+	region         string
+	partition      string
+	rdssvc         *rds.RDS
+	cachedTags     map[string][]*rds.Tag
+	cachedTagsLock sync.RWMutex
+	logger         lager.Logger
 }
 
 func NewRDSDBInstance(
@@ -36,10 +39,11 @@ func NewRDSDBInstance(
 	logger lager.Logger,
 ) *RDSDBInstance {
 	return &RDSDBInstance{
-		region:    region,
-		partition: partition,
-		rdssvc:    rdssvc,
-		logger:    logger.Session("db-instance"),
+		region:     region,
+		partition:  partition,
+		rdssvc:     rdssvc,
+		cachedTags: map[string][]*rds.Tag{},
+		logger:     logger.Session("db-instance"),
 	}
 }
 
@@ -61,7 +65,7 @@ func (r *RDSDBInstance) Describe(ID string) (DBInstanceDetails, error) {
 		if aws.StringValue(dbInstance.DBInstanceIdentifier) == ID {
 			r.logger.Debug("describe-db-instances", lager.Data{"db-instance": dbInstance})
 			dbInstanceDetails = r.buildDBInstance(dbInstance)
-			t, err := ListTagsForResource(dbInstanceDetails.Arn, r.rdssvc, r.logger)
+			t, err := r.cachedListTagsForResource(dbInstanceDetails.Arn)
 			if err != nil {
 				return dbInstanceDetails, HandleAWSError(err, r.logger)
 			}
@@ -90,14 +94,11 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string) ([]*DBInstanceDet
 		return dbInstanceDetails, err
 	}
 	for _, dbInstance := range dbInstances {
-		listTagsForResourceInput := &rds.ListTagsForResourceInput{
-			ResourceName: dbInstance.DBInstanceArn,
-		}
-		listTagsForResourceOutput, err := r.rdssvc.ListTagsForResource(listTagsForResourceInput)
+		tags, err := r.cachedListTagsForResource(*dbInstance.DBInstanceArn)
 		if err != nil {
 			return dbInstanceDetails, err
 		}
-		for _, t := range listTagsForResourceOutput.TagList {
+		for _, t := range tags {
 			if *t.Key == tagKey && *t.Value == tagValue {
 				d := r.buildDBInstance(dbInstance)
 				dbInstanceDetails = append(dbInstanceDetails, &d)
@@ -622,4 +623,21 @@ func (r *RDSDBInstance) allowMajorVersionUpgrade(newEngineVersion, oldEngineVers
 	}
 
 	return false
+}
+
+func (r *RDSDBInstance) cachedListTagsForResource(arn string) ([]*rds.Tag, error) {
+	r.cachedTagsLock.RLock()
+	tags, ok := r.cachedTags[arn]
+	r.cachedTagsLock.RUnlock()
+	if ok {
+		return tags, nil
+	}
+
+	tags, err := ListTagsForResource(arn, r.rdssvc, r.logger)
+	if err == nil {
+		r.cachedTagsLock.Lock()
+		r.cachedTags[arn] = tags
+		r.cachedTagsLock.Unlock()
+	}
+	return tags, err
 }

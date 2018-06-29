@@ -333,7 +333,10 @@ var _ = Describe("RDS DB Instance", func() {
 			describeDBInstances []*rds.DBInstance
 
 			describeDBInstancesInput *rds.DescribeDBInstancesInput
-			describeDBInstanceError  error
+
+			describeDBInstanceError error
+
+			listTagsForResourceCallCount int
 		)
 
 		BeforeEach(func() {
@@ -379,6 +382,8 @@ var _ = Describe("RDS DB Instance", func() {
 				buildExpectedDBInstanceDetails(dbInstanceIdentifier, "-1", "mybroker"),
 				buildExpectedDBInstanceDetails(dbInstanceIdentifier, "-2", "mybroker"),
 			}
+
+			listTagsForResourceCallCount = 0
 		})
 
 		JustBeforeEach(func() {
@@ -394,6 +399,8 @@ var _ = Describe("RDS DB Instance", func() {
 					data.DBInstances = describeDBInstances
 					r.Error = describeDBInstanceError
 				case "ListTagsForResource":
+					listTagsForResourceCallCount = listTagsForResourceCallCount + 1
+
 					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
 
 					listTagsForResourceInput := r.Params.(*rds.ListTagsForResourceInput)
@@ -418,12 +425,25 @@ var _ = Describe("RDS DB Instance", func() {
 				}
 			}
 			rdssvc.Handlers.Send.PushBack(rdsCall)
+
 		})
 
 		It("returns the expected DB Instances for mybroker", func() {
 			dbInstanceDetailsList, err := rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dbInstanceDetailsList).To(HaveLen(2))
+		})
+
+		It("caches the tags of an instance and only queries ListTagsForResource once per instance", func() {
+			dbInstanceDetailsList, err := rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dbInstanceDetailsList).To(HaveLen(2))
+
+			dbInstanceDetailsList, err = rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dbInstanceDetailsList).To(HaveLen(2))
+
+			Expect(listTagsForResourceCallCount).To(Equal(len(describeDBInstances)))
 		})
 	})
 
