@@ -17,7 +17,7 @@ Using the standard `go install` (you must have [Go](https://golang.org/) already
 
 ```
 $ go install github.com/alphagov/paas-rds-broker
-$ rds-broker -port=3000 -config=<path-to-your-config-file>
+$ rds-broker -config=<path-to-your-config-file>
 ```
 
 ### Cloud Foundry

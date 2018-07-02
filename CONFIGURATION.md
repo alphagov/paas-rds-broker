@@ -6,6 +6,7 @@ A sample configuration can be found at [config-sample.json](https://github.com/a
 
 | Option                 | Required | Type    | Description
 |:-----------------------|:--------:|:--------|:-----------
+| port                   | N        | Integer | The TCP port to listen on. Defaults to 3000 if unspecified.
 | log_level              | Y        | String  | Broker Log Level (DEBUG, INFO, ERROR, FATAL)
 | username               | Y        | String  | Broker Auth Username
 | password               | Y        | String  | Broker Auth Password

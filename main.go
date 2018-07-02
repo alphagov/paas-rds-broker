@@ -24,10 +24,7 @@ import (
 )
 
 func main() {
-	var (
-		configFilePath = flag.String("config", "", "Location of the config file")
-		port           = flag.String("port", "3000", "Listen port")
-	)
+	configFilePath := flag.String("config", "", "Location of the config file")
 	flag.Parse()
 
 	cfg, err := config.LoadConfig(*configFilePath)
@@ -44,7 +41,7 @@ func main() {
 		go startCronProcess(cfg, dbInstance, logger)
 	}
 
-	err = startHTTPServer(cfg, *port, broker, logger)
+	err = startHTTPServer(cfg, broker, logger)
 	if err != nil {
 		log.Fatalf("Failed to start broker process: %s", err)
 	}
@@ -86,7 +83,6 @@ func buildDBInstance(region string, logger lager.Logger) awsrds.DBInstance {
 
 func startHTTPServer(
 	cfg *config.Config,
-	port string,
 	serviceBroker *rdsbroker.RDSBroker,
 	logger lager.Logger,
 ) error {
@@ -95,12 +91,12 @@ func startHTTPServer(
 	// We don't use http.ListenAndServe here so that the "start" log message is
 	// logged after the socket is listening. This log message is used by the
 	// tests to wait until the broker is ready.
-	listener, err := net.Listen("tcp", ":"+port)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Port))
 	if err != nil {
-		return fmt.Errorf("failed to listen on port %s: %s", port, err)
+		return fmt.Errorf("failed to listen on port %d: %s", cfg.Port, err)
 	}
 
-	logger.Info("start", lager.Data{"port": port})
+	logger.Info("start", lager.Data{"port": cfg.Port})
 	return http.Serve(listener, server)
 }
 

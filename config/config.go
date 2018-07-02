@@ -10,6 +10,7 @@ import (
 )
 
 type Config struct {
+	Port                 int               `json:"port"`
 	LogLevel             string            `json:"log_level"`
 	Username             string            `json:"username"`
 	Password             string            `json:"password"`
@@ -43,7 +44,10 @@ func LoadConfig(configFile string) (config *Config, err error) {
 	return config, nil
 }
 
-func (c Config) FillDefaults() {
+func (c *Config) FillDefaults() {
+	if c.Port == 0 {
+		c.Port = 3000
+	}
 	c.RDSConfig.FillDefaults()
 }
 
