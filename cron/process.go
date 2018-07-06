@@ -5,17 +5,18 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"github.com/alphagov/paas-rds-broker/awsrds"
+	"github.com/alphagov/paas-rds-broker/config"
 	robfig_cron "github.com/robfig/cron"
 )
 
 type Process struct {
 	cron       *robfig_cron.Cron
-	config     *Config
+	config     *config.Config
 	dbInstance awsrds.DBInstance
 	logger     lager.Logger
 }
 
-func NewProcess(config *Config, dbInstance awsrds.DBInstance, logger lager.Logger) *Process {
+func NewProcess(config *config.Config, dbInstance awsrds.DBInstance, logger lager.Logger) *Process {
 	return &Process{
 		config:     config,
 		dbInstance: dbInstance,

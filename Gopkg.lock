@@ -5,9 +5,11 @@
   name = "code.cloudfoundry.org/lager"
   packages = [
     ".",
+    "lagerctx",
     "lagertest"
   ]
-  revision = "de8e9c6c6e474e5e3668aea1a9817bdb4ceeceb0"
+  revision = "b60e04e119450552243196105bae0d42179ee0ca"
+  version = "v1.1.0"
 
 [[projects]]
   name = "github.com/aws/aws-sdk-go"
@@ -159,6 +161,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "65d684025c752a6890781449902d1f7df874b14e081456d23122a36c509b1b6d"
+  inputs-digest = "bf8a019765c4308f4b33601da49c4abedf8bd1173ebe45ac4a67a8815a38775a"
   solver-name = "gps-cdcl"
   solver-version = 1

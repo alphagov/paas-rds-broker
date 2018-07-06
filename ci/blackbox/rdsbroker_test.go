@@ -331,15 +331,16 @@ func startNewBroker(rdsBrokerConfig *config.Config) (*gexec.Session, *BrokerAPIC
 	Expect(err).ToNot(HaveOccurred())
 	defer os.Remove(configFile.Name())
 
+	// start the broker in a random port
+	rdsBrokerPort := freeport.GetPort()
+	rdsBrokerConfig.Port = rdsBrokerPort
+
 	configJSON, err := json.Marshal(rdsBrokerConfig)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(ioutil.WriteFile(configFile.Name(), configJSON, 0644)).To(Succeed())
 	Expect(configFile.Close()).To(Succeed())
 
-	// start the broker in a random port
-	rdsBrokerPort := freeport.GetPort()
 	command := exec.Command(rdsBrokerPath,
-		fmt.Sprintf("-port=%d", rdsBrokerPort),
 		fmt.Sprintf("-config=%s", configFile.Name()),
 	)
 	rdsBrokerSession, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -348,7 +349,7 @@ func startNewBroker(rdsBrokerConfig *config.Config) (*gexec.Session, *BrokerAPIC
 	// Wait for it to be listening
 	Eventually(rdsBrokerSession, 10*time.Second).Should(And(
 		gbytes.Say("rds-broker.start"),
-		gbytes.Say(fmt.Sprintf(`{"port":"%d"}`, rdsBrokerPort)),
+		gbytes.Say(fmt.Sprintf(`{"port":%d}`, rdsBrokerPort)),
 	))
 
 	rdsBrokerUrl := fmt.Sprintf("http://localhost:%d", rdsBrokerPort)

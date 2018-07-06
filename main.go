@@ -23,34 +23,38 @@ import (
 	"github.com/alphagov/paas-rds-broker/sqlengine"
 )
 
-var (
-	configFilePath string
-	port           string
-	cronFlag       bool
-	cronProcess    *cron.Process
+func main() {
+	configFilePath := flag.String("config", "", "Location of the config file")
+	flag.Parse()
 
-	logLevels = map[string]lager.LogLevel{
-		"DEBUG": lager.DEBUG,
-		"INFO":  lager.INFO,
-		"ERROR": lager.ERROR,
-		"FATAL": lager.FATAL,
+	cfg, err := config.LoadConfig(*configFilePath)
+	if err != nil {
+		log.Fatalf("Error loading config file: %s", err)
 	}
-)
+	logger := buildLogger(cfg.LogLevel)
+	dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
+	sqlProvider := sqlengine.NewProviderService(logger)
+	broker := rdsbroker.New(*cfg.RDSConfig, dbInstance, sqlProvider, logger)
 
-func init() {
-	flag.StringVar(&configFilePath, "config", "", "Location of the config file")
-	flag.StringVar(&port, "port", "3000", "Listen port")
-	flag.BoolVar(&cronFlag, "cron", false, "Start the cron process")
+	if cfg.RunHousekeeping {
+		go broker.CheckAndRotateCredentials()
+		go startCronProcess(cfg, dbInstance, logger)
+	}
+
+	err = startHTTPServer(cfg, broker, logger)
+	if err != nil {
+		log.Fatalf("Failed to start broker process: %s", err)
+	}
 }
 
 func buildLogger(logLevel string) lager.Logger {
-	laggerLogLevel, ok := logLevels[strings.ToUpper(logLevel)]
-	if !ok {
-		log.Fatal("Invalid log level: ", logLevel)
+	lagerLogLevel, err := lager.LogLevelFromString(strings.ToLower(logLevel))
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	logger := lager.NewLogger("rds-broker")
-	logger.RegisterSink(lager.NewWriterSink(os.Stdout, laggerLogLevel))
+	logger.RegisterSink(lager.NewWriterSink(os.Stdout, lagerLogLevel))
 
 	return logger
 }
@@ -77,62 +81,41 @@ func buildDBInstance(region string, logger lager.Logger) awsrds.DBInstance {
 	return awsrds.NewRDSDBInstance(region, "aws", rdssvc, logger)
 }
 
-func main() {
-	flag.Parse()
-
-	go stopOnSignal()
-
-	if cronFlag {
-		cfg, err := cron.LoadConfig(configFilePath)
-		if err != nil {
-			log.Fatalf("Error loading config file: %s", err)
-		}
-		logger := buildLogger(cfg.LogLevel)
-		dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
-		cronProcess = cron.NewProcess(cfg, dbInstance, logger)
-
-		err = cronProcess.Start()
-		if err != nil {
-			log.Fatalf("Failed to start cron process: %s", err)
-		}
-	} else {
-		cfg, err := config.LoadConfig(configFilePath)
-		if err != nil {
-			log.Fatalf("Error loading config file: %s", err)
-		}
-		logger := buildLogger(cfg.LogLevel)
-		dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
-		sqlProvider := sqlengine.NewProviderService(logger)
-
-		err = startServiceBroker(cfg, dbInstance, sqlProvider, logger)
-		if err != nil {
-			log.Fatalf("Failed to start broker process: %s", err)
-		}
-	}
-}
-
-func startServiceBroker(
-	config *config.Config,
-	dbInstance awsrds.DBInstance,
-	sqlProvider sqlengine.Provider,
+func startHTTPServer(
+	cfg *config.Config,
+	serviceBroker *rdsbroker.RDSBroker,
 	logger lager.Logger,
 ) error {
-	serviceBroker := rdsbroker.New(*config.RDSConfig, dbInstance, sqlProvider, logger)
+	server := buildHTTPHandler(serviceBroker, logger, cfg)
 
-	go serviceBroker.CheckAndRotateCredentials()
-
-	server := buildHTTPHandler(serviceBroker, logger, config)
-
-	listener, err := net.Listen("tcp", ":"+port)
+	// We don't use http.ListenAndServe here so that the "start" log message is
+	// logged after the socket is listening. This log message is used by the
+	// tests to wait until the broker is ready.
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Port))
 	if err != nil {
-		return fmt.Errorf("failed to listen on port %s: %s", port, err)
+		return fmt.Errorf("failed to listen on port %d: %s", cfg.Port, err)
 	}
 
-	logger.Info("start", lager.Data{"port": port})
+	logger.Info("start", lager.Data{"port": cfg.Port})
 	return http.Serve(listener, server)
 }
 
-func stopOnSignal() {
+func startCronProcess(
+	cfg *config.Config,
+	dbInstance awsrds.DBInstance,
+	logger lager.Logger,
+) {
+	cronProcess := cron.NewProcess(cfg, dbInstance, logger)
+	go stopOnSignal(cronProcess)
+
+	logger.Info("cron.starting")
+	err := cronProcess.Start()
+	if err != nil {
+		log.Fatalf("Failed to start cron process: %s", err)
+	}
+}
+
+func stopOnSignal(cronProcess *cron.Process) {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill)
 	<-signalChan

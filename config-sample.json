@@ -266,8 +266,8 @@
           "plans": [
             {
               "id": "d42fc3cc-1341-4aa3-866e-01bc5243dc3e",
-              "name": "9.3-medium",
-              "description": "RDS PostgreSQL 9.3 (db.m3.medium, 10Gb)",
+              "name": "9.6-medium",
+              "description": "RDS PostgreSQL 9.6 (db.m3.medium, 10Gb)",
               "metadata": {
                 "costs": [
                   {
@@ -278,8 +278,8 @@
                   }
                 ],
                 "bullets": [
-                  "Dedicated PostgreSQL 9.3 server",
-                  "PostgreSQL 9.3",
+                  "Dedicated PostgreSQL 9.6 server",
+                  "PostgreSQL 9.6",
                   "AWS RDS"
                 ]
               },
@@ -287,7 +287,7 @@
               "rds_properties": {
                 "db_instance_class": "db.m3.medium",
                 "engine": "postgres",
-                "engine_version": "9.3.9",
+                "engine_version": "9.6",
                 "allocated_storage": 10,
                 "auto_minor_version_upgrade": true,
                 "multi_az": true,
@@ -301,8 +301,8 @@
             },
            {
               "id": "80768f31-5c2c-40e8-8135-59fe3d710dc3",
-              "name": "9.3-large",
-              "description": "RDS PostgreSQL 9.3 (db.m3.large, 50Gb)",
+              "name": "9.6-large",
+              "description": "RDS PostgreSQL 9.6 (db.m3.large, 50Gb)",
               "metadata": {
                 "costs": [
                   {
@@ -313,8 +313,8 @@
                   }
                 ],
                 "bullets": [
-                  "Dedicated PostgreSQL 9.3 server",
-                  "PostgreSQL 9.3",
+                  "Dedicated PostgreSQL 9.6 server",
+                  "PostgreSQL 9.6",
                   "AWS RDS"
                 ]
               },
@@ -322,7 +322,7 @@
               "rds_properties": {
                 "db_instance_class": "db.m3.large",
                 "engine": "postgres",
-                "engine_version": "9.3.9",
+                "engine_version": "9.6",
                 "allocated_storage": 50,
                 "auto_minor_version_upgrade": true,
                 "multi_az": true,
@@ -336,8 +336,8 @@
             },
            {
               "id": "347dfd90-4f0c-42ed-a92c-1d8096d373d1",
-              "name": "9.3-xlarge",
-              "description": "RDS PostgreSQL 9.3 (db.m3.xlarge, 100Gb)",
+              "name": "9.6-xlarge",
+              "description": "RDS PostgreSQL 9.6 (db.m3.xlarge, 100Gb)",
               "metadata": {
                 "costs": [
                   {
@@ -348,8 +348,8 @@
                   }
                 ],
                 "bullets": [
-                  "Dedicated PostgreSQL 9.3 server",
-                  "PostgreSQL 9.3",
+                  "Dedicated PostgreSQL 9.6 server",
+                  "PostgreSQL 9.6",
                   "AWS RDS"
                 ]
               },
@@ -357,7 +357,7 @@
               "rds_properties": {
                 "db_instance_class": "db.m3.xlarge",
                 "engine": "postgres",
-                "engine_version": "9.3.9",
+                "engine_version": "9.6",
                 "allocated_storage": 100,
                 "auto_minor_version_upgrade": true,
                 "multi_az": true,
@@ -371,8 +371,8 @@
             },
             {
               "id": "d03b544e-3be5-4aca-bb3b-11544247f313",
-              "name": "9.4-medium",
-              "description": "RDS PostgreSQL 9.4 (db.m3.medium, 10Gb)",
+              "name": "9.5-medium",
+              "description": "RDS PostgreSQL 9.5 (db.m3.medium, 10Gb)",
               "metadata": {
                 "costs": [
                   {
@@ -383,8 +383,8 @@
                   }
                 ],
                 "bullets": [
-                  "Dedicated PostgreSQL 9.4 server",
-                  "PostgreSQL 9.4",
+                  "Dedicated PostgreSQL 9.5 server",
+                  "PostgreSQL 9.5",
                   "AWS RDS"
                 ]
               },
@@ -392,7 +392,7 @@
               "rds_properties": {
                 "db_instance_class": "db.m3.medium",
                 "engine": "postgres",
-                "engine_version": "9.4.4",
+                "engine_version": "9.5",
                 "allocated_storage": 10,
                 "auto_minor_version_upgrade": true,
                 "multi_az": true,
@@ -406,8 +406,8 @@
             },
            {
               "id": "65cfcd68-625d-4635-a828-4ccef50af986",
-              "name": "9.4-large",
-              "description": "RDS PostgreSQL 9.4 (db.m3.large, 50Gb)",
+              "name": "9.5-large",
+              "description": "RDS PostgreSQL 9.5 (db.m3.large, 50Gb)",
               "metadata": {
                 "costs": [
                   {
@@ -418,8 +418,8 @@
                   }
                 ],
                 "bullets": [
-                  "Dedicated PostgreSQL 9.4 server",
-                  "PostgreSQL 9.4",
+                  "Dedicated PostgreSQL 9.5 server",
+                  "PostgreSQL 9.5",
                   "AWS RDS"
                 ]
               },
@@ -427,7 +427,7 @@
               "rds_properties": {
                 "db_instance_class": "db.m3.large",
                 "engine": "postgres",
-                "engine_version": "9.4.4",
+                "engine_version": "9.5",
                 "allocated_storage": 50,
                 "auto_minor_version_upgrade": true,
                 "multi_az": true,
@@ -441,8 +441,8 @@
             },
            {
               "id": "8f8d8ed7-ddd3-4b1f-befa-976cf7fc4116",
-              "name": "9.4-xlarge",
-              "description": "RDS PostgreSQL 9.4 (db.m3.xlarge, 100Gb)",
+              "name": "9.5-xlarge",
+              "description": "RDS PostgreSQL 9.5 (db.m3.xlarge, 100Gb)",
               "metadata": {
                 "costs": [
                   {
@@ -453,8 +453,8 @@
                   }
                 ],
                 "bullets": [
-                  "Dedicated PostgreSQL 9.4 server",
-                  "PostgreSQL 9.4",
+                  "Dedicated PostgreSQL 9.5 server",
+                  "PostgreSQL 9.5",
                   "AWS RDS"
                 ]
               },
@@ -462,7 +462,7 @@
               "rds_properties": {
                 "db_instance_class": "db.m3.xlarge",
                 "engine": "postgres",
-                "engine_version": "9.4.4",
+                "engine_version": "9.5",
                 "allocated_storage": 100,
                 "auto_minor_version_upgrade": true,
                 "multi_az": true,
