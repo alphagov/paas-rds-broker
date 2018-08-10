@@ -112,6 +112,11 @@ var _ = Describe("RDS Broker Daemon", func() {
 				By("checking the instance credentials")
 				Eventually(rdsBrokerSession, 30*time.Second).Should(gbytes.Say("credentials check has ended"))
 
+				By("caching the instance details before master credentials rotation")
+				detailsBefore, err := rdsClient.GetDBInstanceDetails(instanceID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(detailsBefore.DBInstances).To(HaveLen(1))
+
 				By("creating a binding")
 				resp, err := brokerAPIClient.DoBindRequest(instanceID, serviceID, planID, appGUID, bindingID)
 				Expect(err).ToNot(HaveOccurred())
@@ -175,6 +180,16 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(err).ToNot(HaveOccurred())
 				err = permissionsTest(credentials.URI)
 				Expect(err).ToNot(HaveOccurred())
+
+				By("comparing current instance details with cache")
+				detailsAfter, err := rdsClient.GetDBInstanceDetails(instanceID)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(detailsAfter.DBInstances).To(HaveLen(1))
+				// we expect certain values to change so set them to the same
+				detailsBefore.DBInstances[0].LatestRestorableTime = detailsAfter.DBInstances[0].LatestRestorableTime
+				detailsBefore.DBInstances[0].DBInstanceStatus = detailsAfter.DBInstances[0].DBInstanceStatus
+				detailsBefore.DBInstances[0].PendingModifiedValues.MasterUserPassword = detailsAfter.DBInstances[0].PendingModifiedValues.MasterUserPassword
+				Expect(detailsBefore.DBInstances[0]).To(Equal(detailsAfter.DBInstances[0]))
 			})
 		}
 

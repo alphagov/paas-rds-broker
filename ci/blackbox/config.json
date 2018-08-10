@@ -44,6 +44,7 @@
                             "name": "micro-without-snapshot",
                             "rds_properties": {
                                 "allocated_storage": 10,
+                                "auto_minor_version_upgrade": true,
                                 "db_instance_class": "db.t2.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "postgres",
@@ -89,6 +90,7 @@
                             "name": "micro-without-snapshot",
                             "rds_properties": {
                                 "allocated_storage": 10,
+                                "auto_minor_version_upgrade": true,
                                 "db_instance_class": "db.t2.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "mysql",
