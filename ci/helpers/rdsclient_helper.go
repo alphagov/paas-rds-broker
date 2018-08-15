@@ -19,9 +19,9 @@ func NewRDSClient(region string, dbPrefix string) (*RDSClient, error) {
 	sess := session.New(&aws.Config{Region: aws.String(region)})
 	rdssvc := rds.New(sess)
 	return &RDSClient{
-		region: region,
+		region:   region,
 		dbPrefix: dbPrefix,
-		rdssvc: rdssvc,
+		rdssvc:   rdssvc,
 	}, nil
 }
 
@@ -68,4 +68,12 @@ func (r *RDSClient) DeleteDBFinalSnapshot(ID string) (*rds.DeleteDBSnapshotOutpu
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (r *RDSClient) GetDBInstanceDetails(ID string) (*rds.DescribeDBInstancesOutput, error) {
+	params := &rds.DescribeDBInstancesInput{
+		DBInstanceIdentifier: aws.String(r.dbInstanceIdentifier(ID)),
+	}
+
+	return r.rdssvc.DescribeDBInstances(params)
 }

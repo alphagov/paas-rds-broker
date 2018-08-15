@@ -82,14 +82,20 @@ var _ = Describe("RDS DB Instance", func() {
 			listTagsForResourceError = nil
 
 			describeDBInstance = &rds.DBInstance{
-				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
-				DBInstanceArn:        aws.String(dbInstanceArn),
-				DBInstanceStatus:     aws.String("available"),
-				Engine:               aws.String("test-engine"),
-				EngineVersion:        aws.String("1.2.3"),
-				DBName:               aws.String("test-dbname"),
-				MasterUsername:       aws.String("test-master-username"),
-				AllocatedStorage:     aws.Int64(100),
+				DBInstanceIdentifier:    aws.String(dbInstanceIdentifier),
+				DBInstanceArn:           aws.String(dbInstanceArn),
+				DBInstanceStatus:        aws.String("available"),
+				Engine:                  aws.String("test-engine"),
+				EngineVersion:           aws.String("1.2.3"),
+				DBName:                  aws.String("test-dbname"),
+				MasterUsername:          aws.String("test-master-username"),
+				AllocatedStorage:        aws.Int64(100),
+				AutoMinorVersionUpgrade: aws.Bool(true),
+				BackupRetentionPeriod:   aws.Int64(1),
+				CopyTagsToSnapshot:      aws.Bool(true),
+				MultiAZ:                 aws.Bool(true),
+				PubliclyAccessible:      aws.Bool(true),
+				StorageEncrypted:        aws.Bool(true),
 			}
 			describeDBInstancesInput = &rds.DescribeDBInstancesInput{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
@@ -109,6 +115,12 @@ var _ = Describe("RDS DB Instance", func() {
 				MasterUsername:   "test-master-username",
 				AllocatedStorage: int64(100),
 				Tags:             listTags,
+				AutoMinorVersionUpgrade: true,
+				BackupRetentionPeriod:   int64(1),
+				CopyTagsToSnapshot:      true,
+				MultiAZ:                 true,
+				PubliclyAccessible:      true,
+				StorageEncrypted:        true,
 			}
 
 			rdssvc.Handlers.Clear()

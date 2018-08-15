@@ -325,14 +325,20 @@ func (r *RDSDBInstance) Delete(ID string, skipFinalSnapshot bool) error {
 
 func (r *RDSDBInstance) buildDBInstance(dbInstance *rds.DBInstance) DBInstanceDetails {
 	dbInstanceDetails := DBInstanceDetails{
-		Identifier:       aws.StringValue(dbInstance.DBInstanceIdentifier),
-		Arn:              aws.StringValue(dbInstance.DBInstanceArn),
-		Status:           aws.StringValue(dbInstance.DBInstanceStatus),
-		Engine:           aws.StringValue(dbInstance.Engine),
-		EngineVersion:    aws.StringValue(dbInstance.EngineVersion),
-		DBName:           aws.StringValue(dbInstance.DBName),
-		MasterUsername:   aws.StringValue(dbInstance.MasterUsername),
-		AllocatedStorage: aws.Int64Value(dbInstance.AllocatedStorage),
+		Identifier:              aws.StringValue(dbInstance.DBInstanceIdentifier),
+		Arn:                     aws.StringValue(dbInstance.DBInstanceArn),
+		Status:                  aws.StringValue(dbInstance.DBInstanceStatus),
+		Engine:                  aws.StringValue(dbInstance.Engine),
+		EngineVersion:           aws.StringValue(dbInstance.EngineVersion),
+		DBName:                  aws.StringValue(dbInstance.DBName),
+		MasterUsername:          aws.StringValue(dbInstance.MasterUsername),
+		AllocatedStorage:        aws.Int64Value(dbInstance.AllocatedStorage),
+		AutoMinorVersionUpgrade: aws.BoolValue(dbInstance.AutoMinorVersionUpgrade),
+		BackupRetentionPeriod:   aws.Int64Value(dbInstance.BackupRetentionPeriod),
+		CopyTagsToSnapshot:      aws.BoolValue(dbInstance.CopyTagsToSnapshot),
+		MultiAZ:                 aws.BoolValue(dbInstance.MultiAZ),
+		PubliclyAccessible:      aws.BoolValue(dbInstance.PubliclyAccessible),
+		StorageEncrypted:        aws.BoolValue(dbInstance.StorageEncrypted),
 	}
 
 	if dbInstance.Endpoint != nil {
