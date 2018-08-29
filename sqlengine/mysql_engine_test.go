@@ -122,6 +122,18 @@ var _ = Describe("MySQLEngine", func() {
 			err := mysqlEngine.DropUser(bindingID)
 			Expect(err).ToNot(HaveOccurred())
 		})
+
+		It("DropUser() should drop the username generated the old way successfully", func() {
+			mysqlEngine.UsernameGenerator = generateUsernameOld
+
+			_, _, err := mysqlEngine.CreateUser(bindingID, dbname)
+			Expect(err).ToNot(HaveOccurred())
+
+			mysqlEngine.UsernameGenerator = generateUsername
+
+			err = mysqlEngine.DropUser(bindingID)
+			Expect(err).ToNot(HaveOccurred())
+		})
 	})
 
 })
