@@ -113,16 +113,9 @@ We need to enable authentication on the postgres in order to test the wrong cred
 Locally you can use containers with [Docker for Mac](https://docs.docker.com/docker-for-mac/) or [Docker for Linux](https://docs.docker.com/engine/installation/linux/ubuntu/):
 
 ```
-docker run -p 5432:5432 --name postgres -e POSTGRES_PASSWORD=abc123 -d postgres:9.5
-
-docker run -p 3306:3306 --name mysql -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -d mysql:5.7
-until docker exec mysql mysqladmin ping --silent; do
-  printf "."; sleep 1
-done
-
-make unit POSTGRESQL_PASSWORD=abc123
-
-docker rm -f postgres mysql
+make start_docker_dbs
+make unit
+make stop_docker_dbs
 ```
 
 ### Running the integration tests
