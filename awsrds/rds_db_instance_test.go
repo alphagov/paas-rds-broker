@@ -75,6 +75,8 @@ var _ = Describe("RDS DB Instance", func() {
 
 			describeDBInstancesInput *rds.DescribeDBInstancesInput
 			describeDBInstanceError  error
+
+			listTagsForResourceCallCount int
 		)
 
 		BeforeEach(func() {
@@ -102,6 +104,7 @@ var _ = Describe("RDS DB Instance", func() {
 			}
 			describeDBInstanceError = nil
 
+			listTagsForResourceCallCount = 0
 		})
 
 		JustBeforeEach(func() {
@@ -136,6 +139,7 @@ var _ = Describe("RDS DB Instance", func() {
 					data.DBInstances = []*rds.DBInstance{describeDBInstance}
 					r.Error = describeDBInstanceError
 				case "ListTagsForResource":
+					listTagsForResourceCallCount = listTagsForResourceCallCount + 1
 					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
 					input := r.Params.(*rds.ListTagsForResourceInput)
 					snapshotArnRegex := "arn:.*:rds:.*:.*:db:" + aws.StringValue(describeDBInstancesInput.DBInstanceIdentifier)
@@ -167,6 +171,19 @@ var _ = Describe("RDS DB Instance", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
 			})
+
+			It("caches the tags of an instance and only queries ListTagsForResource once per instance", func() {
+				dbInstanceDetails, err := rdsDBInstance.Describe(dbInstanceIdentifier)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
+
+				dbInstanceDetails, err = rdsDBInstance.Describe(dbInstanceIdentifier)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
+
+				Expect(listTagsForResourceCallCount).To(Equal(1))
+			})
+
 		})
 
 		Context("when RDS DB Instance has an Endpoint", func() {
