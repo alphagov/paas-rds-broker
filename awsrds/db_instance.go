@@ -5,9 +5,16 @@ import (
 	"time"
 )
 
+type DescribeOption string
+
+const (
+	// Should Describe* ops invalidate and refresh the cache
+	DescribeRefreshCacheOption DescribeOption = "refreshCache"
+)
+
 type DBInstance interface {
-	Describe(ID string) (DBInstanceDetails, error)
-	DescribeByTag(TagName, TagValue string) ([]*DBInstanceDetails, error)
+	Describe(ID string, opts ...DescribeOption) (DBInstanceDetails, error)
+	DescribeByTag(TagName, TagValue string, opts ...DescribeOption) ([]*DBInstanceDetails, error)
 	DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDetails, error)
 	DeleteSnapshots(brokerName string, keepForDays int) error
 	Create(ID string, dbInstanceDetails DBInstanceDetails) error

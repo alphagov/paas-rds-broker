@@ -172,7 +172,7 @@ var _ = Describe("RDS DB Instance", func() {
 				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
 			})
 
-			It("caches the tags of an instance and only queries ListTagsForResource once per instance", func() {
+			It("caches the tags from ListTagsForResource unless DescribeRefreshCacheOption is passed", func() {
 				dbInstanceDetails, err := rdsDBInstance.Describe(dbInstanceIdentifier)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
@@ -182,8 +182,13 @@ var _ = Describe("RDS DB Instance", func() {
 				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
 
 				Expect(listTagsForResourceCallCount).To(Equal(1))
-			})
 
+				dbInstanceDetails, err = rdsDBInstance.Describe(dbInstanceIdentifier, DescribeRefreshCacheOption)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
+
+				Expect(listTagsForResourceCallCount).To(Equal(2))
+			})
 		})
 
 		Context("when RDS DB Instance has an Endpoint", func() {
@@ -463,16 +468,26 @@ var _ = Describe("RDS DB Instance", func() {
 			Expect(dbInstanceDetailsList).To(HaveLen(2))
 		})
 
-		It("caches the tags of an instance and only queries ListTagsForResource once per instance", func() {
+		It("caches the tags from ListTagsForResource unless DescribeRefreshCacheOption is passed", func() {
 			dbInstanceDetailsList, err := rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dbInstanceDetailsList).To(HaveLen(2))
+
+			Expect(listTagsForResourceCallCount).To(Equal(len(describeDBInstances)))
 
 			dbInstanceDetailsList, err = rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dbInstanceDetailsList).To(HaveLen(2))
 
 			Expect(listTagsForResourceCallCount).To(Equal(len(describeDBInstances)))
+
+			previousCount := listTagsForResourceCallCount
+
+			dbInstanceDetailsList, err = rdsDBInstance.DescribeByTag("Broker Name", "mybroker", DescribeRefreshCacheOption)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dbInstanceDetailsList).To(HaveLen(2))
+
+			Expect(listTagsForResourceCallCount).To(Equal(previousCount + len(describeDBInstances)))
 		})
 	})
 
