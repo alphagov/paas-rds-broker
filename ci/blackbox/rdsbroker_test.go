@@ -12,6 +12,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -311,6 +312,124 @@ var _ = Describe("RDS Broker Daemon", func() {
 			TestFinalSnapshot("mysql")
 		})
 	})
+
+	Describe("Restore from snapshot", func() {
+		TestRestoreFromSnapshot := func(serviceID string) {
+			const planID = "micro"
+
+			var (
+				instanceID         string
+				restoredInstanceID string
+			)
+
+			BeforeEach(func() {
+				instanceID = uuid.NewV4().String()
+				restoredInstanceID = uuid.NewV4().String()
+				brokerAPIClient.AcceptsIncomplete = true
+			})
+
+			It("should create a final snapshot by default", func() {
+				firstInstance := ProvisionManager{
+					Provisioner: func() (WaitFunc, CleanFunc) {
+						By("creating a first instance")
+						code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, `{"skip_final_snapshot":true}`)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(code).To(Equal(202))
+						waiter := func() {
+							state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
+							Expect(state).To(Equal("succeeded"))
+						}
+						cleaner := func() {
+							By("deleting the first instance")
+							code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(code).To(Equal(202))
+							state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
+							Expect(state).To(Equal("gone"))
+						}
+						return waiter, cleaner
+					},
+				}
+
+				firstInstance.Provision()
+				defer firstInstance.CleanUp()
+				firstInstance.Wait()
+
+				snapshot := ProvisionManager{
+					Provisioner: func() (WaitFunc, CleanFunc) {
+						By("creating a snapshot")
+						snapshotID, err := rdsClient.CreateDBSnapshot(instanceID)
+						Expect(err).ToNot(HaveOccurred())
+						waiter := func() {
+							Eventually(
+								func() string {
+									s, err := rdsClient.GetDBSnapshot(snapshotID)
+									Expect(err).ToNot(HaveOccurred())
+									return aws.StringValue(s.DBSnapshots[0].Status)
+								},
+								10*time.Minute,
+								20*time.Second,
+							).Should(
+								Equal("available"),
+							)
+						}
+						cleaner := func() {
+							By("deleting the snapshot")
+							snapshotDeletionOutput, err := rdsClient.DeleteDBSnapshot(snapshotID)
+							fmt.Fprintf(GinkgoWriter, "Snapshot deletion output for %s:\n", instanceID)
+							fmt.Fprint(GinkgoWriter, snapshotDeletionOutput)
+							Expect(err).ToNot(HaveOccurred())
+						}
+						return waiter, cleaner
+					},
+				}
+
+				snapshot.Provision()
+				defer snapshot.CleanUp()
+				snapshot.Wait()
+
+				firstInstance.CleanUp()
+
+				secondInstance := ProvisionManager{
+					Provisioner: func() (WaitFunc, CleanFunc) {
+						By("restoring a second instance from snapshot")
+						code, operation, err := brokerAPIClient.ProvisionInstance(
+							restoredInstanceID, serviceID, planID,
+							fmt.Sprintf(`{"skip_final_snapshot":true, "restore_from_latest_snapshot_of": "%s"}`, instanceID),
+						)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(code).To(Equal(202))
+						waiter := func() {
+							state := pollForOperationCompletion(brokerAPIClient, restoredInstanceID, serviceID, planID, operation)
+							Expect(state).To(Equal("succeeded"))
+						}
+						cleaner := func() {
+							By("deleting the second instance ")
+							code, operation, err := brokerAPIClient.DeprovisionInstance(restoredInstanceID, serviceID, planID)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(code).To(Equal(202))
+							state := pollForOperationCompletion(brokerAPIClient, restoredInstanceID, serviceID, planID, operation)
+							Expect(state).To(Equal("gone"))
+						}
+						return waiter, cleaner
+					},
+				}
+
+				secondInstance.Provision()
+				defer secondInstance.CleanUp()
+				secondInstance.Wait()
+			})
+		}
+
+		Describe("Postgres", func() {
+			TestRestoreFromSnapshot("postgres")
+		})
+
+		Describe("MySQL", func() {
+			TestRestoreFromSnapshot("mysql")
+		})
+	})
+
 })
 
 func pollForOperationCompletion(brokerAPIClient *BrokerAPIClient, instanceID, serviceID, planID, operation string) string {
