@@ -39,7 +39,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 	)
 
 	BeforeEach(func() {
-		rdsBrokerSession, brokerAPIClient, rdsClient = startNewBroker(rdsBrokerConfig)
+		rdsBrokerSession, brokerAPIClient, rdsClient = startNewBroker(suiteData.RdsBrokerConfig)
 	})
 
 	AfterEach(func() {
@@ -147,9 +147,9 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 				By("restarting the broker with a new master password seed")
 				rdsBrokerSession.Kill()
-				newRDSConfig := *rdsBrokerConfig.RDSConfig
+				newRDSConfig := *suiteData.RdsBrokerConfig.RDSConfig
 				newRDSConfig.MasterPasswordSeed = "otherseed"
-				newRDSBrokerConfig := *rdsBrokerConfig
+				newRDSBrokerConfig := *suiteData.RdsBrokerConfig
 				newRDSBrokerConfig.RDSConfig = &newRDSConfig
 				rdsBrokerSession, brokerAPIClient, rdsClient = startNewBroker(&newRDSBrokerConfig)
 
@@ -476,7 +476,7 @@ func startNewBroker(rdsBrokerConfig *config.Config) (*gexec.Session, *BrokerAPIC
 	Expect(ioutil.WriteFile(configFile.Name(), configJSON, 0644)).To(Succeed())
 	Expect(configFile.Close()).To(Succeed())
 
-	command := exec.Command(rdsBrokerPath,
+	command := exec.Command(suiteData.RdsBrokerPath,
 		fmt.Sprintf("-config=%s", configFile.Name()),
 	)
 	rdsBrokerSession, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
