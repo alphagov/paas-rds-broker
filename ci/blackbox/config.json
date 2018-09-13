@@ -28,6 +28,7 @@
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "postgres",
                                 "engine_version": "9.5",
+                                "copy_tags_to_snapshot":true,
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
                                 ],
@@ -50,6 +51,7 @@
                                 "engine": "postgres",
                                 "engine_version": "9.5",
                                 "skip_final_snapshot": true,
+                                "copy_tags_to_snapshot":true,
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
                                 ],
@@ -78,6 +80,7 @@
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "mysql",
                                 "engine_version": "5.7",
+                                "copy_tags_to_snapshot":true,
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
                                 ]
@@ -96,6 +99,7 @@
                                 "engine": "mysql",
                                 "engine_version": "5.7",
                                 "skip_final_snapshot": true,
+                                "copy_tags_to_snapshot":true,
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
                                 ]

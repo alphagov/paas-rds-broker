@@ -207,13 +207,15 @@ var _ = Describe("RDS Broker Daemon", func() {
 			const planID = "micro"
 
 			var (
-				instanceID string
-				appGUID    string
-				bindingID  string
+				instanceID      string
+				finalSnapshotID string
+				appGUID         string
+				bindingID       string
 			)
 
 			BeforeEach(func() {
 				instanceID = uuid.NewV4().String()
+				finalSnapshotID = rdsClient.DBInstanceFinalSnapshotIdentifier(instanceID)
 				appGUID = uuid.NewV4().String()
 				bindingID = uuid.NewV4().String()
 				brokerAPIClient.AcceptsIncomplete = true
@@ -232,13 +234,13 @@ var _ = Describe("RDS Broker Daemon", func() {
 				state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("gone"))
 
-				snapshots, err := rdsClient.GetDBFinalSnapshots(instanceID)
+				snapshots, err := rdsClient.GetDBSnapshot(finalSnapshotID)
 				fmt.Fprintf(GinkgoWriter, "Final snapshots for %s:\n", instanceID)
 				fmt.Fprint(GinkgoWriter, snapshots)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(snapshots).Should(ContainSubstring(instanceID))
 
-				snapshotDeletionOutput, err := rdsClient.DeleteDBFinalSnapshot(instanceID)
+				snapshotDeletionOutput, err := rdsClient.DeleteDBSnapshot(finalSnapshotID)
 				fmt.Fprintf(GinkgoWriter, "Snapshot deletion output for %s:\n", instanceID)
 				fmt.Fprint(GinkgoWriter, snapshotDeletionOutput)
 				Expect(err).NotTo(HaveOccurred())
@@ -257,13 +259,13 @@ var _ = Describe("RDS Broker Daemon", func() {
 				state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("gone"))
 
-				snapshots, err := rdsClient.GetDBFinalSnapshots(instanceID)
+				snapshots, err := rdsClient.GetDBSnapshot(finalSnapshotID)
 				fmt.Fprintf(GinkgoWriter, "Final snapshots for %s:\n", instanceID)
 				fmt.Fprint(GinkgoWriter, snapshots)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("DBSnapshotNotFound"))
 
-				snapshotDeletionOutput, err := rdsClient.DeleteDBFinalSnapshot(instanceID)
+				snapshotDeletionOutput, err := rdsClient.DeleteDBSnapshot(finalSnapshotID)
 				fmt.Fprintf(GinkgoWriter, "Snapshot deletion output for %s:\n", instanceID)
 				fmt.Fprint(GinkgoWriter, snapshotDeletionOutput)
 				Expect(err).To(HaveOccurred())
@@ -288,13 +290,13 @@ var _ = Describe("RDS Broker Daemon", func() {
 				state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("gone"))
 
-				snapshots, err := rdsClient.GetDBFinalSnapshots(instanceID)
+				snapshots, err := rdsClient.GetDBSnapshot(finalSnapshotID)
 				fmt.Fprintf(GinkgoWriter, "Final snapshots for %s:\n", instanceID)
 				fmt.Fprint(GinkgoWriter, snapshots)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("DBSnapshotNotFound"))
 
-				snapshotDeletionOutput, err := rdsClient.DeleteDBFinalSnapshot(instanceID)
+				snapshotDeletionOutput, err := rdsClient.DeleteDBSnapshot(finalSnapshotID)
 				fmt.Fprintf(GinkgoWriter, "Snapshot deletion output for %s:\n", instanceID)
 				fmt.Fprint(GinkgoWriter, snapshotDeletionOutput)
 				Expect(err).To(HaveOccurred())
