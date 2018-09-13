@@ -437,7 +437,7 @@ func (b *RDSBroker) LastOperation(
 		instanceIDLogKey: instanceID,
 	})
 
-	dbInstanceDetails, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
+	dbInstanceDetails, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID), awsrds.DescribeRefreshCacheOption)
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			err = brokerapi.ErrInstanceDoesNotExist

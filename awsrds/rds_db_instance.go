@@ -47,11 +47,18 @@ func NewRDSDBInstance(
 	}
 }
 
-func (r *RDSDBInstance) Describe(ID string) (DBInstanceDetails, error) {
+func (r *RDSDBInstance) Describe(ID string, opts ...DescribeOption) (DBInstanceDetails, error) {
 	dbInstanceDetails := DBInstanceDetails{}
 
 	describeDBInstancesInput := &rds.DescribeDBInstancesInput{
 		DBInstanceIdentifier: aws.String(ID),
+	}
+
+	refreshCache := false
+	for _, o := range opts {
+		if o == DescribeRefreshCacheOption {
+			refreshCache = true
+		}
 	}
 
 	r.logger.Debug("describe-db-instances", lager.Data{"input": describeDBInstancesInput})
@@ -65,7 +72,7 @@ func (r *RDSDBInstance) Describe(ID string) (DBInstanceDetails, error) {
 		if aws.StringValue(dbInstance.DBInstanceIdentifier) == ID {
 			r.logger.Debug("describe-db-instances", lager.Data{"db-instance": dbInstance})
 			dbInstanceDetails = r.buildDBInstance(dbInstance)
-			t, err := r.cachedListTagsForResource(dbInstanceDetails.Arn)
+			t, err := r.cachedListTagsForResource(dbInstanceDetails.Arn, refreshCache)
 			if err != nil {
 				return dbInstanceDetails, HandleAWSError(err, r.logger)
 			}
@@ -77,10 +84,17 @@ func (r *RDSDBInstance) Describe(ID string) (DBInstanceDetails, error) {
 	return dbInstanceDetails, ErrDBInstanceDoesNotExist
 }
 
-func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string) ([]*DBInstanceDetails, error) {
+func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeOption) ([]*DBInstanceDetails, error) {
 	dbInstanceDetails := []*DBInstanceDetails{}
 
 	describeDBInstancesInput := &rds.DescribeDBInstancesInput{}
+
+	refreshCache := false
+	for _, o := range opts {
+		if o == DescribeRefreshCacheOption {
+			refreshCache = true
+		}
+	}
 
 	var dbInstances []*rds.DBInstance
 	err := r.rdssvc.DescribeDBInstancesPages(describeDBInstancesInput,
@@ -94,7 +108,7 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string) ([]*DBInstanceDet
 		return dbInstanceDetails, err
 	}
 	for _, dbInstance := range dbInstances {
-		tags, err := r.cachedListTagsForResource(*dbInstance.DBInstanceArn)
+		tags, err := r.cachedListTagsForResource(*dbInstance.DBInstanceArn, refreshCache)
 		if err != nil {
 			return dbInstanceDetails, err
 		}
@@ -631,12 +645,14 @@ func (r *RDSDBInstance) allowMajorVersionUpgrade(newEngineVersion, oldEngineVers
 	return false
 }
 
-func (r *RDSDBInstance) cachedListTagsForResource(arn string) ([]*rds.Tag, error) {
-	r.cachedTagsLock.RLock()
-	tags, ok := r.cachedTags[arn]
-	r.cachedTagsLock.RUnlock()
-	if ok {
-		return tags, nil
+func (r *RDSDBInstance) cachedListTagsForResource(arn string, refresh bool) ([]*rds.Tag, error) {
+	if !refresh {
+		r.cachedTagsLock.RLock()
+		tags, ok := r.cachedTags[arn]
+		r.cachedTagsLock.RUnlock()
+		if ok {
+			return tags, nil
+		}
 	}
 
 	tags, err := ListTagsForResource(arn, r.rdssvc, r.logger)

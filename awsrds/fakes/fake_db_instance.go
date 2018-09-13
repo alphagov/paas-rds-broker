@@ -7,12 +7,14 @@ import (
 type FakeDBInstance struct {
 	DescribeCalled            bool
 	DescribeID                string
+	DescribeOpts              []awsrds.DescribeOption
 	DescribeDBInstanceDetails awsrds.DBInstanceDetails
 	DescribeError             error
 
 	DescribeByTagCalled            bool
 	DescribeByTagKey               string
 	DescribeByTagValue             string
+	DescribeByTagOpts              []awsrds.DescribeOption
 	DescribeByTagDBInstanceDetails []*awsrds.DBInstanceDetails
 	DescribeByTagError             error
 
@@ -63,9 +65,10 @@ type FakeDBInstance struct {
 	GetTagError error
 }
 
-func (f *FakeDBInstance) Describe(ID string) (awsrds.DBInstanceDetails, error) {
+func (f *FakeDBInstance) Describe(ID string, opts ...awsrds.DescribeOption) (awsrds.DBInstanceDetails, error) {
 	f.DescribeCalled = true
 	f.DescribeID = ID
+	f.DescribeOpts = opts
 
 	return f.DescribeDBInstanceDetails, f.DescribeError
 }
@@ -78,10 +81,11 @@ func (f *FakeDBInstance) GetTag(ID, tagKey string) (string, error) {
 	return f.GetTagValue, f.GetTagError
 }
 
-func (f *FakeDBInstance) DescribeByTag(tagKey, tagValue string) ([]*awsrds.DBInstanceDetails, error) {
+func (f *FakeDBInstance) DescribeByTag(tagKey, tagValue string, opts ...awsrds.DescribeOption) ([]*awsrds.DBInstanceDetails, error) {
 	f.DescribeByTagCalled = true
 	f.DescribeByTagKey = tagKey
 	f.DescribeByTagValue = tagValue
+	f.DescribeOpts = opts
 
 	return f.DescribeByTagDBInstanceDetails, f.DescribeByTagError
 }

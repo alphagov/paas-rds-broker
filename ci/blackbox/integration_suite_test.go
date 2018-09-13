@@ -2,7 +2,9 @@ package integration_aws_test
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -28,6 +30,10 @@ var (
 func TestSuite(t *testing.T) {
 	BeforeSuite(func() {
 		var err error
+
+		// Randomly wait up to 30 seconds, to avoid Rate limiting from AWS when
+		// all tests start at the same time.
+		time.Sleep(time.Duration(rand.Intn(30)) * time.Second)
 
 		// Compile the broker
 		rdsBrokerPath, err = gexec.Build("github.com/alphagov/paas-rds-broker")

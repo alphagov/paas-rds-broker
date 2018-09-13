@@ -2047,6 +2047,14 @@ var _ = Describe("RDS Broker", func() {
 				lastOperationState = brokerapi.InProgress
 			})
 
+			It("calls Describe() with the refresh cache option", func() {
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+
+				Expect(dbInstance.DescribeOpts).To(ContainElement(awsrds.DescribeRefreshCacheOption))
+			})
+
 			It("returns the proper LastOperationResponse", func() {
 				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
 				Expect(err).ToNot(HaveOccurred())
