@@ -64,7 +64,7 @@ var _ = Describe("RDS DB Instance", func() {
 		rdsDBInstance = NewRDSDBInstance(region, partition, rdssvc, logger)
 	})
 
-	var _ = FDescribe("Describe", func() {
+	var _ = Describe("Describe", func() {
 		var (
 			listTags                 []*rds.Tag
 			listTagsForResourceError error
@@ -331,9 +331,9 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 	})
 
-	var _ = Describe("DescribeByTag", func() {
+	var _ = FDescribe("DescribeByTag", func() {
 		var (
-			expectedDBInstanceDetails []*DBInstanceDetails
+			//expectedDBInstanceDetails []*DBInstanceDetails
 
 			describeDBInstances []*rds.DBInstance
 
@@ -368,25 +368,25 @@ var _ = Describe("RDS DB Instance", func() {
 			describeDBInstanceError = nil
 
 			// Build expected DB instances from DescribeByTag with only 2 instances
-			buildExpectedDBInstanceDetails := func(id, suffix, brokerName string) *DBInstanceDetails {
-				return &DBInstanceDetails{
-					Identifier:       id + suffix,
-					Arn:              dbInstanceArn + suffix,
-					Status:           "available",
-					Engine:           "test-engine",
-					EngineVersion:    "1.2.3",
-					DBName:           "test-dbname" + suffix,
-					MasterUsername:   "test-master-username" + suffix,
-					AllocatedStorage: int64(100),
-					Tags: map[string]string{
-						"Broker Name": brokerName,
-					},
-				}
-			}
-			expectedDBInstanceDetails = []*DBInstanceDetails{
-				buildExpectedDBInstanceDetails(dbInstanceIdentifier, "-1", "mybroker"),
-				buildExpectedDBInstanceDetails(dbInstanceIdentifier, "-2", "mybroker"),
-			}
+//			buildExpectedDBInstanceDetails := func(id, suffix, brokerName string) *DBInstanceDetails {
+//				return &DBInstanceDetails{
+//					Identifier:       id + suffix,
+//					Arn:              dbInstanceArn + suffix,
+//					Status:           "available",
+//					Engine:           "test-engine",
+//					EngineVersion:    "1.2.3",
+//					DBName:           "test-dbname" + suffix,
+//					MasterUsername:   "test-master-username" + suffix,
+//					AllocatedStorage: int64(100),
+//					Tags: map[string]string{
+//						"Broker Name": brokerName,
+//					},
+//				}
+//			}
+//			expectedDBInstanceDetails = []*DBInstanceDetails{
+//				buildExpectedDBInstanceDetails(dbInstanceIdentifier, "-1", "mybroker"),
+//				buildExpectedDBInstanceDetails(dbInstanceIdentifier, "-2", "mybroker"),
+//			}
 
 			listTagsForResourceCallCount = 0
 		})

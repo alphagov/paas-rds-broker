@@ -17,7 +17,7 @@ const (
 //TODO: Hector says: rename this
 type DBInstance interface {
 	Describe(ID string, opts ...DescribeOption) (DBInstanceWithTags, error)
-	DescribeByTag(TagName, TagValue string, opts ...DescribeOption) ([]*DBInstanceDetails, error)
+	DescribeByTag(TagName, TagValue string, opts ...DescribeOption) ([]DBInstanceWithTags, error)
 	DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDetails, error)
 	DeleteSnapshots(brokerName string, keepForDays int) error
 	Create(ID string, dbInstanceDetails DBInstanceDetails) error

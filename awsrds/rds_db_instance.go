@@ -2,7 +2,6 @@ package awsrds
 
 import (
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -83,8 +82,8 @@ func (r *RDSDBInstance) Describe(ID string, opts ...DescribeOption) (DBInstanceW
 	return dbInstanceWithTags, ErrDBInstanceDoesNotExist
 }
 
-func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeOption) ([]*DBInstanceDetails, error) {
-	dbInstanceDetails := []*DBInstanceDetails{}
+func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeOption) ([]DBInstanceWithTags, error) {
+	dbInstanceWithTags := []DBInstanceWithTags{}
 
 	describeDBInstancesInput := &rds.DescribeDBInstancesInput{}
 
@@ -104,23 +103,25 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeO
 	)
 
 	if err != nil {
-		return dbInstanceDetails, err
+		return dbInstanceWithTags, err
 	}
 	for _, dbInstance := range dbInstances {
-		tags, err := r.cachedListTagsForResource(*dbInstance.DBInstanceArn, refreshCache)
+		tags, err := r.cachedListTagsForResource(aws.StringValue(dbInstance.DBInstanceArn), refreshCache)
 		if err != nil {
-			return dbInstanceDetails, err
+			return dbInstanceWithTags, err
 		}
 		for _, t := range tags {
-			if *t.Key == tagKey && *t.Value == tagValue {
-				d := r.buildDBInstance(dbInstance)
-				dbInstanceDetails = append(dbInstanceDetails, &d)
+			if aws.StringValue(t.Key) == tagKey && aws.StringValue(t.Value) == tagValue {
+				dbInstanceWithTags = append(dbInstanceWithTags, DBInstanceWithTags{
+					DBInstance: dbInstance,
+					Tags: tags,
+				})
 				break
 			}
 		}
 	}
 
-	return dbInstanceDetails, nil
+	return dbInstanceWithTags, nil
 }
 
 func (r *RDSDBInstance) DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDetails, error) {
@@ -334,39 +335,6 @@ func (r *RDSDBInstance) Delete(ID string, skipFinalSnapshot bool) error {
 	r.logger.Debug("delete-db-instance", lager.Data{"output": deleteDBInstanceOutput})
 
 	return nil
-}
-
-func (r *RDSDBInstance) buildDBInstance(dbInstance *rds.DBInstance) DBInstanceDetails {
-	dbInstanceDetails := DBInstanceDetails{
-		Identifier:              aws.StringValue(dbInstance.DBInstanceIdentifier),
-		Arn:                     aws.StringValue(dbInstance.DBInstanceArn),
-		Status:                  aws.StringValue(dbInstance.DBInstanceStatus),
-		Engine:                  aws.StringValue(dbInstance.Engine),
-		EngineVersion:           aws.StringValue(dbInstance.EngineVersion),
-		DBName:                  aws.StringValue(dbInstance.DBName),
-		MasterUsername:          aws.StringValue(dbInstance.MasterUsername),
-		AllocatedStorage:        aws.Int64Value(dbInstance.AllocatedStorage),
-		AutoMinorVersionUpgrade: aws.BoolValue(dbInstance.AutoMinorVersionUpgrade),
-		BackupRetentionPeriod:   aws.Int64Value(dbInstance.BackupRetentionPeriod),
-		CopyTagsToSnapshot:      aws.BoolValue(dbInstance.CopyTagsToSnapshot),
-		MultiAZ:                 aws.BoolValue(dbInstance.MultiAZ),
-		PubliclyAccessible:      aws.BoolValue(dbInstance.PubliclyAccessible),
-		StorageEncrypted:        aws.BoolValue(dbInstance.StorageEncrypted),
-	}
-
-	if dbInstance.Endpoint != nil {
-		dbInstanceDetails.Address = aws.StringValue(dbInstance.Endpoint.Address)
-		dbInstanceDetails.Port = aws.Int64Value(dbInstance.Endpoint.Port)
-	}
-
-	if dbInstance.PendingModifiedValues != nil {
-		emptyPendingModifiedValues := &rds.PendingModifiedValues{}
-		if !reflect.DeepEqual(*dbInstance.PendingModifiedValues, *emptyPendingModifiedValues) {
-			dbInstanceDetails.PendingModifications = true
-		}
-	}
-
-	return dbInstanceDetails
 }
 
 func (r *RDSDBInstance) buildDBSnapshot(dbSnapshot *rds.DBSnapshot) DBSnapshotDetails {
