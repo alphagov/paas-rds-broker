@@ -48,7 +48,7 @@ func NewRDSDBInstance(
 }
 
 func (r *RDSDBInstance) Describe(ID string, opts ...DescribeOption) (DBInstanceWithTags, error) {
-	var dbInsanceWithTags = DBInstanceWithTags{}
+	var dbInstanceWithTags = DBInstanceWithTags{}
 	describeDBInstancesInput := &rds.DescribeDBInstancesInput{
 		DBInstanceIdentifier: aws.String(ID),
 	}
@@ -64,22 +64,23 @@ func (r *RDSDBInstance) Describe(ID string, opts ...DescribeOption) (DBInstanceW
 
 	dbInstances, err := r.rdssvc.DescribeDBInstances(describeDBInstancesInput)
 	if err != nil {
-		return dbInsanceWithTags, HandleAWSError(err, r.logger)
+		return dbInstanceWithTags, HandleAWSError(err, r.logger)
 	}
 
 	for _, dbInstance := range dbInstances.DBInstances {
 		if aws.StringValue(dbInstance.DBInstanceIdentifier) == ID {
+			dbInstanceWithTags.DBInstance = dbInstance
 			r.logger.Debug("describe-db-instances", lager.Data{"db-instance": dbInstance})
 			t, err := r.cachedListTagsForResource(*dbInstance.DBInstanceArn, refreshCache)
 			if err != nil {
-				return dbInsanceWithTags, HandleAWSError(err, r.logger)
+				return dbInstanceWithTags, HandleAWSError(err, r.logger)
 			}
-			dbInsanceWithTags.Tags = t
-			return dbInsanceWithTags, nil
+			dbInstanceWithTags.Tags = t
+			return dbInstanceWithTags, nil
 		}
 	}
 
-	return dbInsanceWithTags, ErrDBInstanceDoesNotExist
+	return dbInstanceWithTags, ErrDBInstanceDoesNotExist
 }
 
 func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeOption) ([]*DBInstanceDetails, error) {

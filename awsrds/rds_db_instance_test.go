@@ -66,10 +66,10 @@ var _ = Describe("RDS DB Instance", func() {
 
 	var _ = FDescribe("Describe", func() {
 		var (
-			listTags                 map[string]string
+			listTags                 []*rds.Tag
 			listTagsForResourceError error
 
-			properDBInstanceDetails DBInstanceDetails
+			properDBInstanceWithTags DBInstanceWithTags
 
 			describeDBInstance *rds.DBInstance
 
@@ -80,7 +80,6 @@ var _ = Describe("RDS DB Instance", func() {
 		)
 
 		BeforeEach(func() {
-			listTags = map[string]string{}
 			listTagsForResourceError = nil
 
 			describeDBInstance = &rds.DBInstance{
@@ -90,12 +89,19 @@ var _ = Describe("RDS DB Instance", func() {
 				Engine:                  aws.String("test-engine"),
 				EngineVersion:           aws.String("1.2.3"),
 				DBName:                  aws.String("test-dbname"),
+				Endpoint: &rds.Endpoint{
+					Address: aws.String("dbinstance-endpoint"),
+					Port:    aws.Int64(3306),
+				},
 				MasterUsername:          aws.String("test-master-username"),
 				AllocatedStorage:        aws.Int64(100),
 				AutoMinorVersionUpgrade: aws.Bool(true),
 				BackupRetentionPeriod:   aws.Int64(1),
 				CopyTagsToSnapshot:      aws.Bool(true),
 				MultiAZ:                 aws.Bool(true),
+				PendingModifiedValues: &rds.PendingModifiedValues{
+					DBInstanceClass: aws.String("new-instance-class"),
+				},
 				PubliclyAccessible:      aws.Bool(true),
 				StorageEncrypted:        aws.Bool(true),
 			}
@@ -108,22 +114,9 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 
 		JustBeforeEach(func() {
-			properDBInstanceDetails = DBInstanceDetails{
-				Identifier:       dbInstanceIdentifier,
-				Arn:              dbInstanceArn,
-				Status:           "available",
-				Engine:           "test-engine",
-				EngineVersion:    "1.2.3",
-				DBName:           "test-dbname",
-				MasterUsername:   "test-master-username",
-				AllocatedStorage: int64(100),
-				Tags:             listTags,
-				AutoMinorVersionUpgrade: true,
-				BackupRetentionPeriod:   int64(1),
-				CopyTagsToSnapshot:      true,
-				MultiAZ:                 true,
-				PubliclyAccessible:      true,
-				StorageEncrypted:        true,
+			properDBInstanceWithTags = DBInstanceWithTags{
+				DBInstance: describeDBInstance,
+				Tags:       listTags,
 			}
 
 			rdssvc.Handlers.Clear()
@@ -145,7 +138,7 @@ var _ = Describe("RDS DB Instance", func() {
 					snapshotArnRegex := "arn:.*:rds:.*:.*:db:" + aws.StringValue(describeDBInstancesInput.DBInstanceIdentifier)
 					Expect(aws.StringValue(input.ResourceName)).To(MatchRegexp(snapshotArnRegex))
 					data := r.Data.(*rds.ListTagsForResourceOutput)
-					data.TagList = BuilRDSTags(listTags)
+					data.TagList = listTags
 					r.Error = listTagsForResourceError
 				}
 			}
@@ -155,71 +148,49 @@ var _ = Describe("RDS DB Instance", func() {
 		It("returns the proper DB Instance", func() {
 			dbInstanceDetails, err := rdsDBInstance.Describe(dbInstanceIdentifier)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
+			Expect(dbInstanceDetails).To(Equal(properDBInstanceWithTags))
 		})
 
 		Context("when RDS DB Instance has some tags", func() {
 			BeforeEach(func() {
-				listTags = map[string]string{
-					"key1": "value1",
-					"key2": "value2",
-					"key3": "value3",
+				listTags = []*rds.Tag{
+					{
+						Key: aws.String("key1"),
+						Value: aws.String("value1"),
+					},
+					{
+						Key: aws.String("key2"),
+						Value: aws.String("value2"),
+					},
+					{
+						Key: aws.String("key3"),
+						Value: aws.String("value3"),
+					},
 				}
 			})
+
 			It("returns the proper DB Instance with the tags", func() {
 				dbInstanceDetails, err := rdsDBInstance.Describe(dbInstanceIdentifier)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
+				Expect(dbInstanceDetails).To(Equal(properDBInstanceWithTags))
 			})
 
 			It("caches the tags from ListTagsForResource unless DescribeRefreshCacheOption is passed", func() {
 				dbInstanceDetails, err := rdsDBInstance.Describe(dbInstanceIdentifier)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
+				Expect(dbInstanceDetails).To(Equal(properDBInstanceWithTags))
 
 				dbInstanceDetails, err = rdsDBInstance.Describe(dbInstanceIdentifier)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
+				Expect(dbInstanceDetails).To(Equal(properDBInstanceWithTags))
 
 				Expect(listTagsForResourceCallCount).To(Equal(1))
 
 				dbInstanceDetails, err = rdsDBInstance.Describe(dbInstanceIdentifier, DescribeRefreshCacheOption)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
+				Expect(dbInstanceDetails).To(Equal(properDBInstanceWithTags))
 
 				Expect(listTagsForResourceCallCount).To(Equal(2))
-			})
-		})
-
-		Context("when RDS DB Instance has an Endpoint", func() {
-			JustBeforeEach(func() {
-				describeDBInstance.Endpoint = &rds.Endpoint{
-					Address: aws.String("dbinstance-endpoint"),
-					Port:    aws.Int64(3306),
-				}
-				properDBInstanceDetails.Address = "dbinstance-endpoint"
-				properDBInstanceDetails.Port = int64(3306)
-			})
-
-			It("returns the proper DB Instance", func() {
-				dbInstanceDetails, err := rdsDBInstance.Describe(dbInstanceIdentifier)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
-			})
-		})
-
-		Context("when RDS DB Instance has pending modifications", func() {
-			JustBeforeEach(func() {
-				describeDBInstance.PendingModifiedValues = &rds.PendingModifiedValues{
-					DBInstanceClass: aws.String("new-instance-class"),
-				}
-				properDBInstanceDetails.PendingModifications = true
-			})
-
-			It("returns the proper DB Instance", func() {
-				dbInstanceDetails, err := rdsDBInstance.Describe(dbInstanceIdentifier)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstanceDetails).To(Equal(properDBInstanceDetails))
 			})
 		})
 
