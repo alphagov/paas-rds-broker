@@ -3,7 +3,6 @@ package awsrds_test
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -83,12 +82,12 @@ var _ = Describe("RDS DB Instance", func() {
 			listTagsForResourceError = nil
 
 			describeDBInstance = &rds.DBInstance{
-				DBInstanceIdentifier:    aws.String(dbInstanceIdentifier),
-				DBInstanceArn:           aws.String(dbInstanceArn),
-				DBInstanceStatus:        aws.String("available"),
-				Engine:                  aws.String("test-engine"),
-				EngineVersion:           aws.String("1.2.3"),
-				DBName:                  aws.String("test-dbname"),
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBInstanceArn:        aws.String(dbInstanceArn),
+				DBInstanceStatus:     aws.String("available"),
+				Engine:               aws.String("test-engine"),
+				EngineVersion:        aws.String("1.2.3"),
+				DBName:               aws.String("test-dbname"),
 				Endpoint: &rds.Endpoint{
 					Address: aws.String("dbinstance-endpoint"),
 					Port:    aws.Int64(3306),
@@ -102,8 +101,8 @@ var _ = Describe("RDS DB Instance", func() {
 				PendingModifiedValues: &rds.PendingModifiedValues{
 					DBInstanceClass: aws.String("new-instance-class"),
 				},
-				PubliclyAccessible:      aws.Bool(true),
-				StorageEncrypted:        aws.Bool(true),
+				PubliclyAccessible: aws.Bool(true),
+				StorageEncrypted:   aws.Bool(true),
 			}
 			describeDBInstancesInput = &rds.DescribeDBInstancesInput{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
@@ -155,15 +154,15 @@ var _ = Describe("RDS DB Instance", func() {
 			BeforeEach(func() {
 				listTags = []*rds.Tag{
 					{
-						Key: aws.String("key1"),
+						Key:   aws.String("key1"),
 						Value: aws.String("value1"),
 					},
 					{
-						Key: aws.String("key2"),
+						Key:   aws.String("key2"),
 						Value: aws.String("value2"),
 					},
 					{
-						Key: aws.String("key3"),
+						Key:   aws.String("key3"),
 						Value: aws.String("value3"),
 					},
 				}
@@ -333,60 +332,43 @@ var _ = Describe("RDS DB Instance", func() {
 
 	var _ = FDescribe("DescribeByTag", func() {
 		var (
-			//expectedDBInstanceDetails []*DBInstanceDetails
-
-			describeDBInstances []*rds.DBInstance
-
-			describeDBInstancesInput *rds.DescribeDBInstancesInput
-
-			describeDBInstanceError error
+			db1, db2, db3             *rds.DBInstance
+			db1Tags, db2Tags, db3Tags []*rds.Tag
 
 			listTagsForResourceCallCount int
 		)
 
 		BeforeEach(func() {
-			// Build DescribeDBInstances mock response with 3 instances
-			buildDBInstanceAWSResponse := func(id, suffix string) *rds.DBInstance {
-				return &rds.DBInstance{
-					DBInstanceIdentifier: aws.String(id + suffix),
-					DBInstanceArn:        aws.String(dbInstanceArn + suffix),
-					DBInstanceStatus:     aws.String("available"),
-					Engine:               aws.String("test-engine"),
-					EngineVersion:        aws.String("1.2.3"),
-					DBName:               aws.String("test-dbname" + suffix),
-					MasterUsername:       aws.String("test-master-username" + suffix),
-					AllocatedStorage:     aws.Int64(100),
-				}
+			db1 = &rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier + "-1"),
+				DBInstanceArn:        aws.String(dbInstanceArn + "-1"),
 			}
-			describeDBInstances = []*rds.DBInstance{
-				buildDBInstanceAWSResponse(dbInstanceIdentifier, "-1"),
-				buildDBInstanceAWSResponse(dbInstanceIdentifier, "-2"),
-				buildDBInstanceAWSResponse(dbInstanceIdentifier, "-3"),
+			db1Tags = []*rds.Tag{
+				&rds.Tag{
+					Key:   aws.String("Broker Name"),
+					Value: aws.String("mybroker"),
+				},
 			}
-
-			describeDBInstancesInput = &rds.DescribeDBInstancesInput{}
-			describeDBInstanceError = nil
-
-			// Build expected DB instances from DescribeByTag with only 2 instances
-//			buildExpectedDBInstanceDetails := func(id, suffix, brokerName string) *DBInstanceDetails {
-//				return &DBInstanceDetails{
-//					Identifier:       id + suffix,
-//					Arn:              dbInstanceArn + suffix,
-//					Status:           "available",
-//					Engine:           "test-engine",
-//					EngineVersion:    "1.2.3",
-//					DBName:           "test-dbname" + suffix,
-//					MasterUsername:   "test-master-username" + suffix,
-//					AllocatedStorage: int64(100),
-//					Tags: map[string]string{
-//						"Broker Name": brokerName,
-//					},
-//				}
-//			}
-//			expectedDBInstanceDetails = []*DBInstanceDetails{
-//				buildExpectedDBInstanceDetails(dbInstanceIdentifier, "-1", "mybroker"),
-//				buildExpectedDBInstanceDetails(dbInstanceIdentifier, "-2", "mybroker"),
-//			}
+			db2 = &rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier + "-2"),
+				DBInstanceArn:        aws.String(dbInstanceArn + "-2"),
+			}
+			db2Tags = []*rds.Tag{
+				&rds.Tag{
+					Key:   aws.String("Broker Name"),
+					Value: aws.String("mybroker"),
+				},
+			}
+			db3 = &rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier + "-3"),
+				DBInstanceArn:        aws.String(dbInstanceArn + "-3"),
+			}
+			db3Tags = []*rds.Tag{
+				&rds.Tag{
+					Key:   aws.String("Broker Name"),
+					Value: aws.String("otherbroker"),
+				},
+			}
 
 			listTagsForResourceCallCount = 0
 		})
@@ -399,10 +381,9 @@ var _ = Describe("RDS DB Instance", func() {
 				switch r.Operation.Name {
 				case "DescribeDBInstances":
 					Expect(r.Params).To(BeAssignableToTypeOf(&rds.DescribeDBInstancesInput{}))
-					Expect(r.Params).To(Equal(describeDBInstancesInput))
+					Expect(r.Params).To(Equal(&rds.DescribeDBInstancesInput{}))
 					data := r.Data.(*rds.DescribeDBInstancesOutput)
-					data.DBInstances = describeDBInstances
-					r.Error = describeDBInstanceError
+					data.DBInstances = []*rds.DBInstance{db1, db2, db3}
 				case "ListTagsForResource":
 					listTagsForResourceCallCount = listTagsForResourceCallCount + 1
 
@@ -414,16 +395,13 @@ var _ = Describe("RDS DB Instance", func() {
 					Expect(gotARN).To(HavePrefix(expectedARN))
 
 					data := r.Data.(*rds.ListTagsForResourceOutput)
-
-					brokerName := "mybroker"
-					if strings.HasSuffix(gotARN, "-3") {
-						brokerName = "otherbroker"
-					}
-					data.TagList = []*rds.Tag{
-						&rds.Tag{
-							Key:   aws.String("Broker Name"),
-							Value: aws.String(brokerName),
-						},
+					switch gotARN {
+					case expectedARN + "-1":
+						data.TagList = db1Tags
+					case expectedARN + "-2":
+						data.TagList = db2Tags
+					case expectedARN + "-3":
+						data.TagList = db3Tags
 					}
 				default:
 					Fail(fmt.Sprintf("Unexpected call to AWS RDS API: '%s'", r.Operation.Name))
@@ -437,28 +415,35 @@ var _ = Describe("RDS DB Instance", func() {
 			dbInstanceDetailsList, err := rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dbInstanceDetailsList).To(HaveLen(2))
+			Expect(dbInstanceDetailsList[0].DBInstance).To(Equal(db1))
+			Expect(dbInstanceDetailsList[0].Tags).To(Equal(db1Tags))
+			Expect(dbInstanceDetailsList[1].DBInstance).To(Equal(db2))
+			Expect(dbInstanceDetailsList[1].Tags).To(Equal(db2Tags))
 		})
 
 		It("caches the tags from ListTagsForResource unless DescribeRefreshCacheOption is passed", func() {
+			numberOfInstances := 3
+
+			listTagsForResourceCallCount = 0
 			dbInstanceDetailsList, err := rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dbInstanceDetailsList).To(HaveLen(2))
 
-			Expect(listTagsForResourceCallCount).To(Equal(len(describeDBInstances)))
+			Expect(listTagsForResourceCallCount).To(Equal(numberOfInstances))
 
+			listTagsForResourceCallCount = 0
 			dbInstanceDetailsList, err = rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dbInstanceDetailsList).To(HaveLen(2))
 
-			Expect(listTagsForResourceCallCount).To(Equal(len(describeDBInstances)))
+			Expect(listTagsForResourceCallCount).To(Equal(0))
 
-			previousCount := listTagsForResourceCallCount
-
+			listTagsForResourceCallCount = 0
 			dbInstanceDetailsList, err = rdsDBInstance.DescribeByTag("Broker Name", "mybroker", DescribeRefreshCacheOption)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dbInstanceDetailsList).To(HaveLen(2))
 
-			Expect(listTagsForResourceCallCount).To(Equal(previousCount + len(describeDBInstances)))
+			Expect(listTagsForResourceCallCount).To(Equal(numberOfInstances))
 		})
 	})
 
