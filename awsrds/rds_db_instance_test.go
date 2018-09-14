@@ -64,7 +64,7 @@ var _ = Describe("RDS DB Instance", func() {
 		rdsDBInstance = NewRDSDBInstance(region, partition, rdssvc, logger)
 	})
 
-	var _ = Describe("Describe", func() {
+	var _ = FDescribe("Describe", func() {
 		var (
 			listTags                 map[string]string
 			listTagsForResourceError error

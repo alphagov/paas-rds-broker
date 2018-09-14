@@ -47,9 +47,8 @@ func NewRDSDBInstance(
 	}
 }
 
-func (r *RDSDBInstance) Describe(ID string, opts ...DescribeOption) (DBInstanceDetails, error) {
-	dbInstanceDetails := DBInstanceDetails{}
-
+func (r *RDSDBInstance) Describe(ID string, opts ...DescribeOption) (DBInstanceWithTags, error) {
+	var dbInsanceWithTags = DBInstanceWithTags{}
 	describeDBInstancesInput := &rds.DescribeDBInstancesInput{
 		DBInstanceIdentifier: aws.String(ID),
 	}
@@ -65,23 +64,22 @@ func (r *RDSDBInstance) Describe(ID string, opts ...DescribeOption) (DBInstanceD
 
 	dbInstances, err := r.rdssvc.DescribeDBInstances(describeDBInstancesInput)
 	if err != nil {
-		return dbInstanceDetails, HandleAWSError(err, r.logger)
+		return dbInsanceWithTags, HandleAWSError(err, r.logger)
 	}
 
 	for _, dbInstance := range dbInstances.DBInstances {
 		if aws.StringValue(dbInstance.DBInstanceIdentifier) == ID {
 			r.logger.Debug("describe-db-instances", lager.Data{"db-instance": dbInstance})
-			dbInstanceDetails = r.buildDBInstance(dbInstance)
-			t, err := r.cachedListTagsForResource(dbInstanceDetails.Arn, refreshCache)
+			t, err := r.cachedListTagsForResource(*dbInstance.DBInstanceArn, refreshCache)
 			if err != nil {
-				return dbInstanceDetails, HandleAWSError(err, r.logger)
+				return dbInsanceWithTags, HandleAWSError(err, r.logger)
 			}
-			dbInstanceDetails.Tags = RDSTagsValues(t)
-			return dbInstanceDetails, nil
+			dbInsanceWithTags.Tags = t
+			return dbInsanceWithTags, nil
 		}
 	}
 
-	return dbInstanceDetails, ErrDBInstanceDoesNotExist
+	return dbInsanceWithTags, ErrDBInstanceDoesNotExist
 }
 
 func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeOption) ([]*DBInstanceDetails, error) {
@@ -268,16 +266,16 @@ func (r *RDSDBInstance) Restore(ID, snapshotIdentifier string, dbInstanceDetails
 }
 
 func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, applyImmediately bool) error {
-	oldDBInstanceDetails, err := r.Describe(ID)
+	oldDBInstanceWithTags, err := r.Describe(ID)
 	if err != nil {
 		return err
 	}
 
-	if dbInstanceDetails.Engine != "" && strings.ToLower(oldDBInstanceDetails.Engine) != strings.ToLower(dbInstanceDetails.Engine) {
-		return fmt.Errorf("Migrating the RDS DB Instance engine from '%s' to '%s' is not supported", oldDBInstanceDetails.Engine, dbInstanceDetails.Engine)
+	if dbInstanceDetails.Engine != "" && strings.ToLower(aws.StringValue(oldDBInstanceWithTags.Engine)) != strings.ToLower(dbInstanceDetails.Engine) {
+		return fmt.Errorf("Migrating the RDS DB Instance engine from '%s' to '%s' is not supported", aws.StringValue(oldDBInstanceWithTags.Engine), dbInstanceDetails.Engine)
 	}
 
-	modifyDBInstanceInput := r.buildModifyDBInstanceInput(ID, dbInstanceDetails, oldDBInstanceDetails, applyImmediately)
+	modifyDBInstanceInput := r.buildModifyDBInstanceInput(ID, dbInstanceDetails, oldDBInstanceWithTags, applyImmediately)
 
 	sanitizedDBInstanceInput := *modifyDBInstanceInput
 	sanitizedDBInstanceInput.MasterUserPassword = aws.String("REDACTED")
@@ -292,7 +290,7 @@ func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, a
 
 	if len(dbInstanceDetails.Tags) > 0 {
 		tags := BuilRDSTags(dbInstanceDetails.Tags)
-		AddTagsToResource(oldDBInstanceDetails.Arn, tags, r.rdssvc, r.logger)
+		AddTagsToResource(aws.StringValue(oldDBInstanceWithTags.DBInstanceArn), tags, r.rdssvc, r.logger)
 	}
 
 	return nil
@@ -315,12 +313,12 @@ func (r *RDSDBInstance) Reboot(ID string) error {
 }
 
 func (r *RDSDBInstance) RemoveTag(ID, tagKey string) error {
-	dBInstanceDetails, err := r.Describe(ID)
+	dbInstanceWithTags, err := r.Describe(ID)
 	if err != nil {
 		return err
 	}
 
-	return RemoveTagsFromResource(dBInstanceDetails.Arn, []*string{&tagKey}, r.rdssvc, r.logger)
+	return RemoveTagsFromResource(aws.StringValue(dbInstanceWithTags.DBInstanceArn), []*string{&tagKey}, r.rdssvc, r.logger)
 }
 
 func (r *RDSDBInstance) Delete(ID string, skipFinalSnapshot bool) error {
@@ -542,15 +540,15 @@ func (r *RDSDBInstance) buildRestoreDBInstanceInput(ID, snapshotIdentifier strin
 	return restoreDBInstanceInput
 }
 
-func (r *RDSDBInstance) buildModifyDBInstanceInput(ID string, dbInstanceDetails DBInstanceDetails, oldDBInstanceDetails DBInstanceDetails, applyImmediately bool) *rds.ModifyDBInstanceInput {
+func (r *RDSDBInstance) buildModifyDBInstanceInput(ID string, dbInstanceDetails DBInstanceDetails, oldDBInstanceWithTags DBInstanceWithTags, applyImmediately bool) *rds.ModifyDBInstanceInput {
 	modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
 		DBInstanceIdentifier: aws.String(ID),
 		ApplyImmediately:     aws.Bool(applyImmediately),
 	}
 
 	if dbInstanceDetails.AllocatedStorage > 0 {
-		if dbInstanceDetails.AllocatedStorage < oldDBInstanceDetails.AllocatedStorage {
-			modifyDBInstanceInput.AllocatedStorage = aws.Int64(oldDBInstanceDetails.AllocatedStorage)
+		if dbInstanceDetails.AllocatedStorage < aws.Int64Value(oldDBInstanceWithTags.AllocatedStorage) {
+			modifyDBInstanceInput.AllocatedStorage = oldDBInstanceWithTags.AllocatedStorage
 		} else {
 			modifyDBInstanceInput.AllocatedStorage = aws.Int64(dbInstanceDetails.AllocatedStorage)
 		}
@@ -576,9 +574,9 @@ func (r *RDSDBInstance) buildModifyDBInstanceInput(ID string, dbInstanceDetails 
 		modifyDBInstanceInput.DBSecurityGroups = aws.StringSlice(dbInstanceDetails.DBSecurityGroups)
 	}
 
-	if dbInstanceDetails.EngineVersion != "" && dbInstanceDetails.EngineVersion != oldDBInstanceDetails.EngineVersion {
+	if dbInstanceDetails.EngineVersion != "" && dbInstanceDetails.EngineVersion != aws.StringValue(oldDBInstanceWithTags.EngineVersion) {
 		modifyDBInstanceInput.EngineVersion = aws.String(dbInstanceDetails.EngineVersion)
-		modifyDBInstanceInput.AllowMajorVersionUpgrade = aws.Bool(r.allowMajorVersionUpgrade(dbInstanceDetails.EngineVersion, oldDBInstanceDetails.EngineVersion))
+		modifyDBInstanceInput.AllowMajorVersionUpgrade = aws.Bool(r.allowMajorVersionUpgrade(dbInstanceDetails.EngineVersion, aws.StringValue(oldDBInstanceWithTags.EngineVersion)))
 	}
 
 	if dbInstanceDetails.MasterUserPassword != "" {
