@@ -22,7 +22,7 @@ type DBInstance interface {
 	DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDetails, error)
 	DeleteSnapshots(brokerName string, keepForDays int) error
 	Create(createDBInstanceInput *rds.CreateDBInstanceInput) error
-	Restore(ID, snapshotIdentifier string, dbInstanceDetails DBInstanceDetails) error
+	Restore(restoreRBInstanceInput *rds.RestoreDBInstanceFromDBSnapshotInput) error
 	Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput, tags []*rds.Tag) error
 	Reboot(ID string) error
 	RemoveTag(ID, tagKey string) error

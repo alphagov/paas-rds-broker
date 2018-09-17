@@ -635,7 +635,7 @@ var _ = Describe("RDS DB Instance", func() {
 			snapshotIdentifier string
 			dbInstanceDetails  DBInstanceDetails
 
-			restoreDBInstanceInput *rds.RestoreDBInstanceFromDBSnapshotInput
+			receivedRestoreDBInstanceInput *rds.RestoreDBInstanceFromDBSnapshotInput
 			restoreDBInstanceError error
 		)
 
@@ -645,15 +645,6 @@ var _ = Describe("RDS DB Instance", func() {
 				Engine: "test-engine",
 			}
 
-			restoreDBInstanceInput = &rds.RestoreDBInstanceFromDBSnapshotInput{
-				DBInstanceIdentifier:    aws.String(dbInstanceIdentifier),
-				DBSnapshotIdentifier:    aws.String(snapshotIdentifier),
-				Engine:                  aws.String("test-engine"),
-				AutoMinorVersionUpgrade: aws.Bool(false),
-				CopyTagsToSnapshot:      aws.Bool(false),
-				MultiAZ:                 aws.Bool(false),
-				PubliclyAccessible:      aws.Bool(false),
-			}
 			restoreDBInstanceError = nil
 		})
 
@@ -663,185 +654,25 @@ var _ = Describe("RDS DB Instance", func() {
 			rdsCall = func(r *request.Request) {
 				Expect(r.Operation.Name).To(Equal("RestoreDBInstanceFromDBSnapshot"))
 				Expect(r.Params).To(BeAssignableToTypeOf(&rds.RestoreDBInstanceFromDBSnapshotInput{}))
-				Expect(r.Params).To(Equal(restoreDBInstanceInput))
+				receivedRestoreDBInstanceInput = r.Params.(*rds.RestoreDBInstanceFromDBSnapshotInput)
 				r.Error = restoreDBInstanceError
 			}
 			rdssvc.Handlers.Send.PushBack(rdsCall)
 		})
 
 		It("does not return error", func() {
-			err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+			restoreDBInstanceInput := &rds.RestoreDBInstanceFromDBSnapshotInput{
+				DBInstanceIdentifier:    aws.String(dbInstanceIdentifier),
+				DBSnapshotIdentifier:    aws.String(snapshotIdentifier),
+				Engine:                  aws.String("test-engine"),
+				AutoMinorVersionUpgrade: aws.Bool(false),
+				CopyTagsToSnapshot:      aws.Bool(false),
+				MultiAZ:                 aws.Bool(false),
+				PubliclyAccessible:      aws.Bool(false),
+			}
+			err := rdsDBInstance.Restore(restoreDBInstanceInput)
 			Expect(err).ToNot(HaveOccurred())
-		})
-
-		Context("when has AutoMinorVersionUpgrade", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.AutoMinorVersionUpgrade = true
-				restoreDBInstanceInput.AutoMinorVersionUpgrade = aws.Bool(true)
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has AvailabilityZone", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.AvailabilityZone = "test-az"
-				restoreDBInstanceInput.AvailabilityZone = aws.String("test-az")
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has CopyTagsToSnapshot", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.CopyTagsToSnapshot = true
-				restoreDBInstanceInput.CopyTagsToSnapshot = aws.Bool(true)
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has DBInstanceClass", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.DBInstanceClass = "db.m3.small"
-				restoreDBInstanceInput.DBInstanceClass = aws.String("db.m3.small")
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has DBName", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.DBName = "test-dbname"
-				restoreDBInstanceInput.DBName = aws.String("test-dbname")
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has DBSubnetGroupName", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.DBSubnetGroupName = "test-db-subnet-group-name"
-				restoreDBInstanceInput.DBSubnetGroupName = aws.String("test-db-subnet-group-name")
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has LicenseModel", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.LicenseModel = "test-license-model"
-				restoreDBInstanceInput.LicenseModel = aws.String("test-license-model")
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has MultiAZ", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.MultiAZ = true
-				restoreDBInstanceInput.MultiAZ = aws.Bool(true)
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has OptionGroupName", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.OptionGroupName = "test-option-group-name"
-				restoreDBInstanceInput.OptionGroupName = aws.String("test-option-group-name")
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has Port", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.Port = 666
-				restoreDBInstanceInput.Port = aws.Int64(666)
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has PubliclyAccessible", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.PubliclyAccessible = true
-				restoreDBInstanceInput.PubliclyAccessible = aws.Bool(true)
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has StorageType", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.StorageType = "test-storage-type"
-				restoreDBInstanceInput.StorageType = aws.String("test-storage-type")
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has Iops", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.Iops = 1000
-				restoreDBInstanceInput.Iops = aws.Int64(1000)
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has Tags", func() {
-			BeforeEach(func() {
-				dbInstanceDetails.Tags = map[string]string{"Owner": "Cloud Foundry"}
-				restoreDBInstanceInput.Tags = []*rds.Tag{
-					&rds.Tag{Key: aws.String("Owner"), Value: aws.String("Cloud Foundry")},
-				}
-			})
-
-			It("does not return error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-				Expect(err).ToNot(HaveOccurred())
-			})
+			Expect(receivedRestoreDBInstanceInput).To(Equal(restoreDBInstanceInput))
 		})
 
 		Context("when creating the DB Instance fails", func() {
@@ -850,21 +681,18 @@ var _ = Describe("RDS DB Instance", func() {
 			})
 
 			It("returns the proper error", func() {
-				err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
+				restoreDBInstanceInput := &rds.RestoreDBInstanceFromDBSnapshotInput{
+					DBInstanceIdentifier:    aws.String(dbInstanceIdentifier),
+					DBSnapshotIdentifier:    aws.String(snapshotIdentifier),
+					Engine:                  aws.String("test-engine"),
+					AutoMinorVersionUpgrade: aws.Bool(false),
+					CopyTagsToSnapshot:      aws.Bool(false),
+					MultiAZ:                 aws.Bool(false),
+					PubliclyAccessible:      aws.Bool(false),
+				}
+				err := rdsDBInstance.Restore(restoreDBInstanceInput)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("operation failed"))
-			})
-
-			Context("and it is an AWS error", func() {
-				BeforeEach(func() {
-					restoreDBInstanceError = awserr.New("code", "message", errors.New("operation failed"))
-				})
-
-				It("returns the proper error", func() {
-					err := rdsDBInstance.Restore(dbInstanceIdentifier, snapshotIdentifier, dbInstanceDetails)
-					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).To(Equal("code: message"))
-				})
 			})
 		})
 	})
