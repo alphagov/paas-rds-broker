@@ -45,10 +45,29 @@ func NewRDSDBInstance(
 	}
 }
 
-func (r *RDSDBInstance) Describe(ID string, opts ...DescribeOption) (*rds.DBInstance, []*rds.Tag, error) {
+func (r *RDSDBInstance) Describe(ID string) (*rds.DBInstance, error) {
 	describeDBInstancesInput := &rds.DescribeDBInstancesInput{
 		DBInstanceIdentifier: aws.String(ID),
 	}
+
+	r.logger.Debug("describe-db-instances", lager.Data{"input": describeDBInstancesInput})
+
+	dbInstances, err := r.rdssvc.DescribeDBInstances(describeDBInstancesInput)
+	if err != nil {
+		return nil, HandleAWSError(err, r.logger)
+	}
+
+	for _, dbInstance := range dbInstances.DBInstances {
+		if aws.StringValue(dbInstance.DBInstanceIdentifier) == ID {
+			r.logger.Debug("describe-db-instances", lager.Data{"db-instance": dbInstance})
+			return dbInstance, nil
+		}
+	}
+	return nil, ErrDBInstanceDoesNotExist
+}
+
+func (r *RDSDBInstance) GetDBInstanceTags(dbInstance *rds.DBInstance, opts ...DescribeOption) ([]*rds.Tag, error) {
+	r.logger.Debug("get-db-instance-tags", lager.Data{"db-instance": dbInstance})
 
 	refreshCache := false
 	for _, o := range opts {
@@ -57,24 +76,11 @@ func (r *RDSDBInstance) Describe(ID string, opts ...DescribeOption) (*rds.DBInst
 		}
 	}
 
-	r.logger.Debug("describe-db-instances", lager.Data{"input": describeDBInstancesInput})
-
-	dbInstances, err := r.rdssvc.DescribeDBInstances(describeDBInstancesInput)
+	t, err := r.cachedListTagsForResource(aws.StringValue(dbInstance.DBInstanceArn), refreshCache)
 	if err != nil {
-		return nil, nil, HandleAWSError(err, r.logger)
+		return nil, HandleAWSError(err, r.logger)
 	}
-
-	for _, dbInstance := range dbInstances.DBInstances {
-		if aws.StringValue(dbInstance.DBInstanceIdentifier) == ID {
-			r.logger.Debug("describe-db-instances", lager.Data{"db-instance": dbInstance})
-			t, err := r.cachedListTagsForResource(aws.StringValue(dbInstance.DBInstanceArn), refreshCache)
-			if err != nil {
-				return nil, nil, HandleAWSError(err, r.logger)
-			}
-			return dbInstance, t, nil
-		}
-	}
-	return nil, nil, ErrDBInstanceDoesNotExist
+	return t, nil
 }
 
 func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeOption) ([]*rds.DBInstance, error) {
@@ -263,7 +269,7 @@ func (r *RDSDBInstance) Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput,
 
 	updatedModifyDBInstanceInput := *modifyDBInstanceInput
 
-	oldDbInstance, _, err := r.Describe(aws.StringValue(modifyDBInstanceInput.DBInstanceIdentifier))
+	oldDbInstance, err := r.Describe(aws.StringValue(modifyDBInstanceInput.DBInstanceIdentifier))
 	if err != nil {
 		return err
 	}
@@ -308,7 +314,7 @@ func (r *RDSDBInstance) Reboot(ID string) error {
 }
 
 func (r *RDSDBInstance) RemoveTag(ID, tagKey string) error {
-	dbInstance, _, err := r.Describe(ID)
+	dbInstance, err := r.Describe(ID)
 	if err != nil {
 		return err
 	}

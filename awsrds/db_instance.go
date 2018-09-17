@@ -17,7 +17,8 @@ const (
 //go:generate counterfeiter -o fake/fake_db_instance.go . DBInstance
 //TODO: Hector says: rename this
 type DBInstance interface {
-	Describe(ID string, opts ...DescribeOption) (*rds.DBInstance, []*rds.Tag, error)
+	Describe(ID string) (*rds.DBInstance, error)
+	GetDBInstanceTags(dbInstance *rds.DBInstance, opts ...DescribeOption) ([]*rds.Tag, error)
 	DescribeByTag(TagName, TagValue string, opts ...DescribeOption) ([]*rds.DBInstance, error)
 	DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDetails, error)
 	DeleteSnapshots(brokerName string, keepForDays int) error

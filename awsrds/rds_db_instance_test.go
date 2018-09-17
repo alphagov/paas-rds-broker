@@ -62,23 +62,13 @@ var _ = Describe("RDS DB Instance", func() {
 
 	var _ = Describe("Describe", func() {
 		var (
-			listTags                 []*rds.Tag
-			listTagsForResourceError error
-
-			properDBInstance *rds.DBInstance
-			properDBTags     []*rds.Tag
-
 			describeDBInstance *rds.DBInstance
 
-			describeDBInstancesInput *rds.DescribeDBInstancesInput
-			describeDBInstanceError  error
-
-			listTagsForResourceCallCount int
+			receivedDescribeDBInstancesInput *rds.DescribeDBInstancesInput
+			describeDBInstanceError          error
 		)
 
 		BeforeEach(func() {
-			listTagsForResourceError = nil
-
 			describeDBInstance = &rds.DBInstance{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 				DBInstanceArn:        aws.String(dbInstanceArn),
@@ -102,18 +92,10 @@ var _ = Describe("RDS DB Instance", func() {
 				PubliclyAccessible: aws.Bool(true),
 				StorageEncrypted:   aws.Bool(true),
 			}
-			describeDBInstancesInput = &rds.DescribeDBInstancesInput{
-				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
-			}
 			describeDBInstanceError = nil
-
-			listTagsForResourceCallCount = 0
 		})
 
 		JustBeforeEach(func() {
-			properDBInstance = describeDBInstance
-			properDBTags = listTags
-
 			rdssvc.Handlers.Clear()
 
 			rdsCall = func(r *request.Request) {
@@ -122,16 +104,92 @@ var _ = Describe("RDS DB Instance", func() {
 				case "DescribeDBInstances":
 					Expect(r.Operation.Name).To(Equal("DescribeDBInstances"))
 					Expect(r.Params).To(BeAssignableToTypeOf(&rds.DescribeDBInstancesInput{}))
-					Expect(r.Params).To(Equal(describeDBInstancesInput))
+					receivedDescribeDBInstancesInput = r.Params.(*rds.DescribeDBInstancesInput)
 					data := r.Data.(*rds.DescribeDBInstancesOutput)
 					data.DBInstances = []*rds.DBInstance{describeDBInstance}
 					r.Error = describeDBInstanceError
+				}
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		It("returns the proper DB Instance", func() {
+			dbInstance, err := rdsDBInstance.Describe(dbInstanceIdentifier)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dbInstance).To(Equal(describeDBInstance))
+			Expect(aws.StringValue(receivedDescribeDBInstancesInput.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
+		})
+
+		It("returns error if the DB instance does not exist", func() {
+			_, err := rdsDBInstance.Describe("unknown")
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(Equal(ErrDBInstanceDoesNotExist))
+		})
+
+		Context("when describing the DB instance fails", func() {
+			BeforeEach(func() {
+				describeDBInstanceError = errors.New("operation failed")
+			})
+
+			It("returns the expected error", func() {
+				_, err := rdsDBInstance.Describe(dbInstanceIdentifier)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("operation failed"))
+			})
+		})
+
+		Context("when describing the DB returns 404", func() {
+			BeforeEach(func() {
+				awsError := awserr.New("code", "message", errors.New("operation failed"))
+				describeDBInstanceError = awserr.NewRequestFailure(awsError, 404, "request-id")
+			})
+
+			It("returns the expected error", func() {
+				_, err := rdsDBInstance.Describe(dbInstanceIdentifier)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(Equal(ErrDBInstanceDoesNotExist))
+			})
+		})
+	})
+
+	var _ = Describe("GetDBInstanceTags", func() {
+		var (
+			listTags []*rds.Tag
+
+			receivedListTagsForResourceInput *rds.ListTagsForResourceInput
+			listTagsForResourceError         error
+			listTagsForResourceCallCount     int
+		)
+
+		BeforeEach(func() {
+			listTags = []*rds.Tag{
+				{
+					Key:   aws.String("key1"),
+					Value: aws.String("value1"),
+				},
+				{
+					Key:   aws.String("key2"),
+					Value: aws.String("value2"),
+				},
+				{
+					Key:   aws.String("key3"),
+					Value: aws.String("value3"),
+				},
+			}
+			listTagsForResourceError = nil
+			listTagsForResourceCallCount = 0
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(MatchRegexp("DescribeDBInstances|ListTagsForResource"))
+				switch r.Operation.Name {
 				case "ListTagsForResource":
 					listTagsForResourceCallCount = listTagsForResourceCallCount + 1
 					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
-					input := r.Params.(*rds.ListTagsForResourceInput)
-					snapshotArnRegex := "arn:.*:rds:.*:.*:db:" + aws.StringValue(describeDBInstancesInput.DBInstanceIdentifier)
-					Expect(aws.StringValue(input.ResourceName)).To(MatchRegexp(snapshotArnRegex))
+					receivedListTagsForResourceInput = r.Params.(*rds.ListTagsForResourceInput)
 					data := r.Data.(*rds.ListTagsForResourceOutput)
 					data.TagList = listTags
 					r.Error = listTagsForResourceError
@@ -140,109 +198,40 @@ var _ = Describe("RDS DB Instance", func() {
 			rdssvc.Handlers.Send.PushBack(rdsCall)
 		})
 
-		It("returns the proper DB Instance", func() {
-			dbInstanceDetails, tags, err := rdsDBInstance.Describe(dbInstanceIdentifier)
+		It("returns the instance tags", func() {
+			dbInstance := &rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBInstanceArn:        aws.String(dbInstanceArn),
+			}
+			tags, err := rdsDBInstance.GetDBInstanceTags(dbInstance)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(dbInstanceDetails).To(Equal(properDBInstance))
-			Expect(tags).To(Equal(properDBTags))
+			Expect(tags).To(Equal(listTags))
+
+			arnRegex := "arn:.*:rds:.*:.*:db:" + dbInstanceIdentifier
+			Expect(aws.StringValue(receivedListTagsForResourceInput.ResourceName)).To(MatchRegexp(arnRegex))
 		})
 
-		Context("when RDS DB Instance has some tags", func() {
-			BeforeEach(func() {
-				listTags = []*rds.Tag{
-					{
-						Key:   aws.String("key1"),
-						Value: aws.String("value1"),
-					},
-					{
-						Key:   aws.String("key2"),
-						Value: aws.String("value2"),
-					},
-					{
-						Key:   aws.String("key3"),
-						Value: aws.String("value3"),
-					},
-				}
-			})
+		It("caches the tags from ListTagsForResource unless DescribeRefreshCacheOption is passed", func() {
+			dbInstance := &rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBInstanceArn:        aws.String(dbInstanceArn),
+			}
 
-			It("returns the proper DB Instance with the tags", func() {
-				dbInstance, tags, err := rdsDBInstance.Describe(dbInstanceIdentifier)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstance).To(Equal(properDBInstance))
-				Expect(tags).To(Equal(properDBTags))
-			})
+			tags, err := rdsDBInstance.GetDBInstanceTags(dbInstance)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tags).To(Equal(listTags))
 
-			It("caches the tags from ListTagsForResource unless DescribeRefreshCacheOption is passed", func() {
-				dbInstance, tags, err := rdsDBInstance.Describe(dbInstanceIdentifier)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstance).To(Equal(properDBInstance))
-				Expect(tags).To(Equal(properDBTags))
+			tags, err = rdsDBInstance.GetDBInstanceTags(dbInstance)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tags).To(Equal(listTags))
 
-				dbInstance, tags, err = rdsDBInstance.Describe(dbInstanceIdentifier)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstance).To(Equal(properDBInstance))
-				Expect(tags).To(Equal(properDBTags))
+			Expect(listTagsForResourceCallCount).To(Equal(1))
 
-				Expect(listTagsForResourceCallCount).To(Equal(1))
+			tags, err = rdsDBInstance.GetDBInstanceTags(dbInstance, DescribeRefreshCacheOption)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tags).To(Equal(listTags))
 
-				dbInstance, tags, err = rdsDBInstance.Describe(dbInstanceIdentifier, DescribeRefreshCacheOption)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstance).To(Equal(properDBInstance))
-				Expect(tags).To(Equal(properDBTags))
-
-				Expect(listTagsForResourceCallCount).To(Equal(2))
-			})
-		})
-
-		Context("when the DB instance does not exists", func() {
-			JustBeforeEach(func() {
-				describeDBInstancesInput = &rds.DescribeDBInstancesInput{
-					DBInstanceIdentifier: aws.String("unknown"),
-				}
-			})
-
-			It("returns the proper error", func() {
-				_, _, err := rdsDBInstance.Describe("unknown")
-				Expect(err).To(HaveOccurred())
-				Expect(err).To(Equal(ErrDBInstanceDoesNotExist))
-			})
-		})
-
-		Context("when describing the DB instance fails", func() {
-			BeforeEach(func() {
-				describeDBInstanceError = errors.New("operation failed")
-			})
-
-			It("returns the proper error", func() {
-				_, _, err := rdsDBInstance.Describe(dbInstanceIdentifier)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal("operation failed"))
-			})
-
-			Context("and it is an AWS error", func() {
-				BeforeEach(func() {
-					describeDBInstanceError = awserr.New("code", "message", errors.New("operation failed"))
-				})
-
-				It("returns the proper error", func() {
-					_, _, err := rdsDBInstance.Describe(dbInstanceIdentifier)
-					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).To(Equal("code: message"))
-				})
-			})
-
-			Context("and it is a 404 error", func() {
-				BeforeEach(func() {
-					awsError := awserr.New("code", "message", errors.New("operation failed"))
-					describeDBInstanceError = awserr.NewRequestFailure(awsError, 404, "request-id")
-				})
-
-				It("returns the proper error", func() {
-					_, _, err := rdsDBInstance.Describe(dbInstanceIdentifier)
-					Expect(err).To(HaveOccurred())
-					Expect(err).To(Equal(ErrDBInstanceDoesNotExist))
-				})
-			})
+			Expect(listTagsForResourceCallCount).To(Equal(2))
 		})
 	})
 

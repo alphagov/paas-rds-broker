@@ -339,7 +339,7 @@ func (b *RDSBroker) Bind(
 		return bindingResponse, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
-	dbInstanceDetails, _, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
+	dbInstanceDetails, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			return bindingResponse, brokerapi.ErrInstanceDoesNotExist
@@ -408,7 +408,7 @@ func (b *RDSBroker) Unbind(
 		return fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
-	dbInstanceDetails, _, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
+	dbInstanceDetails, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			return brokerapi.ErrInstanceDoesNotExist
@@ -458,14 +458,20 @@ func (b *RDSBroker) LastOperation(
 		instanceIDLogKey: instanceID,
 	})
 
-	dbInstanceDetails, tags, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID), awsrds.DescribeRefreshCacheOption)
-	tagsByName := awsrds.RDSTagsValues(tags)
+	dbInstanceDetails, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			err = brokerapi.ErrInstanceDoesNotExist
 		}
 		return brokerapi.LastOperation{State: brokerapi.Failed}, err
 	}
+
+	tags, err := b.dbInstance.GetDBInstanceTags(dbInstanceDetails, awsrds.DescribeRefreshCacheOption)
+	if err != nil {
+		return brokerapi.LastOperation{State: brokerapi.Failed}, err
+	}
+
+	tagsByName := awsrds.RDSTagsValues(tags)
 
 	status := aws.StringValue(dbInstanceDetails.DBInstanceStatus)
 	state, ok := rdsStatus2State[status]
