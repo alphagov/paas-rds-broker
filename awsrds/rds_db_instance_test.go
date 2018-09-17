@@ -35,8 +35,7 @@ var _ = Describe("RDS DB Instance", func() {
 		testSink *lagertest.TestSink
 		logger   lager.Logger
 
-		rdsDBInstance          DBInstance
-		getCallerIdentityError error
+		rdsDBInstance DBInstance
 	)
 
 	const account = "123456789012"
@@ -47,7 +46,6 @@ var _ = Describe("RDS DB Instance", func() {
 		dbInstanceIdentifier = "cf-instance-id"
 		dbInstanceArn = "arn:" + partition + ":rds:rds-region:" + account + ":db:" + dbInstanceIdentifier
 		dbSnapshotArn = "arn:" + partition + ":rds:rds-region:" + account + ":snapshot:" + dbInstanceIdentifier
-		getCallerIdentityError = nil
 	})
 
 	JustBeforeEach(func() {
@@ -68,7 +66,7 @@ var _ = Describe("RDS DB Instance", func() {
 			listTagsForResourceError error
 
 			properDBInstance *rds.DBInstance
-			properDBTags []*rds.Tag
+			properDBTags     []*rds.Tag
 
 			describeDBInstance *rds.DBInstance
 
@@ -250,8 +248,6 @@ var _ = Describe("RDS DB Instance", func() {
 
 	var _ = Describe("GetTag", func() {
 		var (
-			properDBInstanceDetails DBInstanceDetails
-
 			describeDBInstances []*rds.DBInstance
 			describeDBInstance  *rds.DBInstance
 
@@ -261,19 +257,6 @@ var _ = Describe("RDS DB Instance", func() {
 		)
 
 		BeforeEach(func() {
-			properDBInstanceDetails = DBInstanceDetails{
-				Identifier:       dbInstanceIdentifier,
-				Status:           "available",
-				Engine:           "test-engine",
-				EngineVersion:    "1.2.3",
-				DBName:           "test-dbname",
-				MasterUsername:   "test-master-username",
-				AllocatedStorage: int64(100),
-				Tags: map[string]string{
-					"SkipFinalSnapshot": "true",
-				},
-			}
-
 			describeDBInstance = &rds.DBInstance{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 				DBInstanceStatus:     aws.String("available"),
@@ -633,18 +616,13 @@ var _ = Describe("RDS DB Instance", func() {
 	var _ = Describe("Restore", func() {
 		var (
 			snapshotIdentifier string
-			dbInstanceDetails  DBInstanceDetails
 
 			receivedRestoreDBInstanceInput *rds.RestoreDBInstanceFromDBSnapshotInput
-			restoreDBInstanceError error
+			restoreDBInstanceError         error
 		)
 
 		BeforeEach(func() {
 			snapshotIdentifier = "snapshot-guid"
-			dbInstanceDetails = DBInstanceDetails{
-				Engine: "test-engine",
-			}
-
 			restoreDBInstanceError = nil
 		})
 
@@ -709,9 +687,6 @@ var _ = Describe("RDS DB Instance", func() {
 
 			modifyDBInstanceError error
 
-			//getCallerIdentityInput *sts.GetCallerIdentityInput
-			//getCallerIdentityError error
-
 			receivedDescribeDBInstancesInput *rds.DescribeDBInstancesInput
 			receivedModifyDBInstanceInput    *rds.ModifyDBInstanceInput
 
@@ -742,8 +717,8 @@ var _ = Describe("RDS DB Instance", func() {
 			modifyDBInstanceError = nil
 
 			addTagsToResourceError = nil
-			// 1getCallerIdentityInput dd= &sts.GetCallerIdentityInput{}
 
+			receivedDescribeDBInstancesInput = nil
 			receivedAddTagsToResourceInput = nil
 		})
 

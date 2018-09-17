@@ -30,42 +30,6 @@ type DBInstance interface {
 	GetTag(ID, tagKey string) (string, error)
 }
 
-type DBInstanceDetails struct {
-	Identifier                 string
-	Status                     string
-	DBInstanceClass            string
-	Engine                     string
-	EngineVersion              string
-	Address                    string
-	AllocatedStorage           int64
-	Arn                        string
-	AutoMinorVersionUpgrade    bool
-	AvailabilityZone           string
-	BackupRetentionPeriod      int64
-	CharacterSetName           string
-	CopyTagsToSnapshot         bool
-	DBName                     string
-	DBParameterGroupName       string
-	DBSecurityGroups           []string
-	DBSubnetGroupName          string
-	Iops                       int64
-	KmsKeyID                   string
-	LicenseModel               string
-	MasterUsername             string
-	MasterUserPassword         string
-	MultiAZ                    bool
-	OptionGroupName            string
-	PendingModifications       bool
-	Port                       int64
-	PreferredBackupWindow      string
-	PreferredMaintenanceWindow string
-	PubliclyAccessible         bool
-	StorageEncrypted           bool
-	StorageType                string
-	Tags                       map[string]string
-	VpcSecurityGroupIds        []string
-}
-
 type DBSnapshotDetails struct {
 	Identifier         string
 	InstanceIdentifier string
