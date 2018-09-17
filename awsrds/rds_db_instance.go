@@ -122,9 +122,24 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeO
 	return dbInstances, nil
 }
 
-func (r *RDSDBInstance) DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDetails, error) {
-	dbSnapshotDetails := []*DBSnapshotDetails{}
+func (r *RDSDBInstance) GetSnapshotTags(snapshot *rds.DBSnapshot, opts ...DescribeOption) ([]*rds.Tag, error) {
+	r.logger.Debug("get-snapshot-tags", lager.Data{"db-snapshot": snapshot})
 
+	refreshCache := false
+	for _, o := range opts {
+		if o == DescribeRefreshCacheOption {
+			refreshCache = true
+		}
+	}
+
+	t, err := r.cachedListTagsForResource(aws.StringValue(snapshot.DBSnapshotArn), refreshCache)
+	if err != nil {
+		return nil, HandleAWSError(err, r.logger)
+	}
+	return t, nil
+}
+
+func (r *RDSDBInstance) DescribeSnapshots(DBInstanceID string) ([]*rds.DBSnapshot, error) {
 	describeDBSnapshotsInput := &rds.DescribeDBSnapshotsInput{
 		DBInstanceIdentifier: aws.String(DBInstanceID),
 	}
@@ -133,24 +148,12 @@ func (r *RDSDBInstance) DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDet
 
 	describeDBSnapshotsOutput, err := r.rdssvc.DescribeDBSnapshots(describeDBSnapshotsInput)
 	if err != nil {
-		return dbSnapshotDetails, HandleAWSError(err, r.logger)
+		return nil, HandleAWSError(err, r.logger)
 	}
 
-	for _, dbSnapshot := range describeDBSnapshotsOutput.DBSnapshots {
-		s := r.buildDBSnapshot(dbSnapshot)
-		if err != nil {
-			return dbSnapshotDetails, HandleAWSError(err, r.logger)
-		}
-		t, err := ListTagsForResource(aws.StringValue(dbSnapshot.DBSnapshotArn), r.rdssvc, r.logger)
-		if err != nil {
-			return dbSnapshotDetails, HandleAWSError(err, r.logger)
-		}
-		s.Tags = RDSTagsValues(t)
-		dbSnapshotDetails = append(dbSnapshotDetails, &s)
-	}
+	sort.Sort(ByCreateTime(describeDBSnapshotsOutput.DBSnapshots))
 
-	sort.Sort(ByCreateTime(dbSnapshotDetails))
-	return dbSnapshotDetails, nil
+	return describeDBSnapshotsOutput.DBSnapshots, nil
 }
 
 func (r *RDSDBInstance) DeleteSnapshots(brokerName string, keepForDays int) error {
@@ -334,15 +337,6 @@ func (r *RDSDBInstance) Delete(ID string, skipFinalSnapshot bool) error {
 	r.logger.Debug("delete-db-instance", lager.Data{"output": deleteDBInstanceOutput})
 
 	return nil
-}
-
-func (r *RDSDBInstance) buildDBSnapshot(dbSnapshot *rds.DBSnapshot) DBSnapshotDetails {
-	dbSnapshotDetails := DBSnapshotDetails{
-		Identifier:         aws.StringValue(dbSnapshot.DBSnapshotIdentifier),
-		InstanceIdentifier: aws.StringValue(dbSnapshot.DBInstanceIdentifier),
-		CreateTime:         aws.TimeValue(dbSnapshot.SnapshotCreateTime),
-	}
-	return dbSnapshotDetails
 }
 
 func (r *RDSDBInstance) buildDeleteDBInstanceInput(ID string, skipFinalSnapshot bool) *rds.DeleteDBInstanceInput {

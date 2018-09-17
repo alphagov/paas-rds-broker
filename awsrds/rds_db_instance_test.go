@@ -422,22 +422,34 @@ var _ = Describe("RDS DB Instance", func() {
 
 	var _ = Describe("DescribeSnapshots", func() {
 		var (
-			describeDBSnapshotsInput       *rds.DescribeDBSnapshotsInput
-			describeDBSnapshotsError       error
-			describeDBSnapshotsRequestDone bool
-			describeDBSnapshots            []*rds.DBSnapshot
+			receivedDescribeDBSnapshotsInput *rds.DescribeDBSnapshotsInput
 
-			listTagsForResourceError error
-			listTags                 map[string]string
+			describeDBSnapshotsError error
+
+			dbSnapshotOneDayOld   *rds.DBSnapshot
+			dbSnapshotTwoDayOld   *rds.DBSnapshot
+			dbSnapshotThreeDayOld *rds.DBSnapshot
 		)
 
 		BeforeEach(func() {
-			describeDBSnapshotsInput = &rds.DescribeDBSnapshotsInput{
+			dbSnapshotOneDayOld = &rds.DBSnapshot{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBSnapshotIdentifier: aws.String(dbInstanceIdentifier + "-1"),
+				DBSnapshotArn:        aws.String(dbSnapshotArn + "-1"),
+				SnapshotCreateTime:   aws.Time(time.Now().Add(-1 * 24 * time.Hour)),
 			}
-			describeDBSnapshotsError = nil
-			describeDBSnapshotsRequestDone = false
-			describeDBSnapshots = []*rds.DBSnapshot{}
+			dbSnapshotTwoDayOld = &rds.DBSnapshot{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBSnapshotIdentifier: aws.String(dbInstanceIdentifier + "-2"),
+				DBSnapshotArn:        aws.String(dbSnapshotArn + "-2"),
+				SnapshotCreateTime:   aws.Time(time.Now().Add(-2 * 24 * time.Hour)),
+			}
+			dbSnapshotThreeDayOld = &rds.DBSnapshot{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBSnapshotIdentifier: aws.String(dbInstanceIdentifier + "-3"),
+				DBSnapshotArn:        aws.String(dbSnapshotArn + "-3"),
+				SnapshotCreateTime:   aws.Time(time.Now().Add(-3 * 24 * time.Hour)),
+			}
 		})
 
 		JustBeforeEach(func() {
@@ -448,92 +460,38 @@ var _ = Describe("RDS DB Instance", func() {
 				switch r.Operation.Name {
 				case "DescribeDBSnapshots":
 					Expect(r.Params).To(BeAssignableToTypeOf(&rds.DescribeDBSnapshotsInput{}))
-					Expect(r.Params).To(Equal(describeDBSnapshotsInput))
+					receivedDescribeDBSnapshotsInput = r.Params.(*rds.DescribeDBSnapshotsInput)
 					data := r.Data.(*rds.DescribeDBSnapshotsOutput)
-					data.DBSnapshots = describeDBSnapshots
+					data.DBSnapshots = []*rds.DBSnapshot{
+						dbSnapshotThreeDayOld,
+						dbSnapshotOneDayOld,
+						dbSnapshotTwoDayOld,
+					}
+
 					r.Error = describeDBSnapshotsError
-					describeDBSnapshotsRequestDone = true
-				case "ListTagsForResource":
-					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
-					input := r.Params.(*rds.ListTagsForResourceInput)
-					snapshotArnRegex := "arn:.*:rds:.*:.*:snapshot:" + aws.StringValue(describeDBSnapshotsInput.DBSnapshotIdentifier)
-					Expect(aws.StringValue(input.ResourceName)).To(MatchRegexp(snapshotArnRegex))
-					data := r.Data.(*rds.ListTagsForResourceOutput)
-					data.TagList = BuilRDSTags(listTags)
-					r.Error = listTagsForResourceError
 				}
 			}
 			rdssvc.Handlers.Send.PushBack(rdsCall)
 		})
 
-		It("calls the DescribeDBSnapshots endpoint", func() {
+		It("calls the DescribeDBSnapshots endpoint and does not return error", func() {
 			_, _ = rdsDBInstance.DescribeSnapshots(dbInstanceIdentifier)
-			Expect(describeDBSnapshotsRequestDone).To(BeTrue())
-		})
-
-		It("does not return error", func() {
 			_, err := rdsDBInstance.DescribeSnapshots(dbInstanceIdentifier)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(aws.StringValue(receivedDescribeDBSnapshotsInput.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
 		})
 
-		Context("when there is a list of snapshots", func() {
-			var (
-				dbSnapshotOneDayOld   *rds.DBSnapshot
-				dbSnapshotTwoDayOld   *rds.DBSnapshot
-				dbSnapshotThreeDayOld *rds.DBSnapshot
-			)
-			BeforeEach(func() {
-				listTags = map[string]string{
-					"Owner":           "Cloud Foundry",
-					"Created by":      "AWS RDS Service Broker",
-					"Created at":      time.Now().Format(time.RFC822Z),
-					"Service ID":      "Service-1",
-					"Plan ID":         "Plan-1",
-					"Organization ID": "organization-id",
-					"Space ID":        "space-id",
-				}
-
-				// Build DescribeDBSnapshots mock response with 3 instances
-				buildDBSnapshotAWSResponse := func(instanceID string, age time.Duration) *rds.DBSnapshot {
-					instanceCreateTime := time.Now().Add(-age)
-					suffix := instanceCreateTime.Format("-2006-01-02-15-04")
-					return &rds.DBSnapshot{
-						DBInstanceIdentifier: aws.String(instanceID),
-						DBSnapshotIdentifier: aws.String(instanceID + suffix),
-						DBSnapshotArn:        aws.String(dbSnapshotArn + suffix),
-						SnapshotCreateTime:   aws.Time(instanceCreateTime),
-					}
-				}
-
-				dbSnapshotOneDayOld = buildDBSnapshotAWSResponse(dbInstanceIdentifier, 1*24*time.Hour)
-				dbSnapshotTwoDayOld = buildDBSnapshotAWSResponse(dbInstanceIdentifier, 2*24*time.Hour)
-				dbSnapshotThreeDayOld = buildDBSnapshotAWSResponse(dbInstanceIdentifier, 3*24*time.Hour)
-
-				describeDBSnapshots = []*rds.DBSnapshot{
-					dbSnapshotThreeDayOld,
+		It("returns the all the snapshots in order", func() {
+			dbSnapshots, err := rdsDBInstance.DescribeSnapshots(dbInstanceIdentifier)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dbSnapshots).To(HaveLen(3))
+			Expect(dbSnapshots).To(Equal(
+				[]*rds.DBSnapshot{
 					dbSnapshotOneDayOld,
 					dbSnapshotTwoDayOld,
-				}
-			})
-
-			It("returns the all the snapshots in order", func() {
-				dbSnapshotsDetails, err := rdsDBInstance.DescribeSnapshots(dbInstanceIdentifier)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(dbSnapshotsDetails).To(HaveLen(3))
-				Expect(dbSnapshotsDetails[0].Identifier).To(Equal(aws.StringValue(dbSnapshotOneDayOld.DBSnapshotIdentifier)))
-				Expect(dbSnapshotsDetails[1].Identifier).To(Equal(aws.StringValue(dbSnapshotTwoDayOld.DBSnapshotIdentifier)))
-				Expect(dbSnapshotsDetails[2].Identifier).To(Equal(aws.StringValue(dbSnapshotThreeDayOld.DBSnapshotIdentifier)))
-			})
-
-			It("returns the tags for all snapshots", func() {
-				dbSnapshotsDetails, err := rdsDBInstance.DescribeSnapshots(dbInstanceIdentifier)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(dbSnapshotsDetails).To(HaveLen(3))
-				Expect(dbSnapshotsDetails[0].Tags).To(Equal(listTags))
-				Expect(dbSnapshotsDetails[1].Tags).To(Equal(listTags))
-				Expect(dbSnapshotsDetails[2].Tags).To(Equal(listTags))
-			})
-
+					dbSnapshotThreeDayOld,
+				},
+			))
 		})
 
 		Context("when describing the DB Instance fails", func() {
@@ -546,6 +504,89 @@ var _ = Describe("RDS DB Instance", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("code: message"))
 			})
+		})
+	})
+
+	var _ = Describe("GetSnapshotTags", func() {
+		var (
+			listTags []*rds.Tag
+
+			receivedListTagsForResourceInput *rds.ListTagsForResourceInput
+			listTagsForResourceError         error
+			listTagsForResourceCallCount     int
+		)
+
+		BeforeEach(func() {
+			listTags = []*rds.Tag{
+				{
+					Key:   aws.String("key1"),
+					Value: aws.String("value1"),
+				},
+				{
+					Key:   aws.String("key2"),
+					Value: aws.String("value2"),
+				},
+				{
+					Key:   aws.String("key3"),
+					Value: aws.String("value3"),
+				},
+			}
+			listTagsForResourceError = nil
+			listTagsForResourceCallCount = 0
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(MatchRegexp("DescribeDBInstances|ListTagsForResource"))
+				switch r.Operation.Name {
+				case "ListTagsForResource":
+					listTagsForResourceCallCount = listTagsForResourceCallCount + 1
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
+					receivedListTagsForResourceInput = r.Params.(*rds.ListTagsForResourceInput)
+					data := r.Data.(*rds.ListTagsForResourceOutput)
+					data.TagList = listTags
+					r.Error = listTagsForResourceError
+				}
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		It("returns the instance tags", func() {
+			snapshot := &rds.DBSnapshot{
+				DBSnapshotIdentifier: aws.String(dbInstanceIdentifier + "-snapshot"),
+				DBSnapshotArn:        aws.String(dbInstanceArn + "-snapshot"),
+			}
+			tags, err := rdsDBInstance.GetSnapshotTags(snapshot)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tags).To(Equal(listTags))
+
+			arnRegex := "arn:.*:rds:.*:.*:db:" + dbInstanceIdentifier + "-snapshot"
+			Expect(aws.StringValue(receivedListTagsForResourceInput.ResourceName)).To(MatchRegexp(arnRegex))
+		})
+
+		It("caches the tags from ListTagsForResource unless DescribeRefreshCacheOption is passed", func() {
+			snapshot := &rds.DBSnapshot{
+				DBSnapshotIdentifier: aws.String(dbInstanceIdentifier + "-snapshot"),
+				DBSnapshotArn:        aws.String(dbInstanceArn + "-snapshot"),
+			}
+
+			tags, err := rdsDBInstance.GetSnapshotTags(snapshot)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tags).To(Equal(listTags))
+
+			tags, err = rdsDBInstance.GetSnapshotTags(snapshot)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tags).To(Equal(listTags))
+
+			Expect(listTagsForResourceCallCount).To(Equal(1))
+
+			tags, err = rdsDBInstance.GetSnapshotTags(snapshot, DescribeRefreshCacheOption)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tags).To(Equal(listTags))
+
+			Expect(listTagsForResourceCallCount).To(Equal(2))
 		})
 	})
 

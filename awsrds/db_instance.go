@@ -2,8 +2,8 @@ package awsrds
 
 import (
 	"errors"
-	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
 )
 
@@ -20,7 +20,9 @@ type DBInstance interface {
 	Describe(ID string) (*rds.DBInstance, error)
 	GetDBInstanceTags(dbInstance *rds.DBInstance, opts ...DescribeOption) ([]*rds.Tag, error)
 	DescribeByTag(TagName, TagValue string, opts ...DescribeOption) ([]*rds.DBInstance, error)
-	DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDetails, error)
+	DescribeSnapshots(DBInstanceID string) ([]*rds.DBSnapshot, error)
+	// TODO: GetSnapshotTags is basically the same than GetDBInstanceTags
+	GetSnapshotTags(snapshot *rds.DBSnapshot, opts ...DescribeOption) ([]*rds.Tag, error)
 	DeleteSnapshots(brokerName string, keepForDays int) error
 	Create(createDBInstanceInput *rds.CreateDBInstanceInput) error
 	Restore(restoreRBInstanceInput *rds.RestoreDBInstanceFromDBSnapshotInput) error
@@ -31,19 +33,13 @@ type DBInstance interface {
 	GetTag(ID, tagKey string) (string, error)
 }
 
-type DBSnapshotDetails struct {
-	Identifier         string
-	InstanceIdentifier string
-	Arn                string
-	CreateTime         time.Time
-	Tags               map[string]string
+type ByCreateTime []*rds.DBSnapshot
+
+func (ct ByCreateTime) Len() int      { return len(ct) }
+func (ct ByCreateTime) Swap(i, j int) { ct[i], ct[j] = ct[j], ct[i] }
+func (ct ByCreateTime) Less(i, j int) bool {
+	return aws.TimeValue(ct[i].SnapshotCreateTime).After(aws.TimeValue(ct[j].SnapshotCreateTime))
 }
-
-type ByCreateTime []*DBSnapshotDetails
-
-func (ct ByCreateTime) Len() int           { return len(ct) }
-func (ct ByCreateTime) Swap(i, j int)      { ct[i], ct[j] = ct[j], ct[i] }
-func (ct ByCreateTime) Less(i, j int) bool { return ct[i].CreateTime.After(ct[j].CreateTime) }
 
 var (
 	ErrDBInstanceDoesNotExist = errors.New("rds db instance does not exist")

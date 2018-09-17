@@ -183,13 +183,20 @@ func (b *RDSBroker) Provision(
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("No snapshots found for guid '%s'", *provisionParameters.RestoreFromLatestSnapshotOf)
 		}
 		snapshot := snapshots[0]
-		if snapshot.Tags[awsrds.TagSpaceID] != details.SpaceGUID || snapshot.Tags[awsrds.TagOrganizationID] != details.OrganizationGUID {
+
+		tags, err := b.dbInstance.GetSnapshotTags(snapshot)
+		if err != nil {
+			return brokerapi.ProvisionedServiceSpec{}, err
+		}
+		tagsByName := awsrds.RDSTagsValues(tags)
+
+		if tagsByName[awsrds.TagSpaceID] != details.SpaceGUID || tagsByName[awsrds.TagOrganizationID] != details.OrganizationGUID {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
 		}
-		if snapshot.Tags[awsrds.TagPlanID] != details.PlanID {
+		if tagsByName[awsrds.TagPlanID] != details.PlanID {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
 		}
-		snapshotIdentifier := snapshot.Identifier
+		snapshotIdentifier := aws.StringValue(snapshot.DBSnapshotIdentifier)
 		restoreDBInstanceInput := b.restoreDBInstanceInput(instanceID, snapshotIdentifier, servicePlan, provisionParameters, details)
 		if err := b.dbInstance.Restore(restoreDBInstanceInput); err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
