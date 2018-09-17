@@ -3,7 +3,6 @@ package awsrds
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -114,7 +113,7 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeO
 			if aws.StringValue(t.Key) == tagKey && aws.StringValue(t.Value) == tagValue {
 				dbInstanceWithTags = append(dbInstanceWithTags, DBInstanceWithTags{
 					DBInstance: dbInstance,
-					Tags: tags,
+					Tags:       tags,
 				})
 				break
 			}
@@ -238,9 +237,7 @@ func (r *RDSDBInstance) GetTag(ID, tagKey string) (string, error) {
 	return "", nil
 }
 
-func (r *RDSDBInstance) Create(ID string, dbInstanceDetails DBInstanceDetails) error {
-	createDBInstanceInput := r.buildCreateDBInstanceInput(ID, dbInstanceDetails)
-
+func (r *RDSDBInstance) Create(createDBInstanceInput *rds.CreateDBInstanceInput) error {
 	sanitizedDBInstanceInput := *createDBInstanceInput
 	sanitizedDBInstanceInput.MasterUserPassword = aws.String("REDACTED")
 	r.logger.Debug("create-db-instance", lager.Data{"input": &sanitizedDBInstanceInput})
@@ -267,31 +264,35 @@ func (r *RDSDBInstance) Restore(ID, snapshotIdentifier string, dbInstanceDetails
 	return nil
 }
 
-func (r *RDSDBInstance) Modify(ID string, dbInstanceDetails DBInstanceDetails, applyImmediately bool) error {
-	oldDBInstanceWithTags, err := r.Describe(ID)
-	if err != nil {
-		return err
-	}
-
-	if dbInstanceDetails.Engine != "" && strings.ToLower(aws.StringValue(oldDBInstanceWithTags.Engine)) != strings.ToLower(dbInstanceDetails.Engine) {
-		return fmt.Errorf("Migrating the RDS DB Instance engine from '%s' to '%s' is not supported", aws.StringValue(oldDBInstanceWithTags.Engine), dbInstanceDetails.Engine)
-	}
-
-	modifyDBInstanceInput := r.buildModifyDBInstanceInput(ID, dbInstanceDetails, oldDBInstanceWithTags, applyImmediately)
-
+func (r *RDSDBInstance) Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput, tags []*rds.Tag) error {
 	sanitizedDBInstanceInput := *modifyDBInstanceInput
 	sanitizedDBInstanceInput.MasterUserPassword = aws.String("REDACTED")
 	r.logger.Debug("modify-db-instance", lager.Data{"input": &sanitizedDBInstanceInput})
 
-	modifyDBInstanceOutput, err := r.rdssvc.ModifyDBInstance(modifyDBInstanceInput)
+	updatedModifyDBInstanceInput := *modifyDBInstanceInput
+
+	oldDBInstanceWithTags, err := r.Describe(aws.StringValue(modifyDBInstanceInput.DBInstanceIdentifier))
+	if err != nil {
+		return err
+	}
+
+	if modifyDBInstanceInput.AllocatedStorage != nil {
+		newAllocatedSpace := aws.Int64Value(modifyDBInstanceInput.AllocatedStorage)
+		oldAllocatedSpace := aws.Int64Value(oldDBInstanceWithTags.AllocatedStorage)
+		if newAllocatedSpace <= oldAllocatedSpace {
+			updatedModifyDBInstanceInput.AllocatedStorage = nil
+			r.logger.Info("modify-db-instance.prevented-storage-downgrade", lager.Data{"input": &sanitizedDBInstanceInput})
+		}
+	}
+
+	modifyDBInstanceOutput, err := r.rdssvc.ModifyDBInstance(&updatedModifyDBInstanceInput)
 	if err != nil {
 		return HandleAWSError(err, r.logger)
 	}
 
 	r.logger.Debug("modify-db-instance", lager.Data{"output": modifyDBInstanceOutput})
 
-	if len(dbInstanceDetails.Tags) > 0 {
-		tags := BuilRDSTags(dbInstanceDetails.Tags)
+	if len(tags) > 0 {
 		AddTagsToResource(aws.StringValue(oldDBInstanceWithTags.DBInstanceArn), tags, r.rdssvc, r.logger)
 	}
 
@@ -509,78 +510,6 @@ func (r *RDSDBInstance) buildRestoreDBInstanceInput(ID, snapshotIdentifier strin
 	return restoreDBInstanceInput
 }
 
-func (r *RDSDBInstance) buildModifyDBInstanceInput(ID string, dbInstanceDetails DBInstanceDetails, oldDBInstanceWithTags DBInstanceWithTags, applyImmediately bool) *rds.ModifyDBInstanceInput {
-	modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
-		DBInstanceIdentifier: aws.String(ID),
-		ApplyImmediately:     aws.Bool(applyImmediately),
-	}
-
-	if dbInstanceDetails.AllocatedStorage > 0 {
-		if dbInstanceDetails.AllocatedStorage < aws.Int64Value(oldDBInstanceWithTags.AllocatedStorage) {
-			modifyDBInstanceInput.AllocatedStorage = oldDBInstanceWithTags.AllocatedStorage
-		} else {
-			modifyDBInstanceInput.AllocatedStorage = aws.Int64(dbInstanceDetails.AllocatedStorage)
-		}
-	}
-
-	modifyDBInstanceInput.AutoMinorVersionUpgrade = aws.Bool(dbInstanceDetails.AutoMinorVersionUpgrade)
-
-	if dbInstanceDetails.BackupRetentionPeriod > 0 {
-		modifyDBInstanceInput.BackupRetentionPeriod = aws.Int64(dbInstanceDetails.BackupRetentionPeriod)
-	}
-
-	modifyDBInstanceInput.CopyTagsToSnapshot = aws.Bool(dbInstanceDetails.CopyTagsToSnapshot)
-
-	if dbInstanceDetails.DBInstanceClass != "" {
-		modifyDBInstanceInput.DBInstanceClass = aws.String(dbInstanceDetails.DBInstanceClass)
-	}
-
-	if dbInstanceDetails.DBParameterGroupName != "" {
-		modifyDBInstanceInput.DBParameterGroupName = aws.String(dbInstanceDetails.DBParameterGroupName)
-	}
-
-	if len(dbInstanceDetails.DBSecurityGroups) > 0 {
-		modifyDBInstanceInput.DBSecurityGroups = aws.StringSlice(dbInstanceDetails.DBSecurityGroups)
-	}
-
-	if dbInstanceDetails.EngineVersion != "" && dbInstanceDetails.EngineVersion != aws.StringValue(oldDBInstanceWithTags.EngineVersion) {
-		modifyDBInstanceInput.EngineVersion = aws.String(dbInstanceDetails.EngineVersion)
-		modifyDBInstanceInput.AllowMajorVersionUpgrade = aws.Bool(r.allowMajorVersionUpgrade(dbInstanceDetails.EngineVersion, aws.StringValue(oldDBInstanceWithTags.EngineVersion)))
-	}
-
-	if dbInstanceDetails.MasterUserPassword != "" {
-		modifyDBInstanceInput.MasterUserPassword = aws.String(dbInstanceDetails.MasterUserPassword)
-	}
-
-	modifyDBInstanceInput.MultiAZ = aws.Bool(dbInstanceDetails.MultiAZ)
-
-	if dbInstanceDetails.OptionGroupName != "" {
-		modifyDBInstanceInput.OptionGroupName = aws.String(dbInstanceDetails.OptionGroupName)
-	}
-
-	if dbInstanceDetails.PreferredBackupWindow != "" {
-		modifyDBInstanceInput.PreferredBackupWindow = aws.String(dbInstanceDetails.PreferredBackupWindow)
-	}
-
-	if dbInstanceDetails.PreferredMaintenanceWindow != "" {
-		modifyDBInstanceInput.PreferredMaintenanceWindow = aws.String(dbInstanceDetails.PreferredMaintenanceWindow)
-	}
-
-	if dbInstanceDetails.StorageType != "" {
-		modifyDBInstanceInput.StorageType = aws.String(dbInstanceDetails.StorageType)
-	}
-
-	if dbInstanceDetails.Iops > 0 {
-		modifyDBInstanceInput.Iops = aws.Int64(dbInstanceDetails.Iops)
-	}
-
-	if len(dbInstanceDetails.VpcSecurityGroupIds) > 0 {
-		modifyDBInstanceInput.VpcSecurityGroupIds = aws.StringSlice(dbInstanceDetails.VpcSecurityGroupIds)
-	}
-
-	return modifyDBInstanceInput
-}
-
 func (r *RDSDBInstance) buildDeleteDBInstanceInput(ID string, skipFinalSnapshot bool) *rds.DeleteDBInstanceInput {
 	deleteDBInstanceInput := &rds.DeleteDBInstanceInput{
 		DBInstanceIdentifier: aws.String(ID),
@@ -596,20 +525,6 @@ func (r *RDSDBInstance) buildDeleteDBInstanceInput(ID string, skipFinalSnapshot 
 
 func (r *RDSDBInstance) dbSnapshotName(ID string) string {
 	return fmt.Sprintf("%s-final-snapshot", ID)
-}
-
-func (r *RDSDBInstance) allowMajorVersionUpgrade(newEngineVersion, oldEngineVersion string) bool {
-	newSplittedEngineVersion := strings.Split(newEngineVersion, ".")
-	newMajorEngineVersion := fmt.Sprintf("%s:%s", newSplittedEngineVersion[0], newSplittedEngineVersion[1])
-
-	oldSplittedEngineVersion := strings.Split(oldEngineVersion, ".")
-	oldMajorEngineVersion := fmt.Sprintf("%s:%s", oldSplittedEngineVersion[0], oldSplittedEngineVersion[1])
-
-	if newMajorEngineVersion > oldMajorEngineVersion {
-		return true
-	}
-
-	return false
 }
 
 func (r *RDSDBInstance) cachedListTagsForResource(arn string, refresh bool) ([]*rds.Tag, error) {

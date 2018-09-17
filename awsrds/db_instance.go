@@ -3,6 +3,7 @@ package awsrds
 import (
 	"errors"
 	"time"
+
 	"github.com/aws/aws-sdk-go/service/rds"
 )
 
@@ -20,9 +21,9 @@ type DBInstance interface {
 	DescribeByTag(TagName, TagValue string, opts ...DescribeOption) ([]DBInstanceWithTags, error)
 	DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDetails, error)
 	DeleteSnapshots(brokerName string, keepForDays int) error
-	Create(ID string, dbInstanceDetails DBInstanceDetails) error
+	Create(createDBInstanceInput *rds.CreateDBInstanceInput) error
 	Restore(ID, snapshotIdentifier string, dbInstanceDetails DBInstanceDetails) error
-	Modify(ID string, dbInstanceDetails DBInstanceDetails, applyImmediately bool) error
+	Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput, tags []*rds.Tag) error
 	Reboot(ID string) error
 	RemoveTag(ID, tagKey string) error
 	Delete(ID string, skipFinalSnapshot bool) error
@@ -36,41 +37,40 @@ type DBInstanceWithTags struct {
 }
 
 type DBInstanceDetails struct {
-       Identifier                 string
-       Status                     string
-       DBInstanceClass            string
-       Engine                     string
-       EngineVersion              string
-       Address                    string
-       AllocatedStorage           int64
-       Arn                        string
-       AutoMinorVersionUpgrade    bool
-       AvailabilityZone           string
-       BackupRetentionPeriod      int64
-       CharacterSetName           string
-       CopyTagsToSnapshot         bool
-       DBName                     string
-       DBParameterGroupName       string
-       DBSecurityGroups           []string
-       DBSubnetGroupName          string
-       Iops                       int64
-       KmsKeyID                   string
-       LicenseModel               string
-       MasterUsername             string
-       MasterUserPassword         string
-       MultiAZ                    bool
-       OptionGroupName            string
-       PendingModifications       bool
-       Port                       int64
-       PreferredBackupWindow      string
-       PreferredMaintenanceWindow string
-       PubliclyAccessible         bool
-       StorageEncrypted           bool
-       StorageType                string
-       Tags                       map[string]string
-       VpcSecurityGroupIds        []string
+	Identifier                 string
+	Status                     string
+	DBInstanceClass            string
+	Engine                     string
+	EngineVersion              string
+	Address                    string
+	AllocatedStorage           int64
+	Arn                        string
+	AutoMinorVersionUpgrade    bool
+	AvailabilityZone           string
+	BackupRetentionPeriod      int64
+	CharacterSetName           string
+	CopyTagsToSnapshot         bool
+	DBName                     string
+	DBParameterGroupName       string
+	DBSecurityGroups           []string
+	DBSubnetGroupName          string
+	Iops                       int64
+	KmsKeyID                   string
+	LicenseModel               string
+	MasterUsername             string
+	MasterUserPassword         string
+	MultiAZ                    bool
+	OptionGroupName            string
+	PendingModifications       bool
+	Port                       int64
+	PreferredBackupWindow      string
+	PreferredMaintenanceWindow string
+	PubliclyAccessible         bool
+	StorageEncrypted           bool
+	StorageType                string
+	Tags                       map[string]string
+	VpcSecurityGroupIds        []string
 }
-
 
 type DBSnapshotDetails struct {
 	Identifier         string
