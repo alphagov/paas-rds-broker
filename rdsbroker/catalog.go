@@ -47,32 +47,32 @@ type ServicePlan struct {
 }
 
 type RDSProperties struct {
-	DBInstanceClass            string   `json:"db_instance_class"`
-	Engine                     string   `json:"engine"`
-	EngineVersion              string   `json:"engine_version"`
-	AllocatedStorage           int64    `json:"allocated_storage"`
-	AutoMinorVersionUpgrade    bool     `json:"auto_minor_version_upgrade,omitempty"`
-	AvailabilityZone           string   `json:"availability_zone,omitempty"`
-	BackupRetentionPeriod      int64    `json:"backup_retention_period,omitempty"`
-	CharacterSetName           string   `json:"character_set_name,omitempty"`
-	DBParameterGroupName       string   `json:"db_parameter_group_name,omitempty"`
-	DBSecurityGroups           []string `json:"db_security_groups,omitempty"`
-	DBSubnetGroupName          string   `json:"db_subnet_group_name,omitempty"`
-	LicenseModel               string   `json:"license_model,omitempty"`
-	MultiAZ                    bool     `json:"multi_az,omitempty"`
-	OptionGroupName            string   `json:"option_group_name,omitempty"`
-	Port                       int64    `json:"port,omitempty"`
-	PreferredBackupWindow      string   `json:"preferred_backup_window,omitempty"`
-	PreferredMaintenanceWindow string   `json:"preferred_maintenance_window,omitempty"`
-	PubliclyAccessible         bool     `json:"publicly_accessible,omitempty"`
-	StorageEncrypted           bool     `json:"storage_encrypted,omitempty"`
-	KmsKeyID                   string   `json:"kms_key_id,omitempty"`
-	StorageType                string   `json:"storage_type,omitempty"`
-	Iops                       int64    `json:"iops,omitempty"`
-	VpcSecurityGroupIds        []string `json:"vpc_security_group_ids,omitempty"`
-	CopyTagsToSnapshot         bool     `json:"copy_tags_to_snapshot,omitempty"`
-	SkipFinalSnapshot          bool     `json:"skip_final_snapshot,omitempty"`
-	PostgresExtensions         []string `json:"postgres_extensions,omitempty"`
+	DBInstanceClass            *string   `json:"db_instance_class"`
+	Engine                     *string   `json:"engine"`
+	EngineVersion              *string   `json:"engine_version"`
+	AllocatedStorage           *int64    `json:"allocated_storage"`
+	AutoMinorVersionUpgrade    *bool     `json:"auto_minor_version_upgrade,omitempty"`
+	AvailabilityZone           *string   `json:"availability_zone,omitempty"`
+	BackupRetentionPeriod      *int64    `json:"backup_retention_period,omitempty"`
+	CharacterSetName           *string   `json:"character_set_name,omitempty"`
+	DBParameterGroupName       *string   `json:"db_parameter_group_name,omitempty"`
+	DBSecurityGroups           []*string `json:"db_security_groups,omitempty"`
+	DBSubnetGroupName          *string   `json:"db_subnet_group_name,omitempty"`
+	LicenseModel               *string   `json:"license_model,omitempty"`
+	MultiAZ                    *bool     `json:"multi_az,omitempty"`
+	OptionGroupName            *string   `json:"option_group_name,omitempty"`
+	Port                       *int64    `json:"port,omitempty"`
+	PreferredBackupWindow      *string   `json:"preferred_backup_window,omitempty"`
+	PreferredMaintenanceWindow *string   `json:"preferred_maintenance_window,omitempty"`
+	PubliclyAccessible         *bool     `json:"publicly_accessible,omitempty"`
+	StorageEncrypted           *bool     `json:"storage_encrypted,omitempty"`
+	KmsKeyID                   *string   `json:"kms_key_id,omitempty"`
+	StorageType                *string   `json:"storage_type,omitempty"`
+	Iops                       *int64    `json:"iops,omitempty"`
+	VpcSecurityGroupIds        []*string `json:"vpc_security_group_ids,omitempty"`
+	CopyTagsToSnapshot         *bool     `json:"copy_tags_to_snapshot,omitempty"`
+	SkipFinalSnapshot          *bool     `json:"skip_final_snapshot,omitempty"`
+	PostgresExtensions         []*string `json:"postgres_extensions,omitempty"`
 }
 
 func (c Catalog) Validate() error {
@@ -150,30 +150,30 @@ func (sp ServicePlan) Validate(c Catalog) error {
 }
 
 func (rp RDSProperties) Validate(c Catalog) error {
-	if rp.DBInstanceClass == "" {
-		return fmt.Errorf("Must provide a non-empty DBInstanceClass (%+v)", rp)
+	if rp.DBInstanceClass != nil && *rp.DBInstanceClass == "" {
+		return fmt.Errorf("Must provide a non-empty DBInstanceClass")
 	}
 
-	if rp.Engine == "" {
-		return fmt.Errorf("Must provide a non-empty Engine (%+v)", rp)
+	if rp.Engine != nil && *rp.Engine == "" {
+		return fmt.Errorf("Must provide a non-empty Engine")
 	}
 
-	switch strings.ToLower(rp.Engine) {
+	switch strings.ToLower(*rp.Engine) {
 	case "mariadb":
 	case "mysql":
 	case "postgres":
 	default:
-		return fmt.Errorf("This broker does not support RDS engine '%s' (%+v)", rp.Engine, rp)
+		return fmt.Errorf("This broker does not support RDS engine '%s'", *rp.Engine, rp)
 	}
 
 	for _, engine := range c.ExcludeEngines {
-		if strings.ToLower(engine.Engine) == strings.ToLower(rp.Engine) {
-			match, err := regexp.MatchString(engine.EngineVersion, rp.EngineVersion)
+		if strings.ToLower(engine.Engine) == strings.ToLower(*rp.Engine) {
+			match, err := regexp.MatchString(engine.EngineVersion, *rp.EngineVersion)
 			if err != nil {
 				return err
 			}
 			if match {
-				return fmt.Errorf("This broker does not support version '%s' of engine '%s'", rp.Engine, rp.EngineVersion)
+				return fmt.Errorf("This broker does not support version '%s' of engine '%s'", *rp.Engine, *rp.EngineVersion)
 			}
 		}
 	}

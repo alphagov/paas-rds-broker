@@ -15,6 +15,8 @@ import (
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/alphagov/paas-rds-broker/sqlengine"
 	"github.com/alphagov/paas-rds-broker/utils"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/rds"
 )
 
 const MasterUsernameLength = 16
@@ -679,43 +681,55 @@ func (b *RDSBroker) dbNameFromDetails(instanceID string, dbInstanceDetails *awsr
 	return dbName
 }
 
-func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) *awsrds.DBInstanceDetails {
-	dbInstanceDetails := b.dbInstanceFromPlan(servicePlan)
-
-	dbInstanceDetails.DBName = b.dbName(instanceID)
-
-	dbInstanceDetails.MasterUsername = b.generateMasterUsername()
-	dbInstanceDetails.MasterUserPassword = b.generateMasterPassword(instanceID)
-
-	if provisionParameters.BackupRetentionPeriod > 0 {
-		dbInstanceDetails.BackupRetentionPeriod = provisionParameters.BackupRetentionPeriod
+func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) *rds.CreateDBInstanceInput {
+	createDBInstanceInput := rds.CreateDBInstanceInput{
+		DBInstanceClass:            servicePlan.RDSProperties.DBInstanceClass,
+		Engine:                     servicePlan.RDSProperties.Engine,
+		AutoMinorVersionUpgrade:    servicePlan.RDSProperties.AutoMinorVersionUpgrade,
+		AvailabilityZone:           servicePlan.RDSProperties.AvailabilityZone,
+		CopyTagsToSnapshot:         servicePlan.RDSProperties.CopyTagsToSnapshot,
+		DBParameterGroupName:       servicePlan.RDSProperties.DBParameterGroupName,
+		DBSubnetGroupName:          servicePlan.RDSProperties.DBSubnetGroupName,
+		EngineVersion:              servicePlan.RDSProperties.EngineVersion,
+		OptionGroupName:            servicePlan.RDSProperties.OptionGroupName,
+		PreferredMaintenanceWindow: servicePlan.RDSProperties.PreferredMaintenanceWindow,
+		PubliclyAccessible:         servicePlan.RDSProperties.PubliclyAccessible,
+		BackupRetentionPeriod:      servicePlan.RDSProperties.BackupRetentionPeriod,
+		AllocatedStorage:           servicePlan.RDSProperties.AllocatedStorage,
+		CharacterSetName:           servicePlan.RDSProperties.CharacterSetName,
+		DBSecurityGroups:           servicePlan.RDSProperties.DBSecurityGroups,
+		Iops:                       servicePlan.RDSProperties.Iops,
+		KmsKeyId:                   servicePlan.RDSProperties.KmsKeyID,
+		LicenseModel:               servicePlan.RDSProperties.LicenseModel,
+		MultiAZ:                    servicePlan.RDSProperties.MultiAZ,
+		Port:                       servicePlan.RDSProperties.Port,
+		PreferredBackupWindow: servicePlan.RDSProperties.PreferredBackupWindow,
+		StorageEncrypted:      servicePlan.RDSProperties.StorageEncrypted,
+		StorageType:           servicePlan.RDSProperties.StorageType,
+		VpcSecurityGroupIds:   servicePlan.RDSProperties.VpcSecurityGroupIds,
+		Tags:                  []*rds.Tag{},
 	}
 
-	if provisionParameters.CharacterSetName != "" {
-		dbInstanceDetails.CharacterSetName = provisionParameters.CharacterSetName
-	}
+	sanitizedDbName := b.dbName(instanceID)
+	createDBInstanceInput.DBName = &sanitizedDbName
 
-	if provisionParameters.DBName != "" {
-		dbInstanceDetails.DBName = provisionParameters.DBName
-	}
-
-	if provisionParameters.PreferredBackupWindow != "" {
-		dbInstanceDetails.PreferredBackupWindow = provisionParameters.PreferredBackupWindow
-	}
-
-	if provisionParameters.PreferredMaintenanceWindow != "" {
-		dbInstanceDetails.PreferredMaintenanceWindow = provisionParameters.PreferredMaintenanceWindow
-	}
+	masterUsername := b.generateMasterUsername()
+	createDBInstanceInput.MasterUsername = &masterUsername
+	masterPassword := b.generateMasterPassword(instanceID)
+	createDBInstanceInput.MasterUserPassword = &masterPassword
 
 	var skipFinalSnapshot string
 	if provisionParameters.SkipFinalSnapshot != nil {
 		skipFinalSnapshot = strconv.FormatBool(*provisionParameters.SkipFinalSnapshot)
 	} else {
-		skipFinalSnapshot = strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot)
+		skipFinalSnapshot = strconv.FormatBool(*servicePlan.RDSProperties.SkipFinalSnapshot)
 	}
 
-	dbInstanceDetails.Tags = b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshot, "")
-	return dbInstanceDetails
+	tags := b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshot, "")
+	for key, value := range tags {
+		createDBInstanceInput.Tags = append(createDBInstanceInput.Tags, &rds.Tag{Key: aws.String(key), Value: aws.String(value)})
+	}
+	return &createDBInstanceInput
 }
 
 func (b *RDSBroker) restoreDBInstance(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) *awsrds.DBInstanceDetails {
