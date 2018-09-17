@@ -20,7 +20,7 @@
                         {
                             "description": "Micro plan",
                             "free": false,
-                            "id": "micro",
+                            "id": "postgres-micro",
                             "name": "micro",
                             "rds_properties": {
                                 "allocated_storage": 10,
@@ -41,7 +41,7 @@
                         {
                             "description": "Micro plan without final snapshot",
                             "free": false,
-                            "id": "micro-without-snapshot",
+                            "id": "postgres-micro-without-snapshot",
                             "name": "micro-without-snapshot",
                             "rds_properties": {
                                 "allocated_storage": 10,
@@ -72,7 +72,7 @@
                         {
                             "description": "Micro plan",
                             "free": false,
-                            "id": "micro",
+                            "id": "mysql-micro",
                             "name": "micro",
                             "rds_properties": {
                                 "allocated_storage": 10,
@@ -89,7 +89,7 @@
                         {
                             "description": "Micro plan without final snapshot",
                             "free": false,
-                            "id": "micro-without-snapshot",
+                            "id": "mysql-micro-without-snapshot",
                             "name": "micro-without-snapshot",
                             "rds_properties": {
                                 "allocated_storage": 10,

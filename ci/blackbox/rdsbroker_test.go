@@ -78,7 +78,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 	Describe("Instance Provision/Bind/Deprovision and MasterPasswordSeed update", func() {
 
 		TestProvisionBindDeprovision := func(serviceID string) {
-			const planID = "micro-without-snapshot"
+			var planID = serviceID + "-micro-without-snapshot"
 
 			var (
 				instanceID string
@@ -205,7 +205,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 	Describe("Final snapshot enable/disable", func() {
 		TestFinalSnapshot := func(serviceID string) {
-			const planID = "micro"
+			var planID = serviceID + "-micro"
 
 			var (
 				instanceID      string
@@ -315,7 +315,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 	Describe("Restore from snapshot", func() {
 		TestRestoreFromSnapshot := func(serviceID string) {
-			const planID = "micro"
+			var planID = serviceID + "-micro"
 
 			var (
 				instanceID         string
