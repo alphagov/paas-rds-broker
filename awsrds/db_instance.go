@@ -14,7 +14,7 @@ const (
 	DescribeRefreshCacheOption DescribeOption = "refreshCache"
 )
 
-//go:generate counterfeiter -o fake/fake_db_instance.go . DBInstance
+//go:generate counterfeiter -o fakes/fake_db_instance.go . DBInstance
 //TODO: Hector says: rename this
 type DBInstance interface {
 	Describe(ID string) (*rds.DBInstance, error)
