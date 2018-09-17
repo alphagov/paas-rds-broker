@@ -198,7 +198,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			TestProvisionBindDeprovision("postgres")
 		})
 
-		Describe("MySQL", func() {
+		FDescribe("MySQL", func() {
 			TestProvisionBindDeprovision("mysql")
 		})
 	})
@@ -421,7 +421,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres", func() {
+		FDescribe("Postgres", func() {
 			TestRestoreFromSnapshot("postgres")
 		})
 
