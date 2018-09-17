@@ -67,7 +67,8 @@ var _ = Describe("RDS DB Instance", func() {
 			listTags                 []*rds.Tag
 			listTagsForResourceError error
 
-			properDBInstanceWithTags DBInstanceWithTags
+			properDBInstance *rds.DBInstance
+			properDBTags []*rds.Tag
 
 			describeDBInstance *rds.DBInstance
 
@@ -112,10 +113,8 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 
 		JustBeforeEach(func() {
-			properDBInstanceWithTags = DBInstanceWithTags{
-				DBInstance: describeDBInstance,
-				Tags:       listTags,
-			}
+			properDBInstance = describeDBInstance
+			properDBTags = listTags
 
 			rdssvc.Handlers.Clear()
 
@@ -144,9 +143,10 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 
 		It("returns the proper DB Instance", func() {
-			dbInstanceDetails, err := rdsDBInstance.Describe(dbInstanceIdentifier)
+			dbInstanceDetails, tags, err := rdsDBInstance.Describe(dbInstanceIdentifier)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(dbInstanceDetails).To(Equal(properDBInstanceWithTags))
+			Expect(dbInstanceDetails).To(Equal(properDBInstance))
+			Expect(tags).To(Equal(properDBTags))
 		})
 
 		Context("when RDS DB Instance has some tags", func() {
@@ -168,25 +168,29 @@ var _ = Describe("RDS DB Instance", func() {
 			})
 
 			It("returns the proper DB Instance with the tags", func() {
-				dbInstanceDetails, err := rdsDBInstance.Describe(dbInstanceIdentifier)
+				dbInstance, tags, err := rdsDBInstance.Describe(dbInstanceIdentifier)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstanceDetails).To(Equal(properDBInstanceWithTags))
+				Expect(dbInstance).To(Equal(properDBInstance))
+				Expect(tags).To(Equal(properDBTags))
 			})
 
 			It("caches the tags from ListTagsForResource unless DescribeRefreshCacheOption is passed", func() {
-				dbInstanceDetails, err := rdsDBInstance.Describe(dbInstanceIdentifier)
+				dbInstance, tags, err := rdsDBInstance.Describe(dbInstanceIdentifier)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstanceDetails).To(Equal(properDBInstanceWithTags))
+				Expect(dbInstance).To(Equal(properDBInstance))
+				Expect(tags).To(Equal(properDBTags))
 
-				dbInstanceDetails, err = rdsDBInstance.Describe(dbInstanceIdentifier)
+				dbInstance, tags, err = rdsDBInstance.Describe(dbInstanceIdentifier)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstanceDetails).To(Equal(properDBInstanceWithTags))
+				Expect(dbInstance).To(Equal(properDBInstance))
+				Expect(tags).To(Equal(properDBTags))
 
 				Expect(listTagsForResourceCallCount).To(Equal(1))
 
-				dbInstanceDetails, err = rdsDBInstance.Describe(dbInstanceIdentifier, DescribeRefreshCacheOption)
+				dbInstance, tags, err = rdsDBInstance.Describe(dbInstanceIdentifier, DescribeRefreshCacheOption)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(dbInstanceDetails).To(Equal(properDBInstanceWithTags))
+				Expect(dbInstance).To(Equal(properDBInstance))
+				Expect(tags).To(Equal(properDBTags))
 
 				Expect(listTagsForResourceCallCount).To(Equal(2))
 			})
@@ -200,7 +204,7 @@ var _ = Describe("RDS DB Instance", func() {
 			})
 
 			It("returns the proper error", func() {
-				_, err := rdsDBInstance.Describe("unknown")
+				_, _, err := rdsDBInstance.Describe("unknown")
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(Equal(ErrDBInstanceDoesNotExist))
 			})
@@ -212,7 +216,7 @@ var _ = Describe("RDS DB Instance", func() {
 			})
 
 			It("returns the proper error", func() {
-				_, err := rdsDBInstance.Describe(dbInstanceIdentifier)
+				_, _, err := rdsDBInstance.Describe(dbInstanceIdentifier)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("operation failed"))
 			})
@@ -223,7 +227,7 @@ var _ = Describe("RDS DB Instance", func() {
 				})
 
 				It("returns the proper error", func() {
-					_, err := rdsDBInstance.Describe(dbInstanceIdentifier)
+					_, _, err := rdsDBInstance.Describe(dbInstanceIdentifier)
 					Expect(err).To(HaveOccurred())
 					Expect(err.Error()).To(Equal("code: message"))
 				})
@@ -236,7 +240,7 @@ var _ = Describe("RDS DB Instance", func() {
 				})
 
 				It("returns the proper error", func() {
-					_, err := rdsDBInstance.Describe(dbInstanceIdentifier)
+					_, _, err := rdsDBInstance.Describe(dbInstanceIdentifier)
 					Expect(err).To(HaveOccurred())
 					Expect(err).To(Equal(ErrDBInstanceDoesNotExist))
 				})
@@ -414,10 +418,8 @@ var _ = Describe("RDS DB Instance", func() {
 			dbInstanceDetailsList, err := rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dbInstanceDetailsList).To(HaveLen(2))
-			Expect(dbInstanceDetailsList[0].DBInstance).To(Equal(db1))
-			Expect(dbInstanceDetailsList[0].Tags).To(Equal(db1Tags))
-			Expect(dbInstanceDetailsList[1].DBInstance).To(Equal(db2))
-			Expect(dbInstanceDetailsList[1].Tags).To(Equal(db2Tags))
+			Expect(dbInstanceDetailsList[0]).To(Equal(db1))
+			Expect(dbInstanceDetailsList[1]).To(Equal(db2))
 		})
 
 		It("caches the tags from ListTagsForResource unless DescribeRefreshCacheOption is passed", func() {
@@ -867,7 +869,7 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 	})
 
-	var _ = FDescribe("Modify", func() {
+	var _ = Describe("Modify", func() {
 		var (
 			listTagsForResourceError error
 

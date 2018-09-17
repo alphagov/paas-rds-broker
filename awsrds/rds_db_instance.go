@@ -45,8 +45,7 @@ func NewRDSDBInstance(
 	}
 }
 
-func (r *RDSDBInstance) Describe(ID string, opts ...DescribeOption) (DBInstanceWithTags, error) {
-	var dbInstanceWithTags = DBInstanceWithTags{}
+func (r *RDSDBInstance) Describe(ID string, opts ...DescribeOption) (*rds.DBInstance, []*rds.Tag, error) {
 	describeDBInstancesInput := &rds.DescribeDBInstancesInput{
 		DBInstanceIdentifier: aws.String(ID),
 	}
@@ -62,27 +61,24 @@ func (r *RDSDBInstance) Describe(ID string, opts ...DescribeOption) (DBInstanceW
 
 	dbInstances, err := r.rdssvc.DescribeDBInstances(describeDBInstancesInput)
 	if err != nil {
-		return dbInstanceWithTags, HandleAWSError(err, r.logger)
+		return nil, nil, HandleAWSError(err, r.logger)
 	}
 
 	for _, dbInstance := range dbInstances.DBInstances {
 		if aws.StringValue(dbInstance.DBInstanceIdentifier) == ID {
-			dbInstanceWithTags.DBInstance = dbInstance
 			r.logger.Debug("describe-db-instances", lager.Data{"db-instance": dbInstance})
-			t, err := r.cachedListTagsForResource(*dbInstance.DBInstanceArn, refreshCache)
+			t, err := r.cachedListTagsForResource(aws.StringValue(dbInstance.DBInstanceArn), refreshCache)
 			if err != nil {
-				return dbInstanceWithTags, HandleAWSError(err, r.logger)
+				return nil, nil, HandleAWSError(err, r.logger)
 			}
-			dbInstanceWithTags.Tags = t
-			return dbInstanceWithTags, nil
+			return dbInstance, t, nil
 		}
 	}
-
-	return dbInstanceWithTags, ErrDBInstanceDoesNotExist
+	return nil, nil, ErrDBInstanceDoesNotExist
 }
 
-func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeOption) ([]DBInstanceWithTags, error) {
-	dbInstanceWithTags := []DBInstanceWithTags{}
+func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeOption) ([]*rds.DBInstance, error) {
+	alllDbInstances := []*rds.DBInstance{}
 
 	describeDBInstancesInput := &rds.DescribeDBInstancesInput{}
 
@@ -93,34 +89,31 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeO
 		}
 	}
 
-	var dbInstances []*rds.DBInstance
 	err := r.rdssvc.DescribeDBInstancesPages(describeDBInstancesInput,
 		func(page *rds.DescribeDBInstancesOutput, lastPage bool) bool {
-			dbInstances = append(dbInstances, page.DBInstances...)
+			alllDbInstances = append(alllDbInstances, page.DBInstances...)
 			return true
 		},
 	)
 
 	if err != nil {
-		return dbInstanceWithTags, err
+		return alllDbInstances, err
 	}
-	for _, dbInstance := range dbInstances {
+	dbInstances := []*rds.DBInstance{}
+	for _, dbInstance := range alllDbInstances {
 		tags, err := r.cachedListTagsForResource(aws.StringValue(dbInstance.DBInstanceArn), refreshCache)
 		if err != nil {
-			return dbInstanceWithTags, err
+			return alllDbInstances, err
 		}
 		for _, t := range tags {
 			if aws.StringValue(t.Key) == tagKey && aws.StringValue(t.Value) == tagValue {
-				dbInstanceWithTags = append(dbInstanceWithTags, DBInstanceWithTags{
-					DBInstance: dbInstance,
-					Tags:       tags,
-				})
+				dbInstances = append(dbInstances, dbInstance)
 				break
 			}
 		}
 	}
 
-	return dbInstanceWithTags, nil
+	return dbInstances, nil
 }
 
 func (r *RDSDBInstance) DescribeSnapshots(DBInstanceID string) ([]*DBSnapshotDetails, error) {
@@ -271,14 +264,14 @@ func (r *RDSDBInstance) Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput,
 
 	updatedModifyDBInstanceInput := *modifyDBInstanceInput
 
-	oldDBInstanceWithTags, err := r.Describe(aws.StringValue(modifyDBInstanceInput.DBInstanceIdentifier))
+	oldDbInstance, _, err := r.Describe(aws.StringValue(modifyDBInstanceInput.DBInstanceIdentifier))
 	if err != nil {
 		return err
 	}
 
 	if modifyDBInstanceInput.AllocatedStorage != nil {
 		newAllocatedSpace := aws.Int64Value(modifyDBInstanceInput.AllocatedStorage)
-		oldAllocatedSpace := aws.Int64Value(oldDBInstanceWithTags.AllocatedStorage)
+		oldAllocatedSpace := aws.Int64Value(oldDbInstance.AllocatedStorage)
 		if newAllocatedSpace <= oldAllocatedSpace {
 			updatedModifyDBInstanceInput.AllocatedStorage = nil
 			r.logger.Info("modify-db-instance.prevented-storage-downgrade", lager.Data{"input": &sanitizedDBInstanceInput})
@@ -293,7 +286,7 @@ func (r *RDSDBInstance) Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput,
 	r.logger.Debug("modify-db-instance", lager.Data{"output": modifyDBInstanceOutput})
 
 	if len(tags) > 0 {
-		AddTagsToResource(aws.StringValue(oldDBInstanceWithTags.DBInstanceArn), tags, r.rdssvc, r.logger)
+		AddTagsToResource(aws.StringValue(oldDbInstance.DBInstanceArn), tags, r.rdssvc, r.logger)
 	}
 
 	return nil
@@ -316,12 +309,12 @@ func (r *RDSDBInstance) Reboot(ID string) error {
 }
 
 func (r *RDSDBInstance) RemoveTag(ID, tagKey string) error {
-	dbInstanceWithTags, err := r.Describe(ID)
+	dbInstance, _, err := r.Describe(ID)
 	if err != nil {
 		return err
 	}
 
-	return RemoveTagsFromResource(aws.StringValue(dbInstanceWithTags.DBInstanceArn), []*string{&tagKey}, r.rdssvc, r.logger)
+	return RemoveTagsFromResource(aws.StringValue(dbInstance.DBInstanceArn), []*string{&tagKey}, r.rdssvc, r.logger)
 }
 
 func (r *RDSDBInstance) Delete(ID string, skipFinalSnapshot bool) error {
