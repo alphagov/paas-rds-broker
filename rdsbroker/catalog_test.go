@@ -9,6 +9,13 @@ import (
 	. "github.com/alphagov/paas-rds-broker/rdsbroker"
 )
 
+func int64Pointer(input int64) *int64 {
+	return &input
+}
+func stringPointer(input string) *string {
+	return &input
+}
+
 var _ = Describe("Catalog", func() {
 	var (
 		catalog Catalog
@@ -157,10 +164,10 @@ var _ = Describe("ServicePlan", func() {
 			Description: "Plan-1 description",
 			Metadata:    &brokerapi.ServicePlanMetadata{},
 			RDSProperties: RDSProperties{
-				DBInstanceClass:  "db.m3.medium",
-				Engine:           "MySQL",
-				EngineVersion:    "5.6.23",
-				AllocatedStorage: 5,
+				DBInstanceClass:  stringPointer("db.m3.medium"),
+				Engine:           stringPointer("MySQL"),
+				EngineVersion:    stringPointer("5.6.23"),
+				AllocatedStorage: int64Pointer(5),
 			},
 		}
 	)
@@ -216,10 +223,10 @@ var _ = Describe("RDSProperties", func() {
 		rdsProperties RDSProperties
 
 		validRDSProperties = RDSProperties{
-			DBInstanceClass:  "db.m3.medium",
-			Engine:           "MySQL",
-			EngineVersion:    "5.6.23",
-			AllocatedStorage: 5,
+			DBInstanceClass:  stringPointer("db.m3.medium"),
+			Engine:           stringPointer("MySQL"),
+			EngineVersion:    stringPointer("5.6.23"),
+			AllocatedStorage: int64Pointer(5),
 		}
 	)
 
@@ -240,7 +247,7 @@ var _ = Describe("RDSProperties", func() {
 		})
 
 		It("returns error if DBInstanceClass is empty", func() {
-			rdsProperties.DBInstanceClass = ""
+			rdsProperties.DBInstanceClass = nil
 
 			err := rdsProperties.Validate(catalog)
 			Expect(err).To(HaveOccurred())
@@ -248,7 +255,7 @@ var _ = Describe("RDSProperties", func() {
 		})
 
 		It("returns error if Engine is empty", func() {
-			rdsProperties.Engine = ""
+			rdsProperties.Engine = nil
 
 			err := rdsProperties.Validate(catalog)
 			Expect(err).To(HaveOccurred())
@@ -256,7 +263,7 @@ var _ = Describe("RDSProperties", func() {
 		})
 
 		It("returns error if Engine is not supported", func() {
-			rdsProperties.Engine = "unsupported"
+			rdsProperties.Engine = stringPointer("unsupported")
 
 			err := rdsProperties.Validate(catalog)
 			Expect(err).To(HaveOccurred())
@@ -265,7 +272,7 @@ var _ = Describe("RDSProperties", func() {
 
 		It("returns error if Engine is excluded", func() {
 			catalog.ExcludeEngines = []Engine{{
-				Engine:        rdsProperties.Engine,
+				Engine:        *rdsProperties.Engine,
 				EngineVersion: "^5\\.6\\.",
 			}}
 
