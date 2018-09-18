@@ -75,7 +75,7 @@ type RDSBroker struct {
 	allowUserUpdateParameters    bool
 	allowUserBindParameters      bool
 	catalog                      Catalog
-	dbInstance                   awsrds.DBInstance
+	dbInstance                   awsrds.RDSInstance
 	sqlProvider                  sqlengine.Provider
 	logger                       lager.Logger
 	brokerName                   string
@@ -93,7 +93,7 @@ type Credentials struct {
 
 func New(
 	config Config,
-	dbInstance awsrds.DBInstance,
+	dbInstance awsrds.RDSInstance,
 	sqlProvider sqlengine.Provider,
 	logger lager.Logger,
 ) *RDSBroker {

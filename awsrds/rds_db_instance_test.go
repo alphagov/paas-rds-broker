@@ -35,7 +35,7 @@ var _ = Describe("RDS DB Instance", func() {
 		testSink *lagertest.TestSink
 		logger   lager.Logger
 
-		rdsDBInstance DBInstance
+		rdsDBInstance RDSInstance
 	)
 
 	const account = "123456789012"

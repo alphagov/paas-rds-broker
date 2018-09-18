@@ -881,4 +881,4 @@ func (fake *FakeDBInstance) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ awsrds.DBInstance = new(FakeDBInstance)
+var _ awsrds.RDSInstance = new(FakeDBInstance)
