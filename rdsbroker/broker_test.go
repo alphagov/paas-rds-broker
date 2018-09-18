@@ -1454,151 +1454,163 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
-		//Context("when has PreferredMaintenanceWindow", func() {
-		//BeforeEach(func() {
-		//rdsProperties2.PreferredMaintenanceWindow = "test-preferred-maintenance-window"
-		//})
+		Context("when has PreferredMaintenanceWindow", func() {
+			BeforeEach(func() {
+				rdsProperties2.PreferredMaintenanceWindow = stringPointer("test-preferred-maintenance-window")
+			})
 
-		//It("makes the proper calls", func() {
-		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-		//Expect(dbInstance.ModifyDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window"))
-		//Expect(err).ToNot(HaveOccurred())
-		//})
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.PreferredMaintenanceWindow)).To(Equal("test-preferred-maintenance-window"))
+			})
 
-		////FIXME: These tests are pending until we allow this user provided parameter
-		//PContext("but has PreferredMaintenanceWindow Parameter", func() {
-		//BeforeEach(func() {
-		//updateDetails.RawParameters = json.RawMessage(`{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}`)
-		//})
+			//FIXME: These tests are pending until we allow this user provided parameter
+			PContext("but has PreferredMaintenanceWindow Parameter", func() {
+				BeforeEach(func() {
+					updateDetails.RawParameters = json.RawMessage(`{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}`)
+				})
 
-		//It("makes the proper calls", func() {
-		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-		//Expect(dbInstance.ModifyDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window-parameter"))
-		//Expect(err).ToNot(HaveOccurred())
-		//})
-		//})
-		//})
+				It("makes the proper calls", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+					input := rdsInstance.ModifyArgsForCall(0)
+					Expect(aws.StringValue(input.PreferredMaintenanceWindow)).To(Equal("test-preferred-maintenance-window-parameter"))
+				})
+			})
+		})
 
-		//Context("when has PubliclyAccessible", func() {
-		//BeforeEach(func() {
-		//rdsProperties2.PubliclyAccessible = true
-		//})
+		Context("when has PubliclyAccessible", func() {
+			BeforeEach(func() {
+				rdsProperties2.PubliclyAccessible = boolPointer(true)
+			})
 
-		//It("makes the proper calls", func() {
-		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-		//Expect(dbInstance.ModifyDBInstanceDetails.PubliclyAccessible).To(BeTrue())
-		//Expect(err).ToNot(HaveOccurred())
-		//})
-		//})
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.PubliclyAccessible)).To(BeTrue())
+			})
+		})
 
-		//Context("when has StorageType", func() {
-		//BeforeEach(func() {
-		//rdsProperties2.StorageType = "test-storage-type"
-		//})
+		Context("when has StorageType", func() {
+			BeforeEach(func() {
+				rdsProperties2.StorageType = stringPointer("test-storage-type")
+			})
 
-		//It("makes the proper calls", func() {
-		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-		//Expect(dbInstance.ModifyDBInstanceDetails.StorageType).To(Equal("test-storage-type"))
-		//Expect(err).ToNot(HaveOccurred())
-		//})
-		//})
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.StorageType)).To(Equal("test-storage-type"))
+			})
+		})
 
-		//Context("when has VpcSecurityGroupIds", func() {
-		//BeforeEach(func() {
-		//rdsProperties2.VpcSecurityGroupIds = []string{"test-vpc-security-group-ids"}
-		//})
+		Context("when has VpcSecurityGroupIds", func() {
+			BeforeEach(func() {
+				rdsProperties2.VpcSecurityGroupIds = []*string{stringPointer("test-vpc-security-group-ids")}
+			})
 
-		//It("makes the proper calls", func() {
-		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-		//Expect(dbInstance.ModifyDBInstanceDetails.VpcSecurityGroupIds).To(Equal([]string{"test-vpc-security-group-ids"}))
-		//Expect(err).ToNot(HaveOccurred())
-		//})
-		//})
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(input.VpcSecurityGroupIds).To(Equal(
+					[]*string{stringPointer("test-vpc-security-group-ids")},
+				))
+			})
+		})
 
-		//Context("when request does not accept incomplete", func() {
-		//BeforeEach(func() {
-		//acceptsIncomplete = false
-		//})
+		Context("when request does not accept incomplete", func() {
+			BeforeEach(func() {
+				acceptsIncomplete = false
+			})
 
-		//It("returns the proper error", func() {
-		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-		//Expect(err).To(HaveOccurred())
-		//Expect(err).To(Equal(brokerapi.ErrAsyncRequired))
-		//})
-		//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(Equal(brokerapi.ErrAsyncRequired))
+			})
+		})
 
-		//Context("when Parameters are not valid", func() {
-		//Context("and user update parameters are not allowed", func() {
-		//BeforeEach(func() {
-		//allowUserUpdateParameters = false
-		//})
+		Context("when Parameters are not valid", func() {
+			Context("and user update parameters are not allowed", func() {
+				BeforeEach(func() {
+					allowUserUpdateParameters = false
+				})
 
-		//It("does not return an error", func() {
-		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-		//Expect(err).ToNot(HaveOccurred())
-		//})
-		//})
-		//})
+				It("does not return an error", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+		})
 
-		//Context("when Service is not found", func() {
-		//BeforeEach(func() {
-		//updateDetails.ServiceID = "unknown"
-		//})
+		Context("when Service is not found", func() {
+			BeforeEach(func() {
+				updateDetails.ServiceID = "unknown"
+			})
 
-		//It("returns the proper error", func() {
-		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-		//Expect(err).To(HaveOccurred())
-		//Expect(err.Error()).To(Equal("Service 'unknown' not found"))
-		//})
-		//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("Service 'unknown' not found"))
+			})
+		})
 
-		//Context("when Plans is not updateable", func() {
-		//BeforeEach(func() {
-		//planUpdateable = false
-		//})
+		Context("when Plans is not updateable", func() {
+			BeforeEach(func() {
+				planUpdateable = false
+			})
 
-		//It("returns the proper error", func() {
-		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-		//Expect(err).To(HaveOccurred())
-		//Expect(err).To(Equal(brokerapi.ErrPlanChangeNotSupported))
-		//})
-		//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(Equal(brokerapi.ErrPlanChangeNotSupported))
+			})
+		})
 
-		//Context("when Service Plan is not found", func() {
-		//BeforeEach(func() {
-		//updateDetails.PlanID = "unknown"
-		//})
+		Context("when Service Plan is not found", func() {
+			BeforeEach(func() {
+				updateDetails.PlanID = "unknown"
+			})
 
-		//It("returns the proper error", func() {
-		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-		//Expect(err).To(HaveOccurred())
-		//Expect(err.Error()).To(Equal("Service Plan 'unknown' not found"))
-		//})
-		//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("Service Plan 'unknown' not found"))
+			})
+		})
 
-		//Context("when modifying the DB Instance fails", func() {
-		//BeforeEach(func() {
-		//dbInstance.ModifyError = errors.New("operation failed")
-		//})
+		Context("when modifying the DB Instance fails", func() {
+			BeforeEach(func() {
+				rdsInstance.ModifyReturns(nil, errors.New("operation failed"))
+			})
 
-		//It("returns the proper error", func() {
-		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-		//Expect(err).To(HaveOccurred())
-		//Expect(err.Error()).To(Equal("operation failed"))
-		//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("operation failed"))
+			})
 
-		//Context("when the DB Instance does not exists", func() {
-		//BeforeEach(func() {
-		//dbInstance.ModifyError = awsrds.ErrDBInstanceDoesNotExist
-		//})
+			Context("when the DB Instance does not exists", func() {
+				BeforeEach(func() {
+					rdsInstance.ModifyReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
+				})
 
-		//It("returns the proper error", func() {
-		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-		//Expect(err).To(HaveOccurred())
-		//Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
-		//})
-		//})
-		//})
+				It("returns the proper error", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+				})
+			})
+		})
 	})
 
 	//Describe("Deprovision", func() {
