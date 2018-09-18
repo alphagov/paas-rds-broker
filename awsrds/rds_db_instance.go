@@ -248,7 +248,7 @@ func (r *RDSDBInstance) Restore(restoreDBInstanceInput *rds.RestoreDBInstanceFro
 	return nil
 }
 
-func (r *RDSDBInstance) Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput, tags []*rds.Tag) error {
+func (r *RDSDBInstance) Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput) (*rds.DBInstance, error) {
 	sanitizedDBInstanceInput := *modifyDBInstanceInput
 	sanitizedDBInstanceInput.MasterUserPassword = aws.String("REDACTED")
 	r.logger.Debug("modify-db-instance", lager.Data{"input": &sanitizedDBInstanceInput})
@@ -257,7 +257,7 @@ func (r *RDSDBInstance) Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput,
 
 	oldDbInstance, err := r.Describe(aws.StringValue(modifyDBInstanceInput.DBInstanceIdentifier))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if modifyDBInstanceInput.AllocatedStorage != nil {
@@ -271,14 +271,28 @@ func (r *RDSDBInstance) Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput,
 
 	modifyDBInstanceOutput, err := r.rdssvc.ModifyDBInstance(&updatedModifyDBInstanceInput)
 	if err != nil {
-		return HandleAWSError(err, r.logger)
+		return nil, HandleAWSError(err, r.logger)
 	}
 
 	r.logger.Debug("modify-db-instance", lager.Data{"output": modifyDBInstanceOutput})
 
-	if len(tags) > 0 {
-		AddTagsToResource(aws.StringValue(oldDbInstance.DBInstanceArn), tags, r.rdssvc, r.logger)
+	return modifyDBInstanceOutput.DBInstance, nil
+}
+
+func (r *RDSDBInstance) AddTagsToResource(resourceARN string, tags []*rds.Tag) error {
+	addTagsToResourceInput := &rds.AddTagsToResourceInput{
+		ResourceName: aws.String(resourceARN),
+		Tags:         tags,
 	}
+
+	r.logger.Debug("add-tags-to-resource", lager.Data{"input": addTagsToResourceInput})
+
+	addTagsToResourceOutput, err := r.rdssvc.AddTagsToResource(addTagsToResourceInput)
+	if err != nil {
+		return HandleAWSError(err, r.logger)
+	}
+
+	r.logger.Debug("add-tags-to-resource", lager.Data{"output": addTagsToResourceOutput})
 
 	return nil
 }

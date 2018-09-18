@@ -24,7 +24,8 @@ type DBInstance interface {
 	DeleteSnapshots(brokerName string, keepForDays int) error
 	Create(createDBInstanceInput *rds.CreateDBInstanceInput) error
 	Restore(restoreRBInstanceInput *rds.RestoreDBInstanceFromDBSnapshotInput) error
-	Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput, tags []*rds.Tag) error
+	Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput) (*rds.DBInstance, error)
+	AddTagsToResource(resourceArn string, tags []*rds.Tag) error
 	Reboot(ID string) error
 	RemoveTag(ID, tagKey string) error
 	Delete(ID string, skipFinalSnapshot bool) error

@@ -270,14 +270,18 @@ func (b *RDSBroker) Update(
 		skipFinalSnapshot = strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot == nil && *servicePlan.RDSProperties.SkipFinalSnapshot)
 	}
 
-	tags := awsrds.BuilRDSTags(b.dbTags("Updated", details.ServiceID, details.PlanID, "", "", skipFinalSnapshot, ""))
-
-	if err := b.dbInstance.Modify(modifyDBInstanceInput, tags); err != nil {
+	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)
+	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			return brokerapi.UpdateServiceSpec{}, brokerapi.ErrInstanceDoesNotExist
 		}
 		return brokerapi.UpdateServiceSpec{}, err
 	}
+
+	tags := awsrds.BuilRDSTags(b.dbTags("Updated", details.ServiceID, details.PlanID, "", "", skipFinalSnapshot, ""))
+
+	// TODO: in the original implementation we intentionally swallow this code: We must test that case.
+	b.dbInstance.AddTagsToResource(aws.StringValue(updatedDBInstance.DBInstanceArn), tags)
 
 	return brokerapi.UpdateServiceSpec{IsAsync: true}, nil
 }
@@ -600,15 +604,19 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 	}
 
 	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan)
-	tags := b.dbTags("Restored", serviceID, planID, organizationID, spaceID, "", "")
-	rdsTags := awsrds.BuilRDSTags(tags)
 	modifyDBInstanceInput.MasterUserPassword = aws.String(b.generateMasterPassword(instanceID))
-	if err := b.dbInstance.Modify(modifyDBInstanceInput, rdsTags); err != nil {
+	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)
+	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			return false, brokerapi.ErrInstanceDoesNotExist
 		}
 		return false, err
 	}
+
+	tags := b.dbTags("Restored", serviceID, planID, organizationID, spaceID, "", "")
+	rdsTags := awsrds.BuilRDSTags(tags)
+	// TODO: In the original implementation we intentionally swallow this error. Add tests for that.
+	b.dbInstance.AddTagsToResource(aws.StringValue(updatedDBInstance.DBInstanceArn), rdsTags)
 
 	return true, nil
 }
@@ -730,7 +738,7 @@ func (b *RDSBroker) CheckAndRotateCredentials() {
 					DBInstanceIdentifier: dbInstance.DBInstanceIdentifier,
 					MasterUserPassword:   aws.String(masterPassword),
 				}
-				err = b.dbInstance.Modify(changePasswordInput, []*rds.Tag{})
+				_, err = b.dbInstance.Modify(changePasswordInput)
 				if err != nil {
 					b.logger.Error(fmt.Sprintf("Could not reset the master password of instance %v", dbInstanceIdentifier), err)
 				}

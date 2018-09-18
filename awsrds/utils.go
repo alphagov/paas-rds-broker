@@ -29,24 +29,6 @@ func RDSTagsValues(rdsTags []*rds.Tag) map[string]string {
 	return tags
 }
 
-func AddTagsToResource(resourceARN string, tags []*rds.Tag, rdssvc *rds.RDS, logger lager.Logger) error {
-	addTagsToResourceInput := &rds.AddTagsToResourceInput{
-		ResourceName: aws.String(resourceARN),
-		Tags:         tags,
-	}
-
-	logger.Debug("add-tags-to-resource", lager.Data{"input": addTagsToResourceInput})
-
-	addTagsToResourceOutput, err := rdssvc.AddTagsToResource(addTagsToResourceInput)
-	if err != nil {
-		return HandleAWSError(err, logger)
-	}
-
-	logger.Debug("add-tags-to-resource", lager.Data{"output": addTagsToResourceOutput})
-
-	return nil
-}
-
 func ListTagsForResource(resourceARN string, rdssvc *rds.RDS, logger lager.Logger) ([]*rds.Tag, error) {
 	listTagsForResourceInput := &rds.ListTagsForResourceInput{
 		ResourceName: aws.String(resourceARN),

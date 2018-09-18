@@ -614,8 +614,6 @@ var _ = Describe("RDS DB Instance", func() {
 
 	var _ = Describe("Modify", func() {
 		var (
-			listTagsForResourceError error
-
 			describeDBInstances []*rds.DBInstance
 			describeDBInstance  *rds.DBInstance
 
@@ -626,14 +624,9 @@ var _ = Describe("RDS DB Instance", func() {
 
 			receivedDescribeDBInstancesInput *rds.DescribeDBInstancesInput
 			receivedModifyDBInstanceInput    *rds.ModifyDBInstanceInput
-
-			receivedAddTagsToResourceInput *rds.AddTagsToResourceInput
-			addTagsToResourceError         error
 		)
 
 		BeforeEach(func() {
-			listTagsForResourceError = nil
-
 			describeDBInstance = &rds.DBInstance{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 				DBInstanceArn:        aws.String(dbInstanceArn),
@@ -653,17 +646,14 @@ var _ = Describe("RDS DB Instance", func() {
 
 			modifyDBInstanceError = nil
 
-			addTagsToResourceError = nil
-
 			receivedDescribeDBInstancesInput = nil
-			receivedAddTagsToResourceInput = nil
 		})
 
 		JustBeforeEach(func() {
 			rdssvc.Handlers.Clear()
 
 			rdsCall = func(r *request.Request) {
-				Expect(r.Operation.Name).To(MatchRegexp("DescribeDBInstances|ModifyDBInstance|AddTagsToResource|ListTagsForResource"))
+				Expect(r.Operation.Name).To(MatchRegexp("DescribeDBInstances|ModifyDBInstance"))
 				switch r.Operation.Name {
 				case "DescribeDBInstances":
 					Expect(r.Operation.Name).To(Equal("DescribeDBInstances"))
@@ -675,24 +665,14 @@ var _ = Describe("RDS DB Instance", func() {
 				case "ModifyDBInstance":
 					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ModifyDBInstanceInput{}))
 					receivedModifyDBInstanceInput = r.Params.(*rds.ModifyDBInstanceInput)
-					r.Error = modifyDBInstanceError
-				case "AddTagsToResource":
-					Expect(r.Params).To(BeAssignableToTypeOf(&rds.AddTagsToResourceInput{}))
-					receivedAddTagsToResourceInput = r.Params.(*rds.AddTagsToResourceInput)
-					r.Error = addTagsToResourceError
-				case "ListTagsForResource":
-					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
-					input := r.Params.(*rds.ListTagsForResourceInput)
-					snapshotArnRegex := "arn:.*:rds:.*:.*:db:" + aws.StringValue(describeDBInstancesInput.DBInstanceIdentifier)
-					Expect(aws.StringValue(input.ResourceName)).To(MatchRegexp(snapshotArnRegex))
-					data := r.Data.(*rds.ListTagsForResourceOutput)
-					data.TagList = []*rds.Tag{
-						{
-							Key:   aws.String("atag"),
-							Value: aws.String("foo"),
-						},
+					data := r.Data.(*rds.ModifyDBInstanceOutput)
+					data.DBInstance = &rds.DBInstance{
+						DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+						DBInstanceArn:        aws.String(dbInstanceArn),
+						DBInstanceStatus:     aws.String("updated"),
 					}
-					r.Error = listTagsForResourceError
+
+					r.Error = modifyDBInstanceError
 				}
 			}
 			rdssvc.Handlers.Send.PushBack(rdsCall)
@@ -703,9 +683,10 @@ var _ = Describe("RDS DB Instance", func() {
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 			}
 
-			err := rdsDBInstance.Modify(modifyDBInstanceInput, []*rds.Tag{})
+			updatedDBInstance, err := rdsDBInstance.Modify(modifyDBInstanceInput)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(receivedModifyDBInstanceInput).To(Equal(modifyDBInstanceInput))
+			Expect(aws.StringValue(updatedDBInstance.DBInstanceStatus)).To(Equal("updated"))
 		})
 
 		It("sets AllocatedStorage if new value is bigger", func() {
@@ -714,7 +695,7 @@ var _ = Describe("RDS DB Instance", func() {
 				AllocatedStorage:     aws.Int64(500),
 			}
 
-			err := rdsDBInstance.Modify(modifyDBInstanceInput, []*rds.Tag{})
+			_, err := rdsDBInstance.Modify(modifyDBInstanceInput)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(receivedModifyDBInstanceInput).To(Equal(modifyDBInstanceInput))
 		})
@@ -725,61 +706,10 @@ var _ = Describe("RDS DB Instance", func() {
 				AllocatedStorage:     aws.Int64(50),
 			}
 
-			err := rdsDBInstance.Modify(modifyDBInstanceInput, []*rds.Tag{})
+			_, err := rdsDBInstance.Modify(modifyDBInstanceInput)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(receivedModifyDBInstanceInput).ToNot(Equal(modifyDBInstanceInput))
 			Expect(receivedModifyDBInstanceInput.AllocatedStorage).To(BeNil())
-		})
-
-		It("calls AddTagsToResource when it has new tags", func() {
-			modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
-				DBInstanceIdentifier:    aws.String(dbInstanceIdentifier),
-				ApplyImmediately:        aws.Bool(true),
-				AutoMinorVersionUpgrade: aws.Bool(false),
-				CopyTagsToSnapshot:      aws.Bool(false),
-				MultiAZ:                 aws.Bool(false),
-			}
-
-			newTags := []*rds.Tag{
-				{
-					Key:   aws.String("newtag"),
-					Value: aws.String("bar"),
-				},
-			}
-			err := rdsDBInstance.Modify(modifyDBInstanceInput, newTags)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(receivedModifyDBInstanceInput).To(Equal(modifyDBInstanceInput))
-
-			Expect(receivedAddTagsToResourceInput).ToNot(BeNil())
-			Expect(receivedAddTagsToResourceInput.Tags).To(Equal(newTags))
-			Expect(aws.StringValue(receivedAddTagsToResourceInput.ResourceName)).To(Equal(
-				"arn:" + partition + ":rds:rds-region:" + account + ":db:" + dbInstanceIdentifier),
-			)
-		})
-
-		Context("when adding tags to resource fails", func() {
-			BeforeEach(func() {
-				addTagsToResourceError = errors.New("operation failed")
-			})
-
-			It("does not return error", func() {
-				modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
-					DBInstanceIdentifier:    aws.String(dbInstanceIdentifier),
-					ApplyImmediately:        aws.Bool(true),
-					AutoMinorVersionUpgrade: aws.Bool(false),
-					CopyTagsToSnapshot:      aws.Bool(false),
-					MultiAZ:                 aws.Bool(false),
-				}
-
-				newTags := []*rds.Tag{
-					{
-						Key:   aws.String("newtag"),
-						Value: aws.String("bar"),
-					},
-				}
-				err := rdsDBInstance.Modify(modifyDBInstanceInput, newTags)
-				Expect(err).ToNot(HaveOccurred())
-			})
 		})
 
 		Context("when describing the DB instance fails", func() {
@@ -792,7 +722,7 @@ var _ = Describe("RDS DB Instance", func() {
 					DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 				}
 
-				err := rdsDBInstance.Modify(modifyDBInstanceInput, []*rds.Tag{})
+				_, err := rdsDBInstance.Modify(modifyDBInstanceInput)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("operation failed"))
 			})
@@ -808,10 +738,63 @@ var _ = Describe("RDS DB Instance", func() {
 					DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 				}
 
-				err := rdsDBInstance.Modify(modifyDBInstanceInput, []*rds.Tag{})
+				_, err := rdsDBInstance.Modify(modifyDBInstanceInput)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("operation failed"))
 			})
+		})
+	})
+
+	var _ = Describe("AddTagsToResource", func() {
+		var (
+			listTagsForResourceError       error
+			receivedAddTagsToResourceInput *rds.AddTagsToResourceInput
+			addTagsToResourceError         error
+		)
+
+		BeforeEach(func() {
+			listTagsForResourceError = nil
+			addTagsToResourceError = nil
+			receivedAddTagsToResourceInput = nil
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(MatchRegexp("AddTagsToResource|ListTagsForResource"))
+				switch r.Operation.Name {
+				case "AddTagsToResource":
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.AddTagsToResourceInput{}))
+					receivedAddTagsToResourceInput = r.Params.(*rds.AddTagsToResourceInput)
+					r.Error = addTagsToResourceError
+				case "ListTagsForResource":
+					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
+					data := r.Data.(*rds.ListTagsForResourceOutput)
+					data.TagList = []*rds.Tag{
+						{
+							Key:   aws.String("atag"),
+							Value: aws.String("foo"),
+						},
+					}
+					r.Error = listTagsForResourceError
+				}
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		It("calls AddTagsToResource when it has new tags", func() {
+			newTags := []*rds.Tag{
+				{
+					Key:   aws.String("newtag"),
+					Value: aws.String("bar"),
+				},
+			}
+			err := rdsDBInstance.AddTagsToResource(dbInstanceArn, newTags)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(receivedAddTagsToResourceInput).ToNot(BeNil())
+			Expect(receivedAddTagsToResourceInput.Tags).To(Equal(newTags))
+			Expect(aws.StringValue(receivedAddTagsToResourceInput.ResourceName)).To(Equal(dbInstanceArn))
 		})
 	})
 
