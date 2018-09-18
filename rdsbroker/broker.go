@@ -793,6 +793,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 
 func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan) *rds.ModifyDBInstanceInput {
 	modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
+		DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBInstanceClass:            servicePlan.RDSProperties.DBInstanceClass,
 		AutoMinorVersionUpgrade:    servicePlan.RDSProperties.AutoMinorVersionUpgrade,
 		CopyTagsToSnapshot:         servicePlan.RDSProperties.CopyTagsToSnapshot,
