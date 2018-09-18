@@ -307,7 +307,7 @@ func (b *RDSBroker) Deprovision(
 		return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
-	skipDBInstanceFinalSnapshot := servicePlan.RDSProperties.SkipFinalSnapshot == nil && *servicePlan.RDSProperties.SkipFinalSnapshot
+	skipDBInstanceFinalSnapshot := servicePlan.RDSProperties.SkipFinalSnapshot == nil || *servicePlan.RDSProperties.SkipFinalSnapshot
 
 	skipFinalSnapshot, err := b.dbInstance.GetTag(b.dbInstanceIdentifier(instanceID), awsrds.TagSkipFinalSnapshot)
 	if err != nil {
