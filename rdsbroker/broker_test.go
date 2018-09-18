@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/rds"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -70,6 +71,7 @@ var _ = Describe("RDS Broker", func() {
 		instanceID           = "instance-id"
 		bindingID            = "binding-id"
 		dbInstanceIdentifier = "cf-instance-id"
+		dbInstanceArn        = "arn:aws:rds:rds-region:1234567890:db:cf-instance-id"
 		dbName               = "cf_instance_id"
 		dbUsername           = "uvMSB820K_t3WvCX"
 		masterUserPassword   = "R2gfMWWb3naYDTL6rrBcGp-C5dmcThId"
@@ -1071,524 +1073,533 @@ var _ = Describe("RDS Broker", func() {
 
 	})
 
-	//Describe("Update", func() {
-	//var (
-	//updateDetails           brokerapi.UpdateDetails
-	//acceptsIncomplete       bool
-	//properUpdateServiceSpec brokerapi.UpdateServiceSpec
-	//)
-
-	//BeforeEach(func() {
-	//updateDetails = brokerapi.UpdateDetails{
-	//ServiceID: "Service-2",
-	//PlanID:    "Plan-2",
-	//PreviousValues: brokerapi.PreviousValues{
-	//PlanID:    "Plan-1",
-	//ServiceID: "Service-1",
-	//OrgID:     "organization-id",
-	//SpaceID:   "space-id",
-	//},
-	//RawParameters: json.RawMessage{},
-	//}
-	//acceptsIncomplete = true
-	//properUpdateServiceSpec = brokerapi.UpdateServiceSpec{
-	//IsAsync: true,
-	//}
-	//})
-	//It("returns the proper response", func() {
-	//updateServiceSpec, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(updateServiceSpec).To(Equal(properUpdateServiceSpec))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyCalled).To(BeTrue())
-	//Expect(dbInstance.ModifyID).To(Equal(dbInstanceIdentifier))
-	//Expect(dbInstance.ModifyDBInstanceDetails.DBInstanceClass).To(Equal("db.m2.test"))
-	//Expect(dbInstance.ModifyDBInstanceDetails.Engine).To(Equal("test-engine-2"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-
-	//It("sets the right tags", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.Tags["Owner"]).To(Equal("Cloud Foundry"))
-	//Expect(dbInstance.ModifyDBInstanceDetails.Tags["Broker Name"]).To(Equal("mybroker"))
-	//Expect(dbInstance.ModifyDBInstanceDetails.Tags["Updated by"]).To(Equal("AWS RDS Service Broker"))
-	//Expect(dbInstance.ModifyDBInstanceDetails.Tags).To(HaveKey("Updated at"))
-	//Expect(dbInstance.ModifyDBInstanceDetails.Tags["Service ID"]).To(Equal("Service-2"))
-	//Expect(dbInstance.ModifyDBInstanceDetails.Tags["Plan ID"]).To(Equal("Plan-2"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-
-	//Context("when custom parameters are not provided", func() {
-	//BeforeEach(func() {
-	//allowUserUpdateParameters = true
-	//})
-
-	//Context("when not present in request", func() {
-	//BeforeEach(func() {
-	//updateDetails.RawParameters = nil
-	//})
-
-	//It("does not return an error", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when an empty JSON document", func() {
-	//BeforeEach(func() {
-	//updateDetails.RawParameters = json.RawMessage("{}")
-	//})
-
-	//It("does not return an error", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-	//})
-
-	//Context("when has AllocatedStorage", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.AllocatedStorage = int64(100)
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.AllocatedStorage).To(Equal(int64(100)))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has AutoMinorVersionUpgrade", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.AutoMinorVersionUpgrade = true
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.AutoMinorVersionUpgrade).To(BeTrue())
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has AvailabilityZone", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.AvailabilityZone = "test-az"
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.AvailabilityZone).To(Equal("test-az"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has ApplyAtMaintanceWindow", func() {
-
-	//var willApplyImmediately bool
-
-	//BeforeEach(func() {
-	//dbInstance.ModifyCallback = func(ID string, dbInstanceDetails awsrds.DBInstanceDetails, applyImmediately bool) error {
-	//willApplyImmediately = applyImmediately
-	//return nil
-	//}
-	//})
-
-	//It("applies immediately when apply_at_maintenance_window param is not given", func() {
-	//updateDetails.RawParameters = json.RawMessage(`{}`)
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(willApplyImmediately).To(Equal(true))
-	//})
-
-	//It("applies immediately when apply_at_maintenance_window param is false", func() {
-	//updateDetails.RawParameters = json.RawMessage(`{"apply_at_maintenance_window": false}`)
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(willApplyImmediately).To(Equal(true))
-	//})
-
-	//It("does not apply immediately when apply_at_maintenance_window param is true", func() {
-	//updateDetails.RawParameters = json.RawMessage(`{"apply_at_maintenance_window": true}`)
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(willApplyImmediately).To(Equal(false))
-	//})
-
-	//})
-
-	//Context("when has BackupRetentionPeriod", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.BackupRetentionPeriod = int64(7)
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(7)))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-
-	////FIXME: These tests are pending until we allow this user provided parameter
-	//PContext("but has BackupRetentionPeriod Parameter", func() {
-	//BeforeEach(func() {
-	//updateDetails.RawParameters = json.RawMessage(`"backup_retention_period": 12}`)
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(12)))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-	//})
-
-	//Context("when has CharacterSetName", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.CharacterSetName = "test-characterset-name"
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.CharacterSetName).To(Equal("test-characterset-name"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has CopyTagsToSnapshot", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.CopyTagsToSnapshot = true
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.CopyTagsToSnapshot).To(BeTrue())
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has DBParameterGroupName", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.DBParameterGroupName = "test-db-parameter-group-name"
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.DBParameterGroupName).To(Equal("test-db-parameter-group-name"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has DBSecurityGroups", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.DBSecurityGroups = []string{"test-db-security-group"}
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.DBSecurityGroups).To(Equal([]string{"test-db-security-group"}))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has DBSubnetGroupName", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.DBSubnetGroupName = "test-db-subnet-group-name"
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.DBSubnetGroupName).To(Equal("test-db-subnet-group-name"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has EngineVersion", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.EngineVersion = "1.2.3"
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.EngineVersion).To(Equal("1.2.3"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has Iops", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.Iops = int64(1000)
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.Iops).To(Equal(int64(1000)))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when storage encryption settings are updated", func() {
-	//Context("when tries to enable StorageEncrypted", func() {
-	//BeforeEach(func() {
-	//rdsProperties1.StorageEncrypted = false
-	//rdsProperties2.StorageEncrypted = true
-	//})
-
-	//It("fails noisily", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err).To(Equal(ErrEncryptionNotUpdateable))
-	//})
-	//})
-	//Context("when tries to disable StorageEncrypted", func() {
-	//BeforeEach(func() {
-	//rdsProperties1.StorageEncrypted = true
-	//rdsProperties2.StorageEncrypted = false
-	//})
-
-	//It("fails noisily", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err).To(Equal(ErrEncryptionNotUpdateable))
-	//})
-	//})
-	//Context("when changes KmsKeyID with StorageEncrypted enabled", func() {
-	//BeforeEach(func() {
-	//rdsProperties1.StorageEncrypted = true
-	//rdsProperties2.StorageEncrypted = true
-	//rdsProperties2.KmsKeyID = "test-old-kms-key-id"
-	//rdsProperties2.KmsKeyID = "test-new-kms-key-id"
-	//})
-
-	//It("fails noisily", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err).To(Equal(ErrEncryptionNotUpdateable))
-	//})
-	//})
-
-	//})
-
-	//Context("when has LicenseModel", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.LicenseModel = "test-license-model"
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.LicenseModel).To(Equal("test-license-model"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has MultiAZ", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.MultiAZ = true
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.MultiAZ).To(BeTrue())
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has OptionGroupName", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.OptionGroupName = "test-option-group-name"
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.OptionGroupName).To(Equal("test-option-group-name"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has Port", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.Port = int64(3306)
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.Port).To(Equal(int64(3306)))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has PreferredBackupWindow", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.PreferredBackupWindow = "test-preferred-backup-window"
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-
-	////FIXME: These tests are pending until we allow this user provided parameter
-	//PContext("but has PreferredBackupWindow Parameter", func() {
-	//BeforeEach(func() {
-	//updateDetails.RawParameters = json.RawMessage(`{"preferred_backup_window": "test-preferred-backup-window-parameter"}`)
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window-parameter"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-	//})
-
-	//Context("when has PreferredMaintenanceWindow", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.PreferredMaintenanceWindow = "test-preferred-maintenance-window"
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-
-	////FIXME: These tests are pending until we allow this user provided parameter
-	//PContext("but has PreferredMaintenanceWindow Parameter", func() {
-	//BeforeEach(func() {
-	//updateDetails.RawParameters = json.RawMessage(`{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}`)
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window-parameter"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-	//})
-
-	//Context("when has PubliclyAccessible", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.PubliclyAccessible = true
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.PubliclyAccessible).To(BeTrue())
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has StorageType", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.StorageType = "test-storage-type"
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.StorageType).To(Equal("test-storage-type"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when has VpcSecurityGroupIds", func() {
-	//BeforeEach(func() {
-	//rdsProperties2.VpcSecurityGroupIds = []string{"test-vpc-security-group-ids"}
-	//})
-
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(dbInstance.ModifyDBInstanceDetails.VpcSecurityGroupIds).To(Equal([]string{"test-vpc-security-group-ids"}))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-
-	//Context("when request does not accept incomplete", func() {
-	//BeforeEach(func() {
-	//acceptsIncomplete = false
-	//})
-
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err).To(Equal(brokerapi.ErrAsyncRequired))
-	//})
-	//})
-
-	//Context("when Parameters are not valid", func() {
-	//Context("and user update parameters are not allowed", func() {
-	//BeforeEach(func() {
-	//allowUserUpdateParameters = false
-	//})
-
-	//It("does not return an error", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-	//})
-
-	//Context("when Service is not found", func() {
-	//BeforeEach(func() {
-	//updateDetails.ServiceID = "unknown"
-	//})
-
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Service 'unknown' not found"))
-	//})
-	//})
-
-	//Context("when Plans is not updateable", func() {
-	//BeforeEach(func() {
-	//planUpdateable = false
-	//})
-
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err).To(Equal(brokerapi.ErrPlanChangeNotSupported))
-	//})
-	//})
-
-	//Context("when Service Plan is not found", func() {
-	//BeforeEach(func() {
-	//updateDetails.PlanID = "unknown"
-	//})
-
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Service Plan 'unknown' not found"))
-	//})
-	//})
-
-	//Context("when modifying the DB Instance fails", func() {
-	//BeforeEach(func() {
-	//dbInstance.ModifyError = errors.New("operation failed")
-	//})
-
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("operation failed"))
-	//})
-
-	//Context("when the DB Instance does not exists", func() {
-	//BeforeEach(func() {
-	//dbInstance.ModifyError = awsrds.ErrDBInstanceDoesNotExist
-	//})
-
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
-	//})
-	//})
-	//})
-	//})
+	Describe("Update", func() {
+		var (
+			updateDetails           brokerapi.UpdateDetails
+			acceptsIncomplete       bool
+			properUpdateServiceSpec brokerapi.UpdateServiceSpec
+		)
+
+		BeforeEach(func() {
+			updateDetails = brokerapi.UpdateDetails{
+				ServiceID: "Service-2",
+				PlanID:    "Plan-2",
+				PreviousValues: brokerapi.PreviousValues{
+					PlanID:    "Plan-1",
+					ServiceID: "Service-1",
+					OrgID:     "organization-id",
+					SpaceID:   "space-id",
+				},
+				RawParameters: json.RawMessage{},
+			}
+			acceptsIncomplete = true
+			properUpdateServiceSpec = brokerapi.UpdateServiceSpec{
+				IsAsync: true,
+			}
+
+			rdsInstance.ModifyReturns(
+				&rds.DBInstance{
+					DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+					DBInstanceArn:        aws.String(dbInstanceArn),
+				},
+				nil,
+			)
+		})
+
+		It("returns the proper response", func() {
+			updateServiceSpec, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+			Expect(updateServiceSpec).To(Equal(properUpdateServiceSpec))
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("makes the proper calls", func() {
+			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+			input := rdsInstance.ModifyArgsForCall(0)
+			Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
+			Expect(aws.StringValue(input.DBInstanceClass)).To(Equal("db.m2.test"))
+		})
+
+		It("sets the right tags", func() {
+			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(1))
+			arn, tags := rdsInstance.AddTagsToResourceArgsForCall(0)
+			Expect(arn).To(Equal(dbInstanceArn))
+
+			tagsByName := awsrds.RDSTagsValues(tags)
+
+			Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
+			Expect(tagsByName["Broker Name"]).To(Equal("mybroker"))
+			Expect(tagsByName["Updated by"]).To(Equal("AWS RDS Service Broker"))
+			Expect(tagsByName).To(HaveKey("Updated at"))
+			Expect(tagsByName["Service ID"]).To(Equal("Service-2"))
+			Expect(tagsByName["Plan ID"]).To(Equal("Plan-2"))
+		})
+
+		Context("when custom parameters are not provided", func() {
+			BeforeEach(func() {
+				allowUserUpdateParameters = true
+			})
+
+			Context("when not present in request", func() {
+				BeforeEach(func() {
+					updateDetails.RawParameters = nil
+				})
+
+				It("does not return an error", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+
+			Context("when an empty JSON document", func() {
+				BeforeEach(func() {
+					updateDetails.RawParameters = json.RawMessage("{}")
+				})
+
+				It("does not return an error", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+		})
+
+		Context("when has AllocatedStorage", func() {
+			BeforeEach(func() {
+				rdsProperties2.AllocatedStorage = int64Pointer(100)
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.Int64Value(input.AllocatedStorage)).To(Equal(int64(100)))
+			})
+		})
+
+		Context("when has AutoMinorVersionUpgrade", func() {
+			BeforeEach(func() {
+				rdsProperties2.AutoMinorVersionUpgrade = boolPointer(true)
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.AutoMinorVersionUpgrade)).To(BeTrue())
+			})
+		})
+
+		Context("when has ApplyAtMaintanceWindow", func() {
+
+			It("applies immediately when apply_at_maintenance_window param is not given", func() {
+				updateDetails.RawParameters = json.RawMessage(`{}`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.ApplyImmediately)).To(BeTrue())
+			})
+
+			It("applies immediately when apply_at_maintenance_window param is false", func() {
+				updateDetails.RawParameters = json.RawMessage(`{"apply_at_maintenance_window": false}`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.ApplyImmediately)).To(BeTrue())
+			})
+
+			It("does not apply immediately when apply_at_maintenance_window param is true", func() {
+				updateDetails.RawParameters = json.RawMessage(`{"apply_at_maintenance_window": true}`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.ApplyImmediately)).To(BeFalse())
+			})
+
+		})
+
+		Context("when has BackupRetentionPeriod", func() {
+			BeforeEach(func() {
+				rdsProperties2.BackupRetentionPeriod = int64Pointer(7)
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.Int64Value(input.BackupRetentionPeriod)).To(Equal(int64(7)))
+			})
+
+			//FIXME: These tests are pending until we allow this user provided parameter
+			PContext("but has BackupRetentionPeriod Parameter", func() {
+				BeforeEach(func() {
+					updateDetails.RawParameters = json.RawMessage(`"backup_retention_period": 12}`)
+				})
+
+				It("makes the proper calls", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+					input := rdsInstance.ModifyArgsForCall(0)
+					Expect(aws.Int64Value(input.BackupRetentionPeriod)).To(Equal(int64(12)))
+				})
+			})
+		})
+
+		Context("when has CopyTagsToSnapshot", func() {
+			BeforeEach(func() {
+				rdsProperties2.CopyTagsToSnapshot = boolPointer(true)
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.CopyTagsToSnapshot)).To(BeTrue())
+			})
+		})
+
+		Context("when has DBParameterGroupName", func() {
+			BeforeEach(func() {
+				rdsProperties2.DBParameterGroupName = stringPointer("test-db-parameter-group-name")
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal("test-db-parameter-group-name"))
+			})
+		})
+
+		Context("when has DBSecurityGroups", func() {
+			BeforeEach(func() {
+				rdsProperties2.DBSecurityGroups = []*string{stringPointer("test-db-security-group")}
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(input.DBSecurityGroups).To(Equal(
+					[]*string{stringPointer("test-db-security-group")},
+				))
+			})
+		})
+
+		Context("when has DBSubnetGroupName", func() {
+			BeforeEach(func() {
+				rdsProperties2.DBSubnetGroupName = stringPointer("test-db-subnet-group-name")
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.DBSubnetGroupName)).To(Equal("test-db-subnet-group-name"))
+			})
+		})
+
+		Context("when has EngineVersion", func() {
+			BeforeEach(func() {
+				rdsProperties2.EngineVersion = stringPointer("1.2.3")
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.EngineVersion)).To(Equal("1.2.3"))
+			})
+		})
+
+		Context("when has Iops", func() {
+			BeforeEach(func() {
+				rdsProperties2.Iops = int64Pointer(1000)
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.Int64Value(input.Iops)).To(Equal(int64(1000)))
+			})
+		})
+
+		Context("when storage encryption settings are updated", func() {
+			Context("when tries to enable StorageEncrypted", func() {
+				BeforeEach(func() {
+					rdsProperties1.StorageEncrypted = boolPointer(false)
+					rdsProperties2.StorageEncrypted = boolPointer(true)
+				})
+
+				It("fails noisily", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(ErrEncryptionNotUpdateable))
+				})
+			})
+			Context("when tries to disable StorageEncrypted", func() {
+				BeforeEach(func() {
+					rdsProperties1.StorageEncrypted = boolPointer(true)
+					rdsProperties2.StorageEncrypted = boolPointer(false)
+				})
+
+				It("fails noisily", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(ErrEncryptionNotUpdateable))
+				})
+			})
+			Context("when changes KmsKeyID with StorageEncrypted enabled", func() {
+				BeforeEach(func() {
+					rdsProperties1.StorageEncrypted = boolPointer(true)
+					rdsProperties2.StorageEncrypted = boolPointer(true)
+					rdsProperties2.KmsKeyID = stringPointer("test-old-kms-key-id")
+					rdsProperties2.KmsKeyID = stringPointer("test-new-kms-key-id")
+				})
+
+				It("fails noisily", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(ErrEncryptionNotUpdateable))
+				})
+			})
+
+		})
+
+		Context("when has LicenseModel", func() {
+			BeforeEach(func() {
+				rdsProperties2.LicenseModel = stringPointer("test-license-model")
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.LicenseModel)).To(Equal("test-license-model"))
+			})
+		})
+
+		Context("when has MultiAZ", func() {
+			BeforeEach(func() {
+				rdsProperties2.MultiAZ = boolPointer(true)
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.MultiAZ)).To(BeTrue())
+			})
+		})
+
+		Context("when has OptionGroupName", func() {
+			BeforeEach(func() {
+				rdsProperties2.OptionGroupName = stringPointer("test-option-group-name")
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.OptionGroupName)).To(Equal("test-option-group-name"))
+			})
+		})
+
+		Context("when has PreferredBackupWindow", func() {
+			BeforeEach(func() {
+				rdsProperties2.PreferredBackupWindow = stringPointer("test-preferred-backup-window")
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.PreferredBackupWindow)).To(Equal("test-preferred-backup-window"))
+			})
+
+			//FIXME: These tests are pending until we allow this user provided parameter
+			PContext("but has PreferredBackupWindow Parameter", func() {
+				BeforeEach(func() {
+					updateDetails.RawParameters = json.RawMessage(`{"preferred_backup_window": "test-preferred-backup-window-parameter"}`)
+				})
+
+				It("makes the proper calls", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+					input := rdsInstance.ModifyArgsForCall(0)
+					Expect(aws.StringValue(input.PreferredBackupWindow)).To(Equal("test-preferred-backup-window-parameter"))
+				})
+			})
+		})
+
+		//Context("when has PreferredMaintenanceWindow", func() {
+		//BeforeEach(func() {
+		//rdsProperties2.PreferredMaintenanceWindow = "test-preferred-maintenance-window"
+		//})
+
+		//It("makes the proper calls", func() {
+		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+		//Expect(dbInstance.ModifyDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window"))
+		//Expect(err).ToNot(HaveOccurred())
+		//})
+
+		////FIXME: These tests are pending until we allow this user provided parameter
+		//PContext("but has PreferredMaintenanceWindow Parameter", func() {
+		//BeforeEach(func() {
+		//updateDetails.RawParameters = json.RawMessage(`{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}`)
+		//})
+
+		//It("makes the proper calls", func() {
+		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+		//Expect(dbInstance.ModifyDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window-parameter"))
+		//Expect(err).ToNot(HaveOccurred())
+		//})
+		//})
+		//})
+
+		//Context("when has PubliclyAccessible", func() {
+		//BeforeEach(func() {
+		//rdsProperties2.PubliclyAccessible = true
+		//})
+
+		//It("makes the proper calls", func() {
+		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+		//Expect(dbInstance.ModifyDBInstanceDetails.PubliclyAccessible).To(BeTrue())
+		//Expect(err).ToNot(HaveOccurred())
+		//})
+		//})
+
+		//Context("when has StorageType", func() {
+		//BeforeEach(func() {
+		//rdsProperties2.StorageType = "test-storage-type"
+		//})
+
+		//It("makes the proper calls", func() {
+		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+		//Expect(dbInstance.ModifyDBInstanceDetails.StorageType).To(Equal("test-storage-type"))
+		//Expect(err).ToNot(HaveOccurred())
+		//})
+		//})
+
+		//Context("when has VpcSecurityGroupIds", func() {
+		//BeforeEach(func() {
+		//rdsProperties2.VpcSecurityGroupIds = []string{"test-vpc-security-group-ids"}
+		//})
+
+		//It("makes the proper calls", func() {
+		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+		//Expect(dbInstance.ModifyDBInstanceDetails.VpcSecurityGroupIds).To(Equal([]string{"test-vpc-security-group-ids"}))
+		//Expect(err).ToNot(HaveOccurred())
+		//})
+		//})
+
+		//Context("when request does not accept incomplete", func() {
+		//BeforeEach(func() {
+		//acceptsIncomplete = false
+		//})
+
+		//It("returns the proper error", func() {
+		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+		//Expect(err).To(HaveOccurred())
+		//Expect(err).To(Equal(brokerapi.ErrAsyncRequired))
+		//})
+		//})
+
+		//Context("when Parameters are not valid", func() {
+		//Context("and user update parameters are not allowed", func() {
+		//BeforeEach(func() {
+		//allowUserUpdateParameters = false
+		//})
+
+		//It("does not return an error", func() {
+		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+		//Expect(err).ToNot(HaveOccurred())
+		//})
+		//})
+		//})
+
+		//Context("when Service is not found", func() {
+		//BeforeEach(func() {
+		//updateDetails.ServiceID = "unknown"
+		//})
+
+		//It("returns the proper error", func() {
+		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+		//Expect(err).To(HaveOccurred())
+		//Expect(err.Error()).To(Equal("Service 'unknown' not found"))
+		//})
+		//})
+
+		//Context("when Plans is not updateable", func() {
+		//BeforeEach(func() {
+		//planUpdateable = false
+		//})
+
+		//It("returns the proper error", func() {
+		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+		//Expect(err).To(HaveOccurred())
+		//Expect(err).To(Equal(brokerapi.ErrPlanChangeNotSupported))
+		//})
+		//})
+
+		//Context("when Service Plan is not found", func() {
+		//BeforeEach(func() {
+		//updateDetails.PlanID = "unknown"
+		//})
+
+		//It("returns the proper error", func() {
+		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+		//Expect(err).To(HaveOccurred())
+		//Expect(err.Error()).To(Equal("Service Plan 'unknown' not found"))
+		//})
+		//})
+
+		//Context("when modifying the DB Instance fails", func() {
+		//BeforeEach(func() {
+		//dbInstance.ModifyError = errors.New("operation failed")
+		//})
+
+		//It("returns the proper error", func() {
+		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+		//Expect(err).To(HaveOccurred())
+		//Expect(err.Error()).To(Equal("operation failed"))
+		//})
+
+		//Context("when the DB Instance does not exists", func() {
+		//BeforeEach(func() {
+		//dbInstance.ModifyError = awsrds.ErrDBInstanceDoesNotExist
+		//})
+
+		//It("returns the proper error", func() {
+		//_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+		//Expect(err).To(HaveOccurred())
+		//Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+		//})
+		//})
+		//})
+	})
 
 	//Describe("Deprovision", func() {
 	//var (
