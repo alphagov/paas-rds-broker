@@ -14,7 +14,7 @@ const (
 	DescribeRefreshCacheOption DescribeOption = "refreshCache"
 )
 
-//go:generate counterfeiter -o fakes/fake_db_instance.go . RDSInstance
+//go:generate counterfeiter -o fakes/fake_rds_instance.go . RDSInstance
 type RDSInstance interface {
 	Describe(ID string) (*rds.DBInstance, error)
 	GetResourceTags(resourceArn string, opts ...DescribeOption) ([]*rds.Tag, error)
