@@ -184,7 +184,7 @@ func (b *RDSBroker) Provision(
 		}
 		snapshot := snapshots[0]
 
-		tags, err := b.dbInstance.GetSnapshotTags(snapshot)
+		tags, err := b.dbInstance.GetResourceTags(aws.StringValue(snapshot.DBSnapshotArn))
 		if err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
@@ -484,7 +484,10 @@ func (b *RDSBroker) LastOperation(
 		return brokerapi.LastOperation{State: brokerapi.Failed}, err
 	}
 
-	tags, err := b.dbInstance.GetDBInstanceTags(dbInstanceDetails, awsrds.DescribeRefreshCacheOption)
+	tags, err := b.dbInstance.GetResourceTags(
+		aws.StringValue(dbInstanceDetails.DBInstanceArn),
+		awsrds.DescribeRefreshCacheOption,
+	)
 	if err != nil {
 		return brokerapi.LastOperation{State: brokerapi.Failed}, err
 	}

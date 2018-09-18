@@ -152,7 +152,7 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 	})
 
-	var _ = Describe("GetDBInstanceTags", func() {
+	var _ = Describe("GetResourceTags", func() {
 		var (
 			listTags []*rds.Tag
 
@@ -199,35 +199,25 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 
 		It("returns the instance tags", func() {
-			dbInstance := &rds.DBInstance{
-				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
-				DBInstanceArn:        aws.String(dbInstanceArn),
-			}
-			tags, err := rdsDBInstance.GetDBInstanceTags(dbInstance)
+			tags, err := rdsDBInstance.GetResourceTags(dbInstanceArn)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(tags).To(Equal(listTags))
 
-			arnRegex := "arn:.*:rds:.*:.*:db:" + dbInstanceIdentifier
-			Expect(aws.StringValue(receivedListTagsForResourceInput.ResourceName)).To(MatchRegexp(arnRegex))
+			Expect(aws.StringValue(receivedListTagsForResourceInput.ResourceName)).To(Equal(dbInstanceArn))
 		})
 
 		It("caches the tags from ListTagsForResource unless DescribeRefreshCacheOption is passed", func() {
-			dbInstance := &rds.DBInstance{
-				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
-				DBInstanceArn:        aws.String(dbInstanceArn),
-			}
-
-			tags, err := rdsDBInstance.GetDBInstanceTags(dbInstance)
+			tags, err := rdsDBInstance.GetResourceTags(dbInstanceArn)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(tags).To(Equal(listTags))
 
-			tags, err = rdsDBInstance.GetDBInstanceTags(dbInstance)
+			tags, err = rdsDBInstance.GetResourceTags(dbInstanceArn)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(tags).To(Equal(listTags))
 
 			Expect(listTagsForResourceCallCount).To(Equal(1))
 
-			tags, err = rdsDBInstance.GetDBInstanceTags(dbInstance, DescribeRefreshCacheOption)
+			tags, err = rdsDBInstance.GetResourceTags(dbInstanceArn, DescribeRefreshCacheOption)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(tags).To(Equal(listTags))
 
@@ -504,89 +494,6 @@ var _ = Describe("RDS DB Instance", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("code: message"))
 			})
-		})
-	})
-
-	var _ = Describe("GetSnapshotTags", func() {
-		var (
-			listTags []*rds.Tag
-
-			receivedListTagsForResourceInput *rds.ListTagsForResourceInput
-			listTagsForResourceError         error
-			listTagsForResourceCallCount     int
-		)
-
-		BeforeEach(func() {
-			listTags = []*rds.Tag{
-				{
-					Key:   aws.String("key1"),
-					Value: aws.String("value1"),
-				},
-				{
-					Key:   aws.String("key2"),
-					Value: aws.String("value2"),
-				},
-				{
-					Key:   aws.String("key3"),
-					Value: aws.String("value3"),
-				},
-			}
-			listTagsForResourceError = nil
-			listTagsForResourceCallCount = 0
-		})
-
-		JustBeforeEach(func() {
-			rdssvc.Handlers.Clear()
-
-			rdsCall = func(r *request.Request) {
-				Expect(r.Operation.Name).To(MatchRegexp("DescribeDBInstances|ListTagsForResource"))
-				switch r.Operation.Name {
-				case "ListTagsForResource":
-					listTagsForResourceCallCount = listTagsForResourceCallCount + 1
-					Expect(r.Params).To(BeAssignableToTypeOf(&rds.ListTagsForResourceInput{}))
-					receivedListTagsForResourceInput = r.Params.(*rds.ListTagsForResourceInput)
-					data := r.Data.(*rds.ListTagsForResourceOutput)
-					data.TagList = listTags
-					r.Error = listTagsForResourceError
-				}
-			}
-			rdssvc.Handlers.Send.PushBack(rdsCall)
-		})
-
-		It("returns the instance tags", func() {
-			snapshot := &rds.DBSnapshot{
-				DBSnapshotIdentifier: aws.String(dbInstanceIdentifier + "-snapshot"),
-				DBSnapshotArn:        aws.String(dbInstanceArn + "-snapshot"),
-			}
-			tags, err := rdsDBInstance.GetSnapshotTags(snapshot)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(tags).To(Equal(listTags))
-
-			arnRegex := "arn:.*:rds:.*:.*:db:" + dbInstanceIdentifier + "-snapshot"
-			Expect(aws.StringValue(receivedListTagsForResourceInput.ResourceName)).To(MatchRegexp(arnRegex))
-		})
-
-		It("caches the tags from ListTagsForResource unless DescribeRefreshCacheOption is passed", func() {
-			snapshot := &rds.DBSnapshot{
-				DBSnapshotIdentifier: aws.String(dbInstanceIdentifier + "-snapshot"),
-				DBSnapshotArn:        aws.String(dbInstanceArn + "-snapshot"),
-			}
-
-			tags, err := rdsDBInstance.GetSnapshotTags(snapshot)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(tags).To(Equal(listTags))
-
-			tags, err = rdsDBInstance.GetSnapshotTags(snapshot)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(tags).To(Equal(listTags))
-
-			Expect(listTagsForResourceCallCount).To(Equal(1))
-
-			tags, err = rdsDBInstance.GetSnapshotTags(snapshot, DescribeRefreshCacheOption)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(tags).To(Equal(listTags))
-
-			Expect(listTagsForResourceCallCount).To(Equal(2))
 		})
 	})
 

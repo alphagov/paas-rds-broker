@@ -66,9 +66,7 @@ func (r *RDSDBInstance) Describe(ID string) (*rds.DBInstance, error) {
 	return nil, ErrDBInstanceDoesNotExist
 }
 
-func (r *RDSDBInstance) GetDBInstanceTags(dbInstance *rds.DBInstance, opts ...DescribeOption) ([]*rds.Tag, error) {
-	r.logger.Debug("get-db-instance-tags", lager.Data{"db-instance": dbInstance})
-
+func (r *RDSDBInstance) GetResourceTags(resourceArn string, opts ...DescribeOption) ([]*rds.Tag, error) {
 	refreshCache := false
 	for _, o := range opts {
 		if o == DescribeRefreshCacheOption {
@@ -76,7 +74,9 @@ func (r *RDSDBInstance) GetDBInstanceTags(dbInstance *rds.DBInstance, opts ...De
 		}
 	}
 
-	t, err := r.cachedListTagsForResource(aws.StringValue(dbInstance.DBInstanceArn), refreshCache)
+	r.logger.Debug("get-resource-tags", lager.Data{"arn": resourceArn, "refresh-cache": refreshCache})
+
+	t, err := r.cachedListTagsForResource(resourceArn, refreshCache)
 	if err != nil {
 		return nil, HandleAWSError(err, r.logger)
 	}
@@ -120,23 +120,6 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeO
 	}
 
 	return dbInstances, nil
-}
-
-func (r *RDSDBInstance) GetSnapshotTags(snapshot *rds.DBSnapshot, opts ...DescribeOption) ([]*rds.Tag, error) {
-	r.logger.Debug("get-snapshot-tags", lager.Data{"db-snapshot": snapshot})
-
-	refreshCache := false
-	for _, o := range opts {
-		if o == DescribeRefreshCacheOption {
-			refreshCache = true
-		}
-	}
-
-	t, err := r.cachedListTagsForResource(aws.StringValue(snapshot.DBSnapshotArn), refreshCache)
-	if err != nil {
-		return nil, HandleAWSError(err, r.logger)
-	}
-	return t, nil
 }
 
 func (r *RDSDBInstance) DescribeSnapshots(DBInstanceID string) ([]*rds.DBSnapshot, error) {

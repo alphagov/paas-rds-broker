@@ -18,11 +18,9 @@ const (
 //TODO: Hector says: rename this
 type DBInstance interface {
 	Describe(ID string) (*rds.DBInstance, error)
-	GetDBInstanceTags(dbInstance *rds.DBInstance, opts ...DescribeOption) ([]*rds.Tag, error)
+	GetResourceTags(resourceArn string, opts ...DescribeOption) ([]*rds.Tag, error)
 	DescribeByTag(TagName, TagValue string, opts ...DescribeOption) ([]*rds.DBInstance, error)
 	DescribeSnapshots(DBInstanceID string) ([]*rds.DBSnapshot, error)
-	// TODO: GetSnapshotTags is basically the same than GetDBInstanceTags
-	GetSnapshotTags(snapshot *rds.DBSnapshot, opts ...DescribeOption) ([]*rds.Tag, error)
 	DeleteSnapshots(brokerName string, keepForDays int) error
 	Create(createDBInstanceInput *rds.CreateDBInstanceInput) error
 	Restore(restoreRBInstanceInput *rds.RestoreDBInstanceFromDBSnapshotInput) error
