@@ -1613,100 +1613,102 @@ var _ = Describe("RDS Broker", func() {
 		})
 	})
 
-	//Describe("Deprovision", func() {
-	//var (
-	//deprovisionDetails           brokerapi.DeprovisionDetails
-	//acceptsIncomplete            bool
-	//properDeprovisionServiceSpec brokerapi.DeprovisionServiceSpec
-	//)
+	Describe("Deprovision", func() {
+		var (
+			deprovisionDetails           brokerapi.DeprovisionDetails
+			acceptsIncomplete            bool
+			properDeprovisionServiceSpec brokerapi.DeprovisionServiceSpec
+		)
 
-	//BeforeEach(func() {
-	//deprovisionDetails = brokerapi.DeprovisionDetails{
-	//ServiceID: "Service-1",
-	//PlanID:    "Plan-1",
-	//}
-	//acceptsIncomplete = true
-	//properDeprovisionServiceSpec = brokerapi.DeprovisionServiceSpec{
-	//IsAsync: true,
-	//}
-	//})
+		BeforeEach(func() {
+			deprovisionDetails = brokerapi.DeprovisionDetails{
+				ServiceID: "Service-1",
+				PlanID:    "Plan-1",
+			}
+			acceptsIncomplete = true
+			properDeprovisionServiceSpec = brokerapi.DeprovisionServiceSpec{
+				IsAsync: true,
+			}
+		})
 
-	//It("returns the proper response", func() {
-	//deprovisionServiceSpec, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
-	//Expect(deprovisionServiceSpec).To(Equal(properDeprovisionServiceSpec))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
+		It("returns the proper response", func() {
+			deprovisionServiceSpec, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
+			Expect(deprovisionServiceSpec).To(Equal(properDeprovisionServiceSpec))
+			Expect(err).ToNot(HaveOccurred())
+		})
 
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
-	//Expect(dbInstance.DeleteCalled).To(BeTrue())
-	//Expect(dbInstance.DeleteID).To(Equal(dbInstanceIdentifier))
-	//Expect(dbInstance.DeleteSkipFinalSnapshot).To(BeTrue())
-	//Expect(err).ToNot(HaveOccurred())
-	//})
+		It("makes the proper calls", func() {
+			_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(rdsInstance.DeleteCallCount()).To(Equal(1))
+			id, skipFinalSnapshot := rdsInstance.DeleteArgsForCall(0)
+			Expect(id).To(Equal(dbInstanceIdentifier))
+			Expect(skipFinalSnapshot).To(BeTrue())
+		})
 
-	//Context("when it does not skip final snaphot", func() {
-	//BeforeEach(func() {
-	//rdsProperties1.SkipFinalSnapshot = false
-	//})
+		Context("when it does not skip final snaphot", func() {
+			BeforeEach(func() {
+				rdsProperties1.SkipFinalSnapshot = boolPointer(false)
+			})
 
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
-	//Expect(dbInstance.DeleteCalled).To(BeTrue())
-	//Expect(dbInstance.DeleteID).To(Equal(dbInstanceIdentifier))
-	//Expect(dbInstance.DeleteSkipFinalSnapshot).To(BeFalse())
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.DeleteCallCount()).To(Equal(1))
+				id, skipFinalSnapshot := rdsInstance.DeleteArgsForCall(0)
+				Expect(id).To(Equal(dbInstanceIdentifier))
+				Expect(skipFinalSnapshot).To(BeFalse())
+			})
+		})
 
-	//Context("when request does not accept incomplete", func() {
-	//BeforeEach(func() {
-	//acceptsIncomplete = false
-	//})
+		Context("when request does not accept incomplete", func() {
+			BeforeEach(func() {
+				acceptsIncomplete = false
+			})
 
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err).To(Equal(brokerapi.ErrAsyncRequired))
-	//})
-	//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(Equal(brokerapi.ErrAsyncRequired))
+			})
+		})
 
-	//Context("when Service Plan is not found", func() {
-	//BeforeEach(func() {
-	//deprovisionDetails.PlanID = "unknown"
-	//})
+		Context("when Service Plan is not found", func() {
+			BeforeEach(func() {
+				deprovisionDetails.PlanID = "unknown"
+			})
 
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Service Plan 'unknown' not found"))
-	//})
-	//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("Service Plan 'unknown' not found"))
+			})
+		})
 
-	//Context("when deleting the DB Instance fails", func() {
-	//BeforeEach(func() {
-	//dbInstance.DeleteError = errors.New("operation failed")
-	//})
+		Context("when deleting the DB Instance fails", func() {
+			BeforeEach(func() {
+				rdsInstance.DeleteReturns(errors.New("operation failed"))
+			})
 
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("operation failed"))
-	//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("operation failed"))
+			})
 
-	//Context("when the DB instance does not exists", func() {
-	//BeforeEach(func() {
-	//dbInstance.DeleteError = awsrds.ErrDBInstanceDoesNotExist
-	//})
+			Context("when the DB instance does not exists", func() {
+				BeforeEach(func() {
+					rdsInstance.DeleteReturns(awsrds.ErrDBInstanceDoesNotExist)
+				})
 
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
-	//})
-	//})
-	//})
-	//})
+				It("returns the proper error", func() {
+					_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+				})
+			})
+		})
+	})
 
 	//Describe("Bind", func() {
 	//var (
