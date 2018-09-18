@@ -732,6 +732,7 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		skipFinalSnapshot = strconv.FormatBool(*servicePlan.RDSProperties.SkipFinalSnapshot)
 	}
 	return &rds.CreateDBInstanceInput{
+		DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBName:                     aws.String(b.dbName(instanceID)),
 		MasterUsername:             aws.String(b.generateMasterUsername()),
 		MasterUserPassword:         aws.String(b.generateMasterPassword(instanceID)),
