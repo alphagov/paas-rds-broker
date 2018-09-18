@@ -260,7 +260,18 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
 	}
 
-	modifyDBInstanceInput, tags := b.newModifyDBInstanceInputAndTags(instanceID, servicePlan, updateParameters, details)
+	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan)
+	modifyDBInstanceInput.ApplyImmediately = aws.Bool(!updateParameters.ApplyAtMaintenanceWindow)
+
+	var skipFinalSnapshot string
+	if updateParameters.SkipFinalSnapshot != nil {
+		skipFinalSnapshot = strconv.FormatBool(*updateParameters.SkipFinalSnapshot)
+	} else {
+		skipFinalSnapshot = strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot == nil && *servicePlan.RDSProperties.SkipFinalSnapshot)
+	}
+
+	tags := awsrds.BuilRDSTags(b.dbTags("Updated", details.ServiceID, details.PlanID, "", "", skipFinalSnapshot, ""))
+
 	if err := b.dbInstance.Modify(modifyDBInstanceInput, tags); err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			return brokerapi.UpdateServiceSpec{}, brokerapi.ErrInstanceDoesNotExist
@@ -855,21 +866,6 @@ func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan Serv
 
 	return modifyDBInstanceInput
 
-}
-
-func (b *RDSBroker) newModifyDBInstanceInputAndTags(instanceID string, servicePlan ServicePlan, updateParameters UpdateParameters, details brokerapi.UpdateDetails) (*rds.ModifyDBInstanceInput, []*rds.Tag) {
-	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan)
-	modifyDBInstanceInput.ApplyImmediately = aws.Bool(!updateParameters.ApplyAtMaintenanceWindow)
-
-	var skipFinalSnapshot string
-	if updateParameters.SkipFinalSnapshot != nil {
-		skipFinalSnapshot = strconv.FormatBool(*updateParameters.SkipFinalSnapshot)
-	} else {
-		skipFinalSnapshot = strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot == nil && *servicePlan.RDSProperties.SkipFinalSnapshot)
-	}
-
-	tags := awsrds.BuilRDSTags(b.dbTags("Updated", details.ServiceID, details.PlanID, "", "", skipFinalSnapshot, ""))
-	return modifyDBInstanceInput, tags
 }
 
 func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID, skipFinalSnapshot, originSnapshotIdentifier string) map[string]string {
