@@ -9,13 +9,6 @@ import (
 	. "github.com/alphagov/paas-rds-broker/rdsbroker"
 )
 
-func int64Pointer(input int64) *int64 {
-	return &input
-}
-func stringPointer(input string) *string {
-	return &input
-}
-
 var _ = Describe("Catalog", func() {
 	var (
 		catalog Catalog

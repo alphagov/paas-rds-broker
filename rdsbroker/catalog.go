@@ -150,11 +150,11 @@ func (sp ServicePlan) Validate(c Catalog) error {
 }
 
 func (rp RDSProperties) Validate(c Catalog) error {
-	if rp.DBInstanceClass != nil && *rp.DBInstanceClass == "" {
+	if rp.DBInstanceClass == nil || *rp.DBInstanceClass == "" {
 		return fmt.Errorf("Must provide a non-empty DBInstanceClass")
 	}
 
-	if rp.Engine != nil && *rp.Engine == "" {
+	if rp.Engine == nil || *rp.Engine == "" {
 		return fmt.Errorf("Must provide a non-empty Engine")
 	}
 
