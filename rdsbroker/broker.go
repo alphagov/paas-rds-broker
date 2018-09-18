@@ -28,7 +28,7 @@ const detailsLogKey = "details"
 const asyncAllowedLogKey = "acceptsIncomplete"
 const updateParametersLogKey = "updateParameters"
 const servicePlanLogKey = "servicePlan"
-const dbInstanceDetailsLogKey = "dbInstanceDetails"
+const dbInstanceLogKey = "dbInstance"
 const lastOperationResponseLogKey = "lastOperationResponse"
 
 var (
@@ -361,7 +361,7 @@ func (b *RDSBroker) Bind(
 		return bindingResponse, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
-	dbInstanceDetails, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
+	dbInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			return bindingResponse, brokerapi.ErrInstanceDoesNotExist
@@ -369,18 +369,10 @@ func (b *RDSBroker) Bind(
 		return bindingResponse, err
 	}
 
-	var (
-		dbAddress string
-		dbPort    int64
-	)
-	if dbInstanceDetails.Endpoint == nil {
-		dbAddress = ""
-	} else {
-		dbAddress = aws.StringValue(dbInstanceDetails.Endpoint.Address)
-		dbPort = aws.Int64Value(dbInstanceDetails.Endpoint.Port)
-	}
-	masterUsername := aws.StringValue(dbInstanceDetails.MasterUsername)
-	dbName := b.dbNameFromDBInstance(instanceID, dbInstanceDetails)
+	dbAddress := awsrds.GetDBAddress(dbInstance.Endpoint)
+	dbPort := awsrds.GetDBPort(dbInstance.Endpoint)
+	masterUsername := aws.StringValue(dbInstance.MasterUsername)
+	dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
 
 	var engine string
 	if servicePlan.RDSProperties.Engine != nil {
@@ -425,12 +417,12 @@ func (b *RDSBroker) Unbind(
 		detailsLogKey:    details,
 	})
 
-	servicePlan, ok := b.catalog.FindServicePlan(details.PlanID)
+	_, ok := b.catalog.FindServicePlan(details.PlanID)
 	if !ok {
 		return fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
-	dbInstanceDetails, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
+	dbInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			return brokerapi.ErrInstanceDoesNotExist
@@ -438,29 +430,9 @@ func (b *RDSBroker) Unbind(
 		return err
 	}
 
-	var (
-		dbAddress string
-		dbPort    int64
-	)
-	if dbInstanceDetails.Endpoint == nil {
-		dbAddress = ""
-	} else {
-		dbAddress = aws.StringValue(dbInstanceDetails.Endpoint.Address)
-		dbPort = aws.Int64Value(dbInstanceDetails.Endpoint.Port)
-	}
-	masterUsername := aws.StringValue(dbInstanceDetails.MasterUsername)
-	dbName := b.dbNameFromDBInstance(instanceID, dbInstanceDetails)
-
-	var engine string
-	if servicePlan.RDSProperties.Engine != nil {
-		engine = *servicePlan.RDSProperties.Engine
-	}
-	sqlEngine, err := b.sqlProvider.GetSQLEngine(engine)
+	dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
+	sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
 	if err != nil {
-		return err
-	}
-
-	if err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, b.generateMasterPassword(instanceID)); err != nil {
 		return err
 	}
 	defer sqlEngine.Close()
@@ -480,7 +452,7 @@ func (b *RDSBroker) LastOperation(
 		instanceIDLogKey: instanceID,
 	})
 
-	dbInstanceDetails, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
+	dbInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
 			err = brokerapi.ErrInstanceDoesNotExist
@@ -489,7 +461,7 @@ func (b *RDSBroker) LastOperation(
 	}
 
 	tags, err := b.dbInstance.GetResourceTags(
-		aws.StringValue(dbInstanceDetails.DBInstanceArn),
+		aws.StringValue(dbInstance.DBInstanceArn),
 		awsrds.DescribeRefreshCacheOption,
 	)
 	if err != nil {
@@ -498,7 +470,7 @@ func (b *RDSBroker) LastOperation(
 
 	tagsByName := awsrds.RDSTagsValues(tags)
 
-	status := aws.StringValue(dbInstanceDetails.DBInstanceStatus)
+	status := aws.StringValue(dbInstance.DBInstanceStatus)
 	state, ok := rdsStatus2State[status]
 	if !ok {
 		state = brokerapi.InProgress
@@ -510,13 +482,13 @@ func (b *RDSBroker) LastOperation(
 	}
 
 	if lastOperationResponse.State == brokerapi.Succeeded {
-		if dbInstanceDetails.PendingModifiedValues != nil {
+		if dbInstance.PendingModifiedValues != nil {
 			lastOperationResponse = brokerapi.LastOperation{
 				State:       brokerapi.InProgress,
 				Description: fmt.Sprintf("DB Instance '%s' has pending modifications", b.dbInstanceIdentifier(instanceID)),
 			}
 		} else {
-			asyncOperarionTriggered, err := b.PostRestoreTasks(instanceID, dbInstanceDetails, tagsByName)
+			asyncOperarionTriggered, err := b.PostRestoreTasks(instanceID, dbInstance, tagsByName)
 			if err != nil {
 				return brokerapi.LastOperation{State: brokerapi.Failed}, err
 			}
@@ -526,7 +498,7 @@ func (b *RDSBroker) LastOperation(
 					Description: fmt.Sprintf("DB Instance '%s' has pending post restore modifications", b.dbInstanceIdentifier(instanceID)),
 				}
 			} else {
-				err = b.ensureCreateExtensions(instanceID, dbInstanceDetails, tagsByName)
+				err = b.ensureCreateExtensions(instanceID, dbInstance, tagsByName)
 				if err != nil {
 					return brokerapi.LastOperation{State: brokerapi.Failed}, err
 				}
@@ -553,26 +525,10 @@ func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstance *rds.DB
 		return fmt.Errorf("Service Plan '%s' not found while ensuring extensions are created", planID)
 	}
 
-	if engine := servicePlan.RDSProperties.Engine; engine != nil && *engine == "postgres" {
-		var (
-			dbAddress string
-			dbPort    int64
-		)
-		if dbInstance.Endpoint == nil {
-			dbAddress = ""
-		} else {
-			dbAddress = aws.StringValue(dbInstance.Endpoint.Address)
-			dbPort = aws.Int64Value(dbInstance.Endpoint.Port)
-		}
-		masterUsername := aws.StringValue(dbInstance.MasterUsername)
+	if aws.StringValue(dbInstance.Engine) == "postgres" {
 		dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
-
-		sqlEngine, err := b.sqlProvider.GetSQLEngine(*engine)
+		sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
 		if err != nil {
-			return err
-		}
-
-		if err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, b.generateMasterPassword(instanceID)); err != nil {
 			return err
 		}
 		defer sqlEngine.Close()
@@ -630,19 +586,10 @@ func (b *RDSBroker) rebootInstance(instanceID string, dbInstance *rds.DBInstance
 	return true, nil
 }
 
-func (b *RDSBroker) changeUserPassword(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperarionTriggered bool, err error) {
-	var (
-		dbAddress string
-		dbPort    int64
-	)
-	if dbInstance.Endpoint == nil {
-		dbAddress = ""
-	} else {
-		dbAddress = aws.StringValue(dbInstance.Endpoint.Address)
-		dbPort = aws.Int64Value(dbInstance.Endpoint.Port)
-	}
+func (b *RDSBroker) openSQLEngineForDBInstance(instanceID string, dbName string, dbInstance *rds.DBInstance) (sqlengine.SQLEngine, error) {
+	dbAddress := awsrds.GetDBAddress(dbInstance.Endpoint)
+	dbPort := awsrds.GetDBPort(dbInstance.Endpoint)
 	masterUsername := aws.StringValue(dbInstance.MasterUsername)
-	dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
 
 	var engine string
 	if dbInstance.Engine != nil {
@@ -650,19 +597,30 @@ func (b *RDSBroker) changeUserPassword(instanceID string, dbInstance *rds.DBInst
 	}
 	sqlEngine, err := b.sqlProvider.GetSQLEngine(engine)
 	if err != nil {
-		return false, err
+		b.logger.Error(fmt.Sprintf("Could not determine SQL Engine %s of instance %v", engine, dbName), err)
+		return nil, err
 	}
 
-	if err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, b.generateMasterPassword(instanceID)); err != nil {
+	err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, b.generateMasterPassword(instanceID))
+	if err != nil {
+		sqlEngine.Close()
+		return nil, err
+	}
+
+	return sqlEngine, err
+}
+
+func (b *RDSBroker) changeUserPassword(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperarionTriggered bool, err error) {
+	dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
+	sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
+	if err != nil {
 		return false, err
 	}
 	defer sqlEngine.Close()
-
 	err = sqlEngine.ResetState()
 	if err != nil {
 		return false, err
 	}
-
 	return true, nil
 }
 
@@ -694,46 +652,31 @@ func (b *RDSBroker) PostRestoreTasks(instanceID string, dbInstance *rds.DBInstan
 func (b *RDSBroker) CheckAndRotateCredentials() {
 	b.logger.Info(fmt.Sprintf("Started checking credentials of RDS instances managed by this broker"))
 
-	dbInstanceDetailsList, err := b.dbInstance.DescribeByTag("Broker Name", b.brokerName)
+	dbInstances, err := b.dbInstance.DescribeByTag("Broker Name", b.brokerName)
 	if err != nil {
 		b.logger.Error("Could not obtain the list of instances", err)
 		return
 	}
 
-	b.logger.Debug(fmt.Sprintf("Found %v RDS instances managed by the broker", len(dbInstanceDetailsList)))
+	b.logger.Debug(fmt.Sprintf("Found %v RDS instances managed by the broker", len(dbInstances)))
 
-	for _, dbInstance := range dbInstanceDetailsList {
+	for _, dbInstance := range dbInstances {
 		dbInstanceIdentifier := aws.StringValue(dbInstance.DBInstanceIdentifier)
 		b.logger.Debug(fmt.Sprintf("Checking credentials for instance %v", dbInstanceIdentifier))
 		serviceInstanceID := b.dbInstanceIdentifierToServiceInstanceID(dbInstanceIdentifier)
 		masterPassword := b.generateMasterPassword(serviceInstanceID)
+
+		// Hey, this is wrong:
 		dbName := b.dbNameFromDBInstance(dbInstanceIdentifier, dbInstance)
 
-		sqlEngine, err := b.sqlProvider.GetSQLEngine(aws.StringValue(dbInstance.Engine))
-		if err != nil {
-			b.logger.Error(fmt.Sprintf("Could not determine SQL Engine of instance %v", dbInstanceIdentifier), err)
-			continue
-		}
-
-		var (
-			dbAddress string
-			dbPort    int64
-		)
-		if dbInstance.Endpoint == nil {
-			dbAddress = ""
-		} else {
-			dbAddress = aws.StringValue(dbInstance.Endpoint.Address)
-			dbPort = aws.Int64Value(dbInstance.Endpoint.Port)
-		}
-		masterUsername := aws.StringValue(dbInstance.MasterUsername)
-		err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, masterPassword)
+		sqlEngine, err := b.openSQLEngineForDBInstance(serviceInstanceID, dbName, dbInstance)
 		sqlEngine.Close()
 
 		if err != nil {
 			if err == sqlengine.LoginFailedError {
-				b.logger.Info(fmt.Sprintf(
-					"Login failed when connecting to DB %v at %v. Will attempt to reset the password.",
-					dbName, dbAddress))
+				b.logger.Info(
+					"Login failed when connecting to DB. Will attempt to reset the password.",
+					lager.Data{"engine": sqlEngine, "endpoint": dbInstance.Endpoint})
 				changePasswordInput := &rds.ModifyDBInstanceInput{
 					DBInstanceIdentifier: dbInstance.DBInstanceIdentifier,
 					MasterUserPassword:   aws.String(masterPassword),
@@ -743,7 +686,7 @@ func (b *RDSBroker) CheckAndRotateCredentials() {
 					b.logger.Error(fmt.Sprintf("Could not reset the master password of instance %v", dbInstanceIdentifier), err)
 				}
 			} else {
-				b.logger.Error(fmt.Sprintf("Unknown error when connecting to DB %v at %v", dbName, dbAddress), err)
+				b.logger.Error(fmt.Sprintf("Unknown error when connecting to DB"), err, lager.Data{"id": dbInstanceIdentifier, "endpoint": dbInstance.Endpoint})
 			}
 		}
 	}
@@ -870,9 +813,9 @@ func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan Serv
 	}
 
 	b.logger.Debug("newModifyDBInstanceInputAndTags", lager.Data{
-		instanceIDLogKey:        instanceID,
-		servicePlanLogKey:       servicePlan,
-		dbInstanceDetailsLogKey: modifyDBInstanceInput,
+		instanceIDLogKey:  instanceID,
+		servicePlanLogKey: servicePlan,
+		dbInstanceLogKey:  modifyDBInstanceInput,
 	})
 
 	return modifyDBInstanceInput

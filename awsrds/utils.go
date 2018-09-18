@@ -76,3 +76,20 @@ func HandleAWSError(err error, logger lager.Logger) error {
 	}
 	return err
 }
+
+func GetDBPort(endpoint *rds.Endpoint) (int64) {
+	if endpoint == nil {
+		return 0
+	} else {
+		return aws.Int64Value(endpoint.Port)
+	}
+}
+
+func GetDBAddress(endpoint *rds.Endpoint) (dbAddress string) {
+	if endpoint == nil {
+		return ""
+	} else {
+		return aws.StringValue(endpoint.Address)
+	}
+}
+
