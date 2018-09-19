@@ -670,8 +670,9 @@ func (b *RDSBroker) CheckAndRotateCredentials() {
 		dbName := b.dbNameFromDBInstance(dbInstanceIdentifier, dbInstance)
 
 		sqlEngine, err := b.openSQLEngineForDBInstance(serviceInstanceID, dbName, dbInstance)
-		sqlEngine.Close()
-
+		if sqlEngine != nil {
+			sqlEngine.Close()
+		}
 		if err != nil {
 			if err == sqlengine.LoginFailedError {
 				b.logger.Info(
