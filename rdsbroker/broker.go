@@ -466,6 +466,9 @@ func (b *RDSBroker) LastOperation(
 		awsrds.DescribeRefreshCacheOption,
 	)
 	if err != nil {
+		if err == awsrds.ErrDBInstanceDoesNotExist {
+			err = brokerapi.ErrInstanceDoesNotExist
+		}
 		return brokerapi.LastOperation{State: brokerapi.Failed}, err
 	}
 

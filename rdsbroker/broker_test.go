@@ -2207,6 +2207,13 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
+		It("returns InstanceDoesNotExist if it is not found when getting the tags", func() {
+			rdsInstance.GetResourceTagsReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
+			_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+		})
+
 		Context("when last operation is still in progress", func() {
 			BeforeEach(func() {
 				dbInstanceStatus = "creating"
