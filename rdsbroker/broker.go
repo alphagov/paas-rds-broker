@@ -726,12 +726,14 @@ func (b *RDSBroker) dbNameFromDBInstance(instanceID string, dbInstance *rds.DBIn
 }
 
 func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) *rds.CreateDBInstanceInput {
-	var skipFinalSnapshot string
+	skipFinalSnapshot := false
 	if provisionParameters.SkipFinalSnapshot != nil {
-		skipFinalSnapshot = strconv.FormatBool(*provisionParameters.SkipFinalSnapshot)
-	} else {
-		skipFinalSnapshot = strconv.FormatBool(*servicePlan.RDSProperties.SkipFinalSnapshot)
+		skipFinalSnapshot = *provisionParameters.SkipFinalSnapshot
+	} else if servicePlan.RDSProperties.SkipFinalSnapshot != nil {
+		skipFinalSnapshot = *servicePlan.RDSProperties.SkipFinalSnapshot
 	}
+	skipFinalSnapshotStr := strconv.FormatBool(skipFinalSnapshot)
+
 	return &rds.CreateDBInstanceInput{
 		DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBName:                     aws.String(b.dbName(instanceID)),
@@ -761,17 +763,19 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		StorageEncrypted:      servicePlan.RDSProperties.StorageEncrypted,
 		StorageType:           servicePlan.RDSProperties.StorageType,
 		VpcSecurityGroupIds:   servicePlan.RDSProperties.VpcSecurityGroupIds,
-		Tags:                  awsrds.BuilRDSTags(b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshot, "")),
+		Tags:                  awsrds.BuilRDSTags(b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, "")),
 	}
 }
 
 func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) *rds.RestoreDBInstanceFromDBSnapshotInput {
-	var skipFinalSnapshot string
+	skipFinalSnapshot := false
 	if provisionParameters.SkipFinalSnapshot != nil {
-		skipFinalSnapshot = strconv.FormatBool(*provisionParameters.SkipFinalSnapshot)
-	} else {
-		skipFinalSnapshot = strconv.FormatBool(*servicePlan.RDSProperties.SkipFinalSnapshot)
+		skipFinalSnapshot = *provisionParameters.SkipFinalSnapshot
+	} else if servicePlan.RDSProperties.SkipFinalSnapshot != nil {
+		skipFinalSnapshot = *servicePlan.RDSProperties.SkipFinalSnapshot
 	}
+	skipFinalSnapshotStr := strconv.FormatBool(skipFinalSnapshot)
+
 	return &rds.RestoreDBInstanceFromDBSnapshotInput{
 		DBSnapshotIdentifier:    aws.String(snapshotIdentifier),
 		DBInstanceIdentifier:    aws.String(instanceID),
@@ -788,7 +792,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		MultiAZ:                 servicePlan.RDSProperties.MultiAZ,
 		Port:                    servicePlan.RDSProperties.Port,
 		StorageType:             servicePlan.RDSProperties.StorageType,
-		Tags:                    awsrds.BuilRDSTags(b.dbTags("Restored", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshot, snapshotIdentifier)),
+		Tags:                    awsrds.BuilRDSTags(b.dbTags("Restored", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, snapshotIdentifier)),
 	}
 }
 
