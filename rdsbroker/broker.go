@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -482,7 +483,14 @@ func (b *RDSBroker) LastOperation(
 	}
 
 	if lastOperationResponse.State == brokerapi.Succeeded {
+		hasPendingModifications := false
 		if dbInstance.PendingModifiedValues != nil {
+			emptyPendingModifiedValues := rds.PendingModifiedValues{}
+			if !reflect.DeepEqual(*dbInstance.PendingModifiedValues, emptyPendingModifiedValues) {
+				hasPendingModifications = true
+			}
+		}
+		if hasPendingModifications {
 			lastOperationResponse = brokerapi.LastOperation{
 				State:       brokerapi.InProgress,
 				Description: fmt.Sprintf("DB Instance '%s' has pending modifications", b.dbInstanceIdentifier(instanceID)),

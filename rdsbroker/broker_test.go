@@ -2316,6 +2316,15 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 
+			It("If instance.PendingModifiedValues is empty it returns the right state", func() {
+				newDBInstance := *defaultDBInstance
+				newDBInstance.PendingModifiedValues = &rds.PendingModifiedValues{}
+				rdsInstance.DescribeReturns(&newDBInstance, nil)
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+			})
+
 			Context("but there are pending post restore tasks", func() {
 				JustBeforeEach(func() {
 					rdsInstance.GetResourceTagsReturns(
