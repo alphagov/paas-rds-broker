@@ -16,7 +16,7 @@ import (
 var _ = Describe("Process", func() {
 
 	var cfg *config.Config
-	var dbInstance *fakes.FakeDBInstance
+	var rdsInstance *fakes.FakeRDSInstance
 	var logger lager.Logger
 	var process *Process
 
@@ -29,9 +29,9 @@ var _ = Describe("Process", func() {
 			KeepSnapshotsForDays: 7,
 			CronSchedule:         "* * * * *",
 		}
-		dbInstance = &fakes.FakeDBInstance{}
+		rdsInstance = &fakes.FakeRDSInstance{}
 		logger = lager.NewLogger("main.test")
-		process = NewProcess(cfg, dbInstance, logger)
+		process = NewProcess(cfg, rdsInstance, logger)
 	})
 
 	AfterEach(func() {
@@ -45,13 +45,16 @@ var _ = Describe("Process", func() {
 		}()
 
 		Eventually(func() int {
-			return dbInstance.DeleteSnapshotsCallCount
+			return rdsInstance.DeleteSnapshotsCallCount()
 		}, "5s").Should(BeNumerically(">=", 2))
 
-		Expect(dbInstance.DeleteSnapshotsBrokerName[0]).To(Equal("test-broker"))
-		Expect(dbInstance.DeleteSnapshotsKeepForDays[0]).To(Equal(7))
-		Expect(dbInstance.DeleteSnapshotsBrokerName[1]).To(Equal("test-broker"))
-		Expect(dbInstance.DeleteSnapshotsKeepForDays[1]).To(Equal(7))
+		brokerName, keepForDays := rdsInstance.DeleteSnapshotsArgsForCall(0)
+		Expect(brokerName).To(Equal("test-broker"))
+		Expect(keepForDays).To(Equal(7))
+
+		brokerName, keepForDays = rdsInstance.DeleteSnapshotsArgsForCall(1)
+		Expect(brokerName).To(Equal("test-broker"))
+		Expect(keepForDays).To(Equal(7))
 
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -62,9 +65,9 @@ var _ = Describe("Process", func() {
 			err = process.Start()
 		}()
 
-		dbInstance.DeleteSnapshotsError = []error{errors.New("some error")}
+		rdsInstance.DeleteSnapshotsReturns(errors.New("some error"))
 		Eventually(func() int {
-			return dbInstance.DeleteSnapshotsCallCount
+			return rdsInstance.DeleteSnapshotsCallCount()
 		}, "5s").Should(BeNumerically(">=", 2))
 
 		Expect(err).ToNot(HaveOccurred())
