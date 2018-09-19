@@ -18,6 +18,7 @@ import (
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	. "github.com/alphagov/paas-rds-broker/rdsbroker"
+	"github.com/alphagov/paas-rds-broker/sqlengine"
 
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
@@ -2096,562 +2097,568 @@ var _ = Describe("RDS Broker", func() {
 		})
 	})
 
-	//Describe("LastOperation", func() {
-	//var (
-	//dbInstanceStatus            string
-	//lastOperationState          brokerapi.LastOperationState
-	//properLastOperationResponse brokerapi.LastOperation
-	//)
-
-	//JustBeforeEach(func() {
-	//dbInstance.DescribeDBInstanceDetails = awsrds.DBInstanceDetails{
-	//Identifier:     dbInstanceIdentifier,
-	//Engine:         "test-engine",
-	//Address:        "endpoint-address",
-	//Port:           3306,
-	//DBName:         "test-db",
-	//MasterUsername: "master-username",
-	//Status:         dbInstanceStatus,
-	//Tags: map[string]string{
-	//"Owner":       "Cloud Foundry",
-	//"Broker Name": "mybroker",
-	//"Created by":  "AWS RDS Service Broker",
-	//"Service ID":  "Service-1",
-	//"Plan ID":     "Plan-1",
-	//},
-	//}
-
-	//properLastOperationResponse = brokerapi.LastOperation{
-	//State:       lastOperationState,
-	//Description: "DB Instance '" + dbInstanceIdentifier + "' status is '" + dbInstanceStatus + "'",
-	//}
-	//})
-
-	//Context("when describing the DB Instance fails", func() {
-	//BeforeEach(func() {
-	//dbInstance.DescribeError = errors.New("operation failed")
-	//})
-
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("operation failed"))
-	//})
-
-	//Context("when the DB Instance does not exists", func() {
-	//BeforeEach(func() {
-	//dbInstance.DescribeError = awsrds.ErrDBInstanceDoesNotExist
-	//})
-
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).To(HaveOccurred())
-	//Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
-	//})
-
-	//It("brokerapi integration returns a status 410 Gone", func() {
-	//recorder := httptest.NewRecorder()
-
-	//req, _ := http.NewRequest(
-	//"GET",
-	//"http://example.com/v2/service_instances/"+instanceID+"/last_operation",
-	//nil,
-	//)
-	//req.SetBasicAuth(brokeruser, brokerpass)
-	//fmt.Fprintf(GinkgoWriter, "%s:\n", recorder.Body.Bytes())
-
-	//rdsBrokerServer.ServeHTTP(recorder, req)
-	//Expect(recorder.Code).To(Equal(410))
-	//})
-
-	//})
-	//})
-
-	//Context("when last operation is still in progress", func() {
-	//BeforeEach(func() {
-	//dbInstanceStatus = "creating"
-	//lastOperationState = brokerapi.InProgress
-	//})
-
-	//It("calls Describe() with the refresh cache option", func() {
-	//lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
-
-	//Expect(dbInstance.DescribeOpts).To(ContainElement(awsrds.DescribeRefreshCacheOption))
-	//})
-
-	//It("returns the proper LastOperationResponse", func() {
-	//lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
-	//})
-
-	//Context("and there are pending post restore tasks", func() {
-	//JustBeforeEach(func() {
-	//dbInstance.DescribeDBInstanceDetails.Tags["PendingUpdateSettings"] = "true"
-	//})
-	//It("should not call RemoveTag to remove the tag PendingUpdateSettings", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(dbInstance.RemoveTagCalled).To(BeFalse())
-	//})
-
-	//It("should not modify the DB instance", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(dbInstance.ModifyCalled).To(BeFalse())
-	//})
-	//})
-
-	//})
-
-	//Context("when last operation failed", func() {
-	//BeforeEach(func() {
-	//dbInstanceStatus = "failed"
-	//lastOperationState = brokerapi.Failed
-	//})
-
-	//It("returns the proper LastOperationResponse", func() {
-	//lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
-	//})
-	//})
-
-	//Context("when last operation succeeded", func() {
-	//BeforeEach(func() {
-	//dbInstanceStatus = "available"
-	//lastOperationState = brokerapi.Succeeded
-	//})
-
-	//It("returns the proper LastOperationResponse", func() {
-	//lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
-	//})
-
-	//Context("the SQL engine is Postgres", func() {
-	//JustBeforeEach(func() {
-	//dbInstance.DescribeDBInstanceDetails.Tags = map[string]string{
-	//"Plan ID": "Plan-3",
-	//}
-	//})
-
-	//It("attempts to create Postgres extenions", func() {
-	//lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(sqlEngine.CreateExtensionsCalled).To(BeTrue())
-	//Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
-	//})
-	//})
-
-	//Context("but has pending modifications", func() {
-	//JustBeforeEach(func() {
-	//dbInstance.DescribeDBInstanceDetails.PendingModifications = true
-
-	//properLastOperationResponse = brokerapi.LastOperation{
-	//State:       brokerapi.InProgress,
-	//Description: "DB Instance '" + dbInstanceIdentifier + "' has pending modifications",
-	//}
-	//})
-
-	//It("returns the proper LastOperationResponse", func() {
-	//lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
-	//})
-	//})
-
-	//Context("but there are pending post restore tasks", func() {
-	//JustBeforeEach(func() {
-	//dbInstance.DescribeDBInstanceDetails.Tags["PendingUpdateSettings"] = "true"
-
-	//properLastOperationResponse = brokerapi.LastOperation{
-	//State:       brokerapi.InProgress,
-	//Description: "DB Instance '" + dbInstanceIdentifier + "' has pending post restore modifications",
-	//}
-	//})
-	//It("should call RemoveTag to remove the tag PendingUpdateSettings", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(dbInstance.RemoveTagCalled).To(BeTrue())
-	//Expect(dbInstance.RemoveTagID).To(Equal(dbInstanceIdentifier))
-	//Expect(dbInstance.RemoveTagTagKey).To(Equal("PendingUpdateSettings"))
-	//})
-
-	//It("should return the proper LastOperationResponse", func() {
-	//lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
-	//})
-
-	//Context("when remove tag fails", func() {
-	//BeforeEach(func() {
-	//dbInstance.RemoveTagError = errors.New("Failed to remove tag")
-	//})
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Failed to remove tag"))
-	//})
-	//})
-
-	//It("modifies the DB instance", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(dbInstance.ModifyCalled).To(BeTrue())
-	//Expect(dbInstance.ModifyID).To(Equal(dbInstanceIdentifier))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-
-	//It("sets the right tags", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(dbInstance.ModifyDBInstanceDetails.Tags["Owner"]).To(Equal("Cloud Foundry"))
-	//Expect(dbInstance.ModifyDBInstanceDetails.Tags["Broker Name"]).To(Equal("mybroker"))
-	//Expect(dbInstance.ModifyDBInstanceDetails.Tags["Restored by"]).To(Equal("AWS RDS Service Broker"))
-	//Expect(dbInstance.ModifyDBInstanceDetails.Tags).To(HaveKey("Restored at"))
-	//Expect(dbInstance.ModifyDBInstanceDetails.Tags["Service ID"]).To(Equal("Service-1"))
-	//Expect(dbInstance.ModifyDBInstanceDetails.Tags["Plan ID"]).To(Equal("Plan-1"))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-
-	//Context("when the master password needs to be rotated", func() {
-	//JustBeforeEach(func() {
-	//sqlEngine.CorrectPassword = "some-other-password"
-	//// use a callback function to set the password back to what it was before. This is because the Bind()
-	//// uses two different calls to the SQL engine's Open() method, the first needs to fail and the second needs to pass.
-	//dbInstance.ModifyCallback = func(ID string, dbInstanceDetails awsrds.DBInstanceDetails, applyImmediately bool) error {
-	//sqlEngine.CorrectPassword = dbInstanceDetails.MasterUserPassword
-	//return nil
-	//}
-	//})
-
-	//It("should try to change the master password", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(dbInstance.ModifyCalled).To(BeTrue())
-	//Expect(dbInstance.ModifyID).To(BeEquivalentTo(dbInstanceIdentifier))
-	//Expect(dbInstance.ModifyDBInstanceDetails.MasterUserPassword).ToNot(BeEmpty())
-	//})
-	//})
-
-	//Context("when has DBSecurityGroups", func() {
-	//BeforeEach(func() {
-	//rdsProperties1.DBSecurityGroups = []string{"test-db-security-group"}
-	//})
-
-	//It("makes the modify with the secutiry group", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(dbInstance.ModifyDBInstanceDetails.DBSecurityGroups).To(Equal([]string{"test-db-security-group"}))
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-	//})
-
-	//Context("but there are pending reboot", func() {
-	//JustBeforeEach(func() {
-	//dbInstance.DescribeDBInstanceDetails.Tags["PendingReboot"] = "true"
-
-	//properLastOperationResponse = brokerapi.LastOperation{
-	//State:       brokerapi.InProgress,
-	//Description: "DB Instance '" + dbInstanceIdentifier + "' has pending post restore modifications",
-	//}
-	//})
-
-	//It("should call RemoveTag to remove the tag PendingReboot", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(dbInstance.RemoveTagCalled).To(BeTrue())
-	//Expect(dbInstance.RemoveTagID).To(Equal(dbInstanceIdentifier))
-	//Expect(dbInstance.RemoveTagTagKey).To(Equal("PendingReboot"))
-	//})
-
-	//It("should return the proper LastOperationResponse", func() {
-	//lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
-	//})
-
-	//Context("when remove tag fails", func() {
-	//BeforeEach(func() {
-	//dbInstance.RemoveTagError = errors.New("Failed to remove tag")
-	//})
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Failed to remove tag"))
-	//})
-	//})
-
-	//It("reboot the DB instance", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(dbInstance.RebootCalled).To(BeTrue())
-	//Expect(dbInstance.RebootID).To(Equal(dbInstanceIdentifier))
-	//})
-	//})
-
-	//Context("but there is a pending reset user password", func() {
-	//JustBeforeEach(func() {
-	//dbInstance.DescribeDBInstanceDetails.Tags["PendingResetUserPassword"] = "true"
-
-	//properLastOperationResponse = brokerapi.LastOperation{
-	//State:       brokerapi.InProgress,
-	//Description: "DB Instance '" + dbInstanceIdentifier + "' has pending post restore modifications",
-	//}
-	//})
-
-	//It("should call RemoveTag to remove the tag PendingResetUserPassword", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(dbInstance.RemoveTagCalled).To(BeTrue())
-	//Expect(dbInstance.RemoveTagID).To(Equal(dbInstanceIdentifier))
-	//Expect(dbInstance.RemoveTagTagKey).To(Equal("PendingResetUserPassword"))
-	//})
-
-	//It("should return the proper LastOperationResponse", func() {
-	//lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
-	//})
-
-	//Context("when remove tag fails", func() {
-	//BeforeEach(func() {
-	//dbInstance.RemoveTagError = errors.New("Failed to remove tag")
-	//})
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Failed to remove tag"))
-	//})
-	//})
-
-	//It("should reset the database state by calling sqlengine.ResetState()", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(sqlEngine.ResetStateCalled).To(BeTrue())
-	//})
-
-	//Context("when sqlengine.ResetState() fails", func() {
-	//BeforeEach(func() {
-	//sqlEngine.ResetStateError = errors.New("Failed to reset state")
-	//})
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Failed to reset state"))
-	//})
-	//})
-	//})
-
-	//Context("but there are not post restore tasks or reset password to execute", func() {
-	//It("should not try to change the master password", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(dbInstance.ModifyCalled).To(BeFalse())
-	//})
-	//It("should not reset the database state by not calling sqlengine.ResetState()", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(sqlEngine.ResetStateCalled).To(BeFalse())
-	//})
-	//It("should not call RemoveTag", func() {
-	//_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(dbInstance.RemoveTagCalled).To(BeFalse())
-	//})
-	//})
-	//})
-
-	//checkLastOperationResponse := func(instanceStatus string, expectedLastOperationState brokerapi.LastOperationState) func() {
-	//return func() {
-	//BeforeEach(func() {
-	//dbInstanceStatus = instanceStatus
-	//lastOperationState = expectedLastOperationState
-	//})
-
-	//It("returns the state "+string(expectedLastOperationState), func() {
-	//lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
-	//})
-	//}
-	//}
-
-	//failureStatuses := []string{
-	//"failed",
-	//"inaccessible-encryption-credentials",
-	//"incompatible-credentials",
-	//"incompatible-network",
-	//"incompatible-option-group",
-	//"incompatible-parameters",
-	//"incompatible-restore",
-	//"restore-error",
-	//}
-	//for _, instanceStatus := range failureStatuses {
-	//Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.Failed))
-	//}
-
-	//successStatuses := []string{
-	//"available",
-	//}
-	//for _, instanceStatus := range successStatuses {
-	//Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.Succeeded))
-	//}
-
-	//inProgressStatuses := []string{
-	//"backing-up",
-	//"configuring-enhanced-monitoring",
-	//"creating",
-	//"deleting",
-	//"maintenance",
-	//"modifying",
-	//"rebooting",
-	//"renaming",
-	//"resetting-master-credentials",
-	//"starting",
-	//"stopping",
-	//"stopped",
-	//"storage-full",
-	//"storage-optimization",
-	//"upgrading",
-	//}
-	//for _, instanceStatus := range inProgressStatuses {
-	//Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.InProgress))
-	//}
-
-	//unexpectedStatuses := []string{
-	//"",
-	//"some-new-status",
-	//}
-	//for _, instanceStatus := range unexpectedStatuses {
-	//Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.InProgress))
-	//}
-
-	//})
-
-	//Describe("CheckAndRotateCredentials", func() {
-	//Context("when there is no DB instance", func() {
-	//It("shouldn't try to connect to databases", func() {
-	//rdsBroker.CheckAndRotateCredentials()
-	//Expect(sqlProvider.GetSQLEngineCalled).To(BeFalse())
-	//Expect(sqlEngine.OpenCalled).To(BeFalse())
-	//})
-	//})
-
-	//Context("when there are DB instances", func() {
-	//BeforeEach(func() {
-	//dbInstance.DescribeByTagDBInstanceDetails = []*awsrds.DBInstanceDetails{
-	//&awsrds.DBInstanceDetails{
-	//Identifier:     dbInstanceIdentifier,
-	//Address:        "endpoint-address",
-	//Port:           3306,
-	//DBName:         "test-db",
-	//MasterUsername: "master-username",
-	//Engine:         "fake-engine",
-	//},
-	//}
-	//})
-
-	//It("should try to connect to databases", func() {
-	//rdsBroker.CheckAndRotateCredentials()
-	//Expect(dbInstance.DescribeByTagCalled).To(BeTrue())
-	//Expect(dbInstance.DescribeByTagKey).To(BeEquivalentTo("Broker Name"))
-	//Expect(dbInstance.DescribeByTagValue).To(BeEquivalentTo(brokerName))
-	//Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
-	//Expect(sqlProvider.GetSQLEngineEngine).To(BeEquivalentTo("fake-engine"))
-	//Expect(sqlEngine.OpenCalled).To(BeTrue())
-	//Expect(sqlEngine.OpenAddress).To(BeEquivalentTo("endpoint-address"))
-	//Expect(sqlEngine.OpenPort).To(BeEquivalentTo(3306))
-	//Expect(sqlEngine.OpenDBName).To(BeEquivalentTo("test-db"))
-	//Expect(sqlEngine.OpenUsername).To(BeEquivalentTo("master-username"))
-	//})
-
-	//Context("and the passwords work", func() {
-	//It("should not try to change the master password", func() {
-	//rdsBroker.CheckAndRotateCredentials()
-	//Expect(dbInstance.ModifyCalled).To(BeFalse())
-	//})
-	//})
-
-	//Context("and the passwords don't work", func() {
-	//BeforeEach(func() {
-	//sqlEngine.OpenError = sqlengine.LoginFailedError
-	//})
-
-	//It("should try to change the master password", func() {
-	//rdsBroker.CheckAndRotateCredentials()
-	//Expect(dbInstance.ModifyCalled).To(BeTrue())
-	//Expect(dbInstance.ModifyID).To(BeEquivalentTo(dbInstanceIdentifier))
-	//Expect(dbInstance.ModifyDBInstanceDetails.MasterUserPassword).To(BeEquivalentTo(sqlEngine.OpenPassword))
-	//})
-	//})
-
-	//Context("and there is an unkown open error", func() {
-	//BeforeEach(func() {
-	//sqlEngine.OpenError = errors.New("Unknown open connection error")
-	//})
-
-	//It("should not try to change the master password", func() {
-	//rdsBroker.CheckAndRotateCredentials()
-	//Expect(dbInstance.ModifyCalled).To(BeFalse())
-	//})
-	//})
-
-	//Context("and there is DescribeByTagError error", func() {
-	//BeforeEach(func() {
-	//dbInstance.DescribeByTagError = errors.New("Error when listing instances")
-	//})
-
-	//It("should exit with an error", func() {
-	//rdsBroker.CheckAndRotateCredentials()
-	//Expect(dbInstance.ModifyCalled).To(BeFalse())
-	//})
-	//})
-
-	//})
-
-	//Context("when we reset the password then try to bind", func() {
-	//var (
-	//bindDetails brokerapi.BindDetails
-	//)
-
-	//BeforeEach(func() {
-	//dbInstance.DescribeByTagDBInstanceDetails = []*awsrds.DBInstanceDetails{
-	//&awsrds.DBInstanceDetails{
-	//Identifier:     dbInstanceIdentifier,
-	//Address:        "endpoint-address",
-	//Port:           3306,
-	//DBName:         "test-db",
-	//MasterUsername: "master-username",
-	//Engine:         "fake-engine",
-	//},
-	//}
-
-	//bindDetails = brokerapi.BindDetails{
-	//ServiceID:     "Service-1",
-	//PlanID:        "Plan-1",
-	//AppGUID:       "Application-1",
-	//RawParameters: json.RawMessage("{}"),
-	//}
-	//})
-
-	//It("the new password and the password used in bind are the same", func() {
-	//sqlEngine.OpenError = sqlengine.LoginFailedError
-	//rdsBroker.CheckAndRotateCredentials()
-	//expectedMasterPassword := sqlEngine.OpenPassword
-	//Expect(dbInstance.ModifyCalled).To(BeTrue())
-	//Expect(dbInstance.ModifyDBInstanceDetails.MasterUserPassword).To(BeEquivalentTo(expectedMasterPassword))
-
-	//sqlEngine.OpenError = nil
-	//_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(sqlEngine.OpenCalled).To(BeTrue())
-
-	//Expect(sqlEngine.OpenPassword).To(BeEquivalentTo(expectedMasterPassword))
-	//})
-	//})
-	//})
+	Describe("LastOperation", func() {
+		var (
+			dbInstanceStatus            string
+			lastOperationState          brokerapi.LastOperationState
+			properLastOperationResponse brokerapi.LastOperation
+		)
+
+		JustBeforeEach(func() {
+			rdsInstance.DescribeReturns(&rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				Engine:               aws.String("test-engine"),
+				Endpoint: &rds.Endpoint{
+					Address: aws.String("endpoint-address"),
+					Port:    aws.Int64(3306),
+				},
+				DBName:           aws.String("test-db"),
+				MasterUsername:   aws.String("master-username"),
+				DBInstanceStatus: aws.String(dbInstanceStatus),
+			}, nil)
+			rdsInstance.GetResourceTagsReturns([]*rds.Tag{
+				{Key: aws.String("Owner"), Value: aws.String("Cloud Foundry")},
+				{Key: aws.String("Broker Name"), Value: aws.String("mybroker")},
+				{Key: aws.String("Created by"), Value: aws.String("AWS RDS Service Broker")},
+				{Key: aws.String("Service ID"), Value: aws.String("Service-1")},
+				{Key: aws.String("Plan ID"), Value: aws.String("Plan-1")},
+			}, nil)
+
+			properLastOperationResponse = brokerapi.LastOperation{
+				State:       lastOperationState,
+				Description: "DB Instance '" + dbInstanceIdentifier + "' status is '" + dbInstanceStatus + "'",
+			}
+		})
+
+		Context("when describing the DB Instance fails", func() {
+			BeforeEach(func() {
+				rdsInstance.DescribeReturns(nil, errors.New("operation failed"))
+			})
+
+			It("returns the proper error", func() {
+				_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("operation failed"))
+			})
+
+			Context("when the DB Instance does not exists", func() {
+				BeforeEach(func() {
+					rdsInstance.DescribeReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
+				})
+
+				It("returns the proper error", func() {
+					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+				})
+
+				It("brokerapi integration returns a status 410 Gone", func() {
+					recorder := httptest.NewRecorder()
+
+					req, _ := http.NewRequest(
+						"GET",
+						"http://example.com/v2/service_instances/"+instanceID+"/last_operation",
+						nil,
+					)
+					req.SetBasicAuth(brokeruser, brokerpass)
+					fmt.Fprintf(GinkgoWriter, "%s:\n", recorder.Body.Bytes())
+
+					rdsBrokerServer.ServeHTTP(recorder, req)
+					Expect(recorder.Code).To(Equal(410))
+				})
+
+			})
+		})
+
+		Context("when last operation is still in progress", func() {
+			BeforeEach(func() {
+				dbInstanceStatus = "creating"
+				lastOperationState = brokerapi.InProgress
+			})
+
+			It("calls GetResourceTags() with the refresh cache option", func() {
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+
+				Expect(rdsInstance.GetResourceTagsCallCount()).To(Equal(1))
+				id, opts := rdsInstance.GetResourceTagsArgsForCall(0)
+				Expect(id).To(Equal(dbInstanceIdentifier))
+
+				Expect(opts).To(ContainElement(awsrds.DescribeRefreshCacheOption))
+			})
+
+			It("returns the proper LastOperationResponse", func() {
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+			})
+
+			Context("and there are pending post restore tasks", func() {
+				JustBeforeEach(func() {
+					dbInstance.DescribeDBInstanceDetails.Tags["PendingUpdateSettings"] = "true"
+				})
+				It("should not call RemoveTag to remove the tag PendingUpdateSettings", func() {
+					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.RemoveTagCalled).To(BeFalse())
+				})
+
+				It("should not modify the DB instance", func() {
+					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.ModifyCalled).To(BeFalse())
+				})
+			})
+
+		})
+
+		Context("when last operation failed", func() {
+			BeforeEach(func() {
+				dbInstanceStatus = "failed"
+				lastOperationState = brokerapi.Failed
+			})
+
+			It("returns the proper LastOperationResponse", func() {
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+			})
+		})
+
+		Context("when last operation succeeded", func() {
+			BeforeEach(func() {
+				dbInstanceStatus = "available"
+				lastOperationState = brokerapi.Succeeded
+			})
+
+			It("returns the proper LastOperationResponse", func() {
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+			})
+
+			Context("the SQL engine is Postgres", func() {
+				JustBeforeEach(func() {
+					dbInstance.DescribeDBInstanceDetails.Tags = map[string]string{
+						"Plan ID": "Plan-3",
+					}
+				})
+
+				It("attempts to create Postgres extenions", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(sqlEngine.CreateExtensionsCalled).To(BeTrue())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
+			})
+
+			Context("but has pending modifications", func() {
+				JustBeforeEach(func() {
+					dbInstance.DescribeDBInstanceDetails.PendingModifications = true
+
+					properLastOperationResponse = brokerapi.LastOperation{
+						State:       brokerapi.InProgress,
+						Description: "DB Instance '" + dbInstanceIdentifier + "' has pending modifications",
+					}
+				})
+
+				It("returns the proper LastOperationResponse", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
+			})
+
+			Context("but there are pending post restore tasks", func() {
+				JustBeforeEach(func() {
+					dbInstance.DescribeDBInstanceDetails.Tags["PendingUpdateSettings"] = "true"
+
+					properLastOperationResponse = brokerapi.LastOperation{
+						State:       brokerapi.InProgress,
+						Description: "DB Instance '" + dbInstanceIdentifier + "' has pending post restore modifications",
+					}
+				})
+				It("should call RemoveTag to remove the tag PendingUpdateSettings", func() {
+					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.RemoveTagCalled).To(BeTrue())
+					Expect(dbInstance.RemoveTagID).To(Equal(dbInstanceIdentifier))
+					Expect(dbInstance.RemoveTagTagKey).To(Equal("PendingUpdateSettings"))
+				})
+
+				It("should return the proper LastOperationResponse", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
+
+				Context("when remove tag fails", func() {
+					BeforeEach(func() {
+						dbInstance.RemoveTagError = errors.New("Failed to remove tag")
+					})
+					It("returns the proper error", func() {
+						_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).To(Equal("Failed to remove tag"))
+					})
+				})
+
+				It("modifies the DB instance", func() {
+					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.ModifyCalled).To(BeTrue())
+					Expect(dbInstance.ModifyID).To(Equal(dbInstanceIdentifier))
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("sets the right tags", func() {
+					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Owner"]).To(Equal("Cloud Foundry"))
+					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Broker Name"]).To(Equal("mybroker"))
+					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Restored by"]).To(Equal("AWS RDS Service Broker"))
+					Expect(dbInstance.ModifyDBInstanceDetails.Tags).To(HaveKey("Restored at"))
+					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Service ID"]).To(Equal("Service-1"))
+					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Plan ID"]).To(Equal("Plan-1"))
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				Context("when the master password needs to be rotated", func() {
+					JustBeforeEach(func() {
+						sqlEngine.CorrectPassword = "some-other-password"
+						// use a callback function to set the password back to what it was before. This is because the Bind()
+						// uses two different calls to the SQL engine's Open() method, the first needs to fail and the second needs to pass.
+						dbInstance.ModifyCallback = func(ID string, dbInstanceDetails awsrds.DBInstanceDetails, applyImmediately bool) error {
+							sqlEngine.CorrectPassword = dbInstanceDetails.MasterUserPassword
+							return nil
+						}
+					})
+
+					It("should try to change the master password", func() {
+						_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+						Expect(err).ToNot(HaveOccurred())
+						Expect(dbInstance.ModifyCalled).To(BeTrue())
+						Expect(dbInstance.ModifyID).To(BeEquivalentTo(dbInstanceIdentifier))
+						Expect(dbInstance.ModifyDBInstanceDetails.MasterUserPassword).ToNot(BeEmpty())
+					})
+				})
+
+				Context("when has DBSecurityGroups", func() {
+					BeforeEach(func() {
+						rdsProperties1.DBSecurityGroups = []string{"test-db-security-group"}
+					})
+
+					It("makes the modify with the secutiry group", func() {
+						_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+						Expect(dbInstance.ModifyDBInstanceDetails.DBSecurityGroups).To(Equal([]string{"test-db-security-group"}))
+						Expect(err).ToNot(HaveOccurred())
+					})
+				})
+			})
+
+			Context("but there are pending reboot", func() {
+				JustBeforeEach(func() {
+					dbInstance.DescribeDBInstanceDetails.Tags["PendingReboot"] = "true"
+
+					properLastOperationResponse = brokerapi.LastOperation{
+						State:       brokerapi.InProgress,
+						Description: "DB Instance '" + dbInstanceIdentifier + "' has pending post restore modifications",
+					}
+				})
+
+				It("should call RemoveTag to remove the tag PendingReboot", func() {
+					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.RemoveTagCalled).To(BeTrue())
+					Expect(dbInstance.RemoveTagID).To(Equal(dbInstanceIdentifier))
+					Expect(dbInstance.RemoveTagTagKey).To(Equal("PendingReboot"))
+				})
+
+				It("should return the proper LastOperationResponse", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
+
+				Context("when remove tag fails", func() {
+					BeforeEach(func() {
+						dbInstance.RemoveTagError = errors.New("Failed to remove tag")
+					})
+					It("returns the proper error", func() {
+						_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).To(Equal("Failed to remove tag"))
+					})
+				})
+
+				It("reboot the DB instance", func() {
+					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.RebootCalled).To(BeTrue())
+					Expect(dbInstance.RebootID).To(Equal(dbInstanceIdentifier))
+				})
+			})
+
+			Context("but there is a pending reset user password", func() {
+				JustBeforeEach(func() {
+					dbInstance.DescribeDBInstanceDetails.Tags["PendingResetUserPassword"] = "true"
+
+					properLastOperationResponse = brokerapi.LastOperation{
+						State:       brokerapi.InProgress,
+						Description: "DB Instance '" + dbInstanceIdentifier + "' has pending post restore modifications",
+					}
+				})
+
+				It("should call RemoveTag to remove the tag PendingResetUserPassword", func() {
+					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.RemoveTagCalled).To(BeTrue())
+					Expect(dbInstance.RemoveTagID).To(Equal(dbInstanceIdentifier))
+					Expect(dbInstance.RemoveTagTagKey).To(Equal("PendingResetUserPassword"))
+				})
+
+				It("should return the proper LastOperationResponse", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
+
+				Context("when remove tag fails", func() {
+					BeforeEach(func() {
+						dbInstance.RemoveTagError = errors.New("Failed to remove tag")
+					})
+					It("returns the proper error", func() {
+						_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).To(Equal("Failed to remove tag"))
+					})
+				})
+
+				It("should reset the database state by calling sqlengine.ResetState()", func() {
+					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(sqlEngine.ResetStateCalled).To(BeTrue())
+				})
+
+				Context("when sqlengine.ResetState() fails", func() {
+					BeforeEach(func() {
+						sqlEngine.ResetStateError = errors.New("Failed to reset state")
+					})
+					It("returns the proper error", func() {
+						_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).To(Equal("Failed to reset state"))
+					})
+				})
+			})
+
+			Context("but there are not post restore tasks or reset password to execute", func() {
+				It("should not try to change the master password", func() {
+					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.ModifyCalled).To(BeFalse())
+				})
+				It("should not reset the database state by not calling sqlengine.ResetState()", func() {
+					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(sqlEngine.ResetStateCalled).To(BeFalse())
+				})
+				It("should not call RemoveTag", func() {
+					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dbInstance.RemoveTagCalled).To(BeFalse())
+				})
+			})
+		})
+
+		checkLastOperationResponse := func(instanceStatus string, expectedLastOperationState brokerapi.LastOperationState) func() {
+			return func() {
+				BeforeEach(func() {
+					dbInstanceStatus = instanceStatus
+					lastOperationState = expectedLastOperationState
+				})
+
+				It("returns the state "+string(expectedLastOperationState), func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
+			}
+		}
+
+		failureStatuses := []string{
+			"failed",
+			"inaccessible-encryption-credentials",
+			"incompatible-credentials",
+			"incompatible-network",
+			"incompatible-option-group",
+			"incompatible-parameters",
+			"incompatible-restore",
+			"restore-error",
+		}
+		for _, instanceStatus := range failureStatuses {
+			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.Failed))
+		}
+
+		successStatuses := []string{
+			"available",
+		}
+		for _, instanceStatus := range successStatuses {
+			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.Succeeded))
+		}
+
+		inProgressStatuses := []string{
+			"backing-up",
+			"configuring-enhanced-monitoring",
+			"creating",
+			"deleting",
+			"maintenance",
+			"modifying",
+			"rebooting",
+			"renaming",
+			"resetting-master-credentials",
+			"starting",
+			"stopping",
+			"stopped",
+			"storage-full",
+			"storage-optimization",
+			"upgrading",
+		}
+		for _, instanceStatus := range inProgressStatuses {
+			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.InProgress))
+		}
+
+		unexpectedStatuses := []string{
+			"",
+			"some-new-status",
+		}
+		for _, instanceStatus := range unexpectedStatuses {
+			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.InProgress))
+		}
+
+	})
+
+	Describe("CheckAndRotateCredentials", func() {
+		Context("when there is no DB instance", func() {
+			It("shouldn't try to connect to databases", func() {
+				rdsBroker.CheckAndRotateCredentials()
+				Expect(sqlProvider.GetSQLEngineCalled).To(BeFalse())
+				Expect(sqlEngine.OpenCalled).To(BeFalse())
+			})
+		})
+
+		Context("when there are DB instances", func() {
+			BeforeEach(func() {
+				dbInstance.DescribeByTagDBInstanceDetails = []*awsrds.DBInstanceDetails{
+					&awsrds.DBInstanceDetails{
+						Identifier:     dbInstanceIdentifier,
+						Address:        "endpoint-address",
+						Port:           3306,
+						DBName:         "test-db",
+						MasterUsername: "master-username",
+						Engine:         "fake-engine",
+					},
+				}
+			})
+
+			It("should try to connect to databases", func() {
+				rdsBroker.CheckAndRotateCredentials()
+				Expect(dbInstance.DescribeByTagCalled).To(BeTrue())
+				Expect(dbInstance.DescribeByTagKey).To(BeEquivalentTo("Broker Name"))
+				Expect(dbInstance.DescribeByTagValue).To(BeEquivalentTo(brokerName))
+				Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
+				Expect(sqlProvider.GetSQLEngineEngine).To(BeEquivalentTo("fake-engine"))
+				Expect(sqlEngine.OpenCalled).To(BeTrue())
+				Expect(sqlEngine.OpenAddress).To(BeEquivalentTo("endpoint-address"))
+				Expect(sqlEngine.OpenPort).To(BeEquivalentTo(3306))
+				Expect(sqlEngine.OpenDBName).To(BeEquivalentTo("test-db"))
+				Expect(sqlEngine.OpenUsername).To(BeEquivalentTo("master-username"))
+			})
+
+			Context("and the passwords work", func() {
+				It("should not try to change the master password", func() {
+					rdsBroker.CheckAndRotateCredentials()
+					Expect(dbInstance.ModifyCalled).To(BeFalse())
+				})
+			})
+
+			Context("and the passwords don't work", func() {
+				BeforeEach(func() {
+					sqlEngine.OpenError = sqlengine.LoginFailedError
+				})
+
+				It("should try to change the master password", func() {
+					rdsBroker.CheckAndRotateCredentials()
+					Expect(dbInstance.ModifyCalled).To(BeTrue())
+					Expect(dbInstance.ModifyID).To(BeEquivalentTo(dbInstanceIdentifier))
+					Expect(dbInstance.ModifyDBInstanceDetails.MasterUserPassword).To(BeEquivalentTo(sqlEngine.OpenPassword))
+				})
+			})
+
+			Context("and there is an unkown open error", func() {
+				BeforeEach(func() {
+					sqlEngine.OpenError = errors.New("Unknown open connection error")
+				})
+
+				It("should not try to change the master password", func() {
+					rdsBroker.CheckAndRotateCredentials()
+					Expect(dbInstance.ModifyCalled).To(BeFalse())
+				})
+			})
+
+			Context("and there is DescribeByTagError error", func() {
+				BeforeEach(func() {
+					dbInstance.DescribeByTagError = errors.New("Error when listing instances")
+				})
+
+				It("should exit with an error", func() {
+					rdsBroker.CheckAndRotateCredentials()
+					Expect(dbInstance.ModifyCalled).To(BeFalse())
+				})
+			})
+
+		})
+
+		Context("when we reset the password then try to bind", func() {
+			var (
+				bindDetails brokerapi.BindDetails
+			)
+
+			BeforeEach(func() {
+				dbInstance.DescribeByTagDBInstanceDetails = []*awsrds.DBInstanceDetails{
+					&awsrds.DBInstanceDetails{
+						Identifier:     dbInstanceIdentifier,
+						Address:        "endpoint-address",
+						Port:           3306,
+						DBName:         "test-db",
+						MasterUsername: "master-username",
+						Engine:         "fake-engine",
+					},
+				}
+
+				bindDetails = brokerapi.BindDetails{
+					ServiceID:     "Service-1",
+					PlanID:        "Plan-1",
+					AppGUID:       "Application-1",
+					RawParameters: json.RawMessage("{}"),
+				}
+			})
+
+			It("the new password and the password used in bind are the same", func() {
+				sqlEngine.OpenError = sqlengine.LoginFailedError
+				rdsBroker.CheckAndRotateCredentials()
+				expectedMasterPassword := sqlEngine.OpenPassword
+				Expect(dbInstance.ModifyCalled).To(BeTrue())
+				Expect(dbInstance.ModifyDBInstanceDetails.MasterUserPassword).To(BeEquivalentTo(expectedMasterPassword))
+
+				sqlEngine.OpenError = nil
+				_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(sqlEngine.OpenCalled).To(BeTrue())
+
+				Expect(sqlEngine.OpenPassword).To(BeEquivalentTo(expectedMasterPassword))
+			})
+		})
+	})
 
 })
