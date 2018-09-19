@@ -1,9 +1,11 @@
 package rdsbroker_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -1710,377 +1712,389 @@ var _ = Describe("RDS Broker", func() {
 		})
 	})
 
-	//Describe("Bind", func() {
-	//var (
-	//bindDetails brokerapi.BindDetails
-	//)
+	Describe("Bind", func() {
+		var (
+			bindDetails brokerapi.BindDetails
+		)
 
-	//BeforeEach(func() {
-	//bindDetails = brokerapi.BindDetails{
-	//ServiceID:     "Service-1",
-	//PlanID:        "Plan-1",
-	//AppGUID:       "Application-1",
-	//RawParameters: json.RawMessage{},
-	//}
+		BeforeEach(func() {
+			bindDetails = brokerapi.BindDetails{
+				ServiceID:     "Service-1",
+				PlanID:        "Plan-1",
+				AppGUID:       "Application-1",
+				RawParameters: json.RawMessage{},
+			}
 
-	//dbInstance.DescribeDBInstanceDetails = awsrds.DBInstanceDetails{
-	//Identifier:     dbInstanceIdentifier,
-	//Address:        "endpoint-address",
-	//Port:           3306,
-	//DBName:         "test-db",
-	//MasterUsername: "master-username",
-	//}
+			rdsInstance.DescribeReturns(&rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				Endpoint: &rds.Endpoint{
+					Address: aws.String("endpoint-address"),
+					Port:    aws.Int64(3306),
+				},
+				DBName:         aws.String("test-db"),
+				MasterUsername: aws.String("master-username"),
+			}, nil)
 
-	//sqlEngine.CreateUserUsername = dbUsername
-	//sqlEngine.CreateUserPassword = "secret"
-	//})
+			sqlEngine.CreateUserUsername = dbUsername
+			sqlEngine.CreateUserPassword = "secret"
+		})
 
-	//It("returns the proper response", func() {
-	//bindingResponse, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(err).ToNot(HaveOccurred())
-	//Expect(bindingResponse.Credentials).ToNot(BeNil())
-	//credentials := bindingResponse.Credentials.(Credentials)
-	//Expect(bindingResponse.SyslogDrainURL).To(BeEmpty())
-	//Expect(credentials.Host).To(Equal("endpoint-address"))
-	//Expect(credentials.Port).To(Equal(int64(3306)))
-	//Expect(credentials.Name).To(Equal("test-db"))
-	//Expect(credentials.Username).To(Equal(dbUsername))
-	//Expect(credentials.Password).To(Equal("secret"))
-	//Expect(credentials.URI).To(ContainSubstring("@endpoint-address:3306/test-db?reconnect=true"))
-	//Expect(credentials.JDBCURI).To(ContainSubstring("jdbc:fake://endpoint-address:3306/test-db?user=" + dbUsername + "&password="))
-	//})
+		It("returns the proper response", func() {
+			bindingResponse, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(bindingResponse.Credentials).ToNot(BeNil())
+			credentials := bindingResponse.Credentials.(Credentials)
+			Expect(bindingResponse.SyslogDrainURL).To(BeEmpty())
+			Expect(credentials.Host).To(Equal("endpoint-address"))
+			Expect(credentials.Port).To(Equal(int64(3306)))
+			Expect(credentials.Name).To(Equal("test-db"))
+			Expect(credentials.Username).To(Equal(dbUsername))
+			Expect(credentials.Password).To(Equal("secret"))
+			Expect(credentials.URI).To(ContainSubstring("@endpoint-address:3306/test-db?reconnect=true"))
+			Expect(credentials.JDBCURI).To(ContainSubstring("jdbc:fake://endpoint-address:3306/test-db?user=" + dbUsername + "&password="))
+		})
 
-	//It("makes the proper calls", func() {
-	//_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(dbInstance.DescribeCalled).To(BeTrue())
-	//Expect(dbInstance.DescribeID).To(Equal(dbInstanceIdentifier))
-	//Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
-	//Expect(sqlProvider.GetSQLEngineEngine).To(Equal("test-engine-1"))
-	//Expect(sqlEngine.OpenCalled).To(BeTrue())
-	//Expect(sqlEngine.OpenAddress).To(Equal("endpoint-address"))
-	//Expect(sqlEngine.OpenPort).To(Equal(int64(3306)))
-	//Expect(sqlEngine.OpenDBName).To(Equal("test-db"))
-	//Expect(sqlEngine.OpenUsername).To(Equal("master-username"))
-	//Expect(sqlEngine.OpenPassword).ToNot(BeEmpty())
-	//Expect(sqlEngine.CreateUserCalled).To(BeTrue())
-	//Expect(sqlEngine.CreateUserBindingID).To(Equal(bindingID))
-	//Expect(sqlEngine.CreateUserDBName).To(Equal("test-db"))
-	//Expect(sqlEngine.CloseCalled).To(BeTrue())
-	//Expect(err).ToNot(HaveOccurred())
-	//})
+		It("makes the proper calls", func() {
+			_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+			Expect(rdsInstance.DescribeCallCount()).To(Equal(1))
+			Expect(err).ToNot(HaveOccurred())
+			id := rdsInstance.DescribeArgsForCall(0)
+			Expect(id).To(Equal(dbInstanceIdentifier))
 
-	//It("brokerapi integration returns the proper response", func() {
-	//recorder := httptest.NewRecorder()
+			// TODO: Refactor fake sqlProvider and sqlEngine to use counterfeit
+			Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
+			Expect(sqlProvider.GetSQLEngineEngine).To(Equal("test-engine-1"))
+			Expect(sqlEngine.OpenCalled).To(BeTrue())
+			Expect(sqlEngine.OpenAddress).To(Equal("endpoint-address"))
+			Expect(sqlEngine.OpenPort).To(Equal(int64(3306)))
+			Expect(sqlEngine.OpenDBName).To(Equal("test-db"))
+			Expect(sqlEngine.OpenUsername).To(Equal("master-username"))
+			Expect(sqlEngine.OpenPassword).ToNot(BeEmpty())
+			Expect(sqlEngine.CreateUserCalled).To(BeTrue())
+			Expect(sqlEngine.CreateUserBindingID).To(Equal(bindingID))
+			Expect(sqlEngine.CreateUserDBName).To(Equal("test-db"))
+			Expect(sqlEngine.CloseCalled).To(BeTrue())
+		})
 
-	//bindingDetailsJson := []byte(`
-	//{
-	//"service_id": "Service-1",
-	//"plan_id": "Plan-1",
-	//"bind_resource": {
-	//"app_guid": "Application-1"
-	//},
-	//"parameters": {}
-	//}`)
+		It("brokerapi integration returns the proper response", func() {
+			recorder := httptest.NewRecorder()
 
-	//req, _ := http.NewRequest(
-	//"PUT",
-	//"http://example.com/v2/service_instances/"+
-	//instanceID+
-	//"/service_bindings/"+
-	//bindingID,
-	//bytes.NewBuffer(bindingDetailsJson),
-	//)
-	//req.SetBasicAuth(brokeruser, brokerpass)
+			bindingDetailsJson := []byte(`
+	{
+	"service_id": "Service-1",
+	"plan_id": "Plan-1",
+	"bind_resource": {
+	"app_guid": "Application-1"
+	},
+	"parameters": {}
+	}`)
 
-	//rdsBrokerServer.ServeHTTP(recorder, req)
+			req, _ := http.NewRequest(
+				"PUT",
+				"http://example.com/v2/service_instances/"+
+					instanceID+
+					"/service_bindings/"+
+					bindingID,
+				bytes.NewBuffer(bindingDetailsJson),
+			)
+			req.SetBasicAuth(brokeruser, brokerpass)
 
-	//var bindingResponse struct {
-	//TheCredentials struct {
-	//TheHost     string `json:"host"`
-	//ThePort     int64  `json:"port"`
-	//TheName     string `json:"name"`
-	//TheUsername string `json:"username"`
-	//ThePassword string `json:"password"`
-	//TheURI      string `json:"uri"`
-	//TheJDBCURI  string `json:"jdbcuri"`
-	//} `json:"credentials"`
-	//}
+			rdsBrokerServer.ServeHTTP(recorder, req)
 
-	//Expect(recorder.Body.String()).To(ContainSubstring(`"credentials"`))
-	//Expect(recorder.Body.String()).To(ContainSubstring(`"host"`))
-	//Expect(recorder.Body.String()).To(ContainSubstring(`"port"`))
-	//Expect(recorder.Body.String()).To(ContainSubstring(`"name"`))
-	//Expect(recorder.Body.String()).To(ContainSubstring(`"username"`))
-	//Expect(recorder.Body.String()).To(ContainSubstring(`"password"`))
-	//Expect(recorder.Body.String()).To(ContainSubstring(`"uri"`))
-	//Expect(recorder.Body.String()).To(ContainSubstring(`"jdbcuri"`))
+			var bindingResponse struct {
+				TheCredentials struct {
+					TheHost     string `json:"host"`
+					ThePort     int64  `json:"port"`
+					TheName     string `json:"name"`
+					TheUsername string `json:"username"`
+					ThePassword string `json:"password"`
+					TheURI      string `json:"uri"`
+					TheJDBCURI  string `json:"jdbcuri"`
+				} `json:"credentials"`
+			}
 
-	//err := json.Unmarshal(recorder.Body.Bytes(), &bindingResponse)
-	//Expect(err).ToNot(HaveOccurred())
-	//fmt.Fprintf(GinkgoWriter, "%s:\n", recorder.Body.Bytes())
-	//fmt.Fprintf(GinkgoWriter, "%v:\n", bindingResponse)
+			Expect(recorder.Body.String()).To(ContainSubstring(`"credentials"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"host"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"port"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"name"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"username"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"password"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"uri"`))
+			Expect(recorder.Body.String()).To(ContainSubstring(`"jdbcuri"`))
 
-	//Expect(bindingResponse.TheCredentials.TheHost).To(Equal("endpoint-address"))
-	//Expect(bindingResponse.TheCredentials.ThePort).To(Equal(int64(3306)))
-	//Expect(bindingResponse.TheCredentials.TheName).To(Equal("test-db"))
-	//Expect(bindingResponse.TheCredentials.TheUsername).To(Equal(dbUsername))
-	//Expect(bindingResponse.TheCredentials.ThePassword).To(Equal("secret"))
-	//Expect(bindingResponse.TheCredentials.TheURI).To(ContainSubstring("@endpoint-address:3306/test-db?reconnect=true"))
-	//Expect(bindingResponse.TheCredentials.TheJDBCURI).To(ContainSubstring("jdbc:fake://endpoint-address:3306/test-db?user=" + dbUsername + "&password="))
+			err := json.Unmarshal(recorder.Body.Bytes(), &bindingResponse)
+			Expect(err).ToNot(HaveOccurred())
+			fmt.Fprintf(GinkgoWriter, "%s:\n", recorder.Body.Bytes())
+			fmt.Fprintf(GinkgoWriter, "%v:\n", bindingResponse)
 
-	//Expect(recorder.Code).To(Equal(201))
+			Expect(bindingResponse.TheCredentials.TheHost).To(Equal("endpoint-address"))
+			Expect(bindingResponse.TheCredentials.ThePort).To(Equal(int64(3306)))
+			Expect(bindingResponse.TheCredentials.TheName).To(Equal("test-db"))
+			Expect(bindingResponse.TheCredentials.TheUsername).To(Equal(dbUsername))
+			Expect(bindingResponse.TheCredentials.ThePassword).To(Equal("secret"))
+			Expect(bindingResponse.TheCredentials.TheURI).To(ContainSubstring("@endpoint-address:3306/test-db?reconnect=true"))
+			Expect(bindingResponse.TheCredentials.TheJDBCURI).To(ContainSubstring("jdbc:fake://endpoint-address:3306/test-db?user=" + dbUsername + "&password="))
 
-	//})
+			Expect(recorder.Code).To(Equal(201))
 
-	//Context("when not using custom parameters", func() {
-	//BeforeEach(func() {
-	//allowUserBindParameters = true
-	//})
+		})
 
-	//Context("when absent from the request", func() {
-	//BeforeEach(func() {
-	//bindDetails.RawParameters = nil
-	//})
+		Context("when not using custom parameters", func() {
+			BeforeEach(func() {
+				allowUserBindParameters = true
+			})
 
-	//It("does not return an error", func() {
-	//_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
+			Context("when absent from the request", func() {
+				BeforeEach(func() {
+					bindDetails.RawParameters = nil
+				})
 
-	//Context("when present as an empty JSON document", func() {
-	//BeforeEach(func() {
-	//bindDetails.RawParameters = json.RawMessage("{}")
-	//})
+				It("does not return an error", func() {
+					_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
 
-	//It("does not return an error", func() {
-	//_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-	//})
+			Context("when present as an empty JSON document", func() {
+				BeforeEach(func() {
+					bindDetails.RawParameters = json.RawMessage("{}")
+				})
 
-	//// FIXME: Re-enable these tests when we have some bind-time parameters again
-	//PContext("when Parameters are not valid", func() {
-	//BeforeEach(func() {
-	//bindDetails.RawParameters = json.RawMessage(`{"dbname": true}`)
-	//})
+				It("does not return an error", func() {
+					_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+		})
 
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(ContainSubstring("'dbname' expected type 'string', got unconvertible type 'bool'"))
-	//})
+		// FIXME: Re-enable these tests when we have some bind-time parameters again
+		PContext("when Parameters are not valid", func() {
+			BeforeEach(func() {
+				bindDetails.RawParameters = json.RawMessage(`{"dbname": true}`)
+			})
 
-	//Context("and user bind parameters are not allowed", func() {
-	//BeforeEach(func() {
-	//allowUserBindParameters = false
-	//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("'dbname' expected type 'string', got unconvertible type 'bool'"))
+			})
 
-	//It("does not return an error", func() {
-	//_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(err).ToNot(HaveOccurred())
-	//})
-	//})
-	//})
+			Context("and user bind parameters are not allowed", func() {
+				BeforeEach(func() {
+					allowUserBindParameters = false
+				})
 
-	//Context("when Service is not found", func() {
-	//BeforeEach(func() {
-	//bindDetails.ServiceID = "unknown"
-	//})
+				It("does not return an error", func() {
+					_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+		})
 
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Service 'unknown' not found"))
-	//})
-	//})
+		Context("when Service is not found", func() {
+			BeforeEach(func() {
+				bindDetails.ServiceID = "unknown"
+			})
 
-	//Context("when Service Plan is not found", func() {
-	//BeforeEach(func() {
-	//bindDetails.PlanID = "unknown"
-	//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("Service 'unknown' not found"))
+			})
+		})
 
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Service Plan 'unknown' not found"))
-	//})
-	//})
+		Context("when Service Plan is not found", func() {
+			BeforeEach(func() {
+				bindDetails.PlanID = "unknown"
+			})
 
-	//Context("when describing the DB Instance fails", func() {
-	//BeforeEach(func() {
-	//dbInstance.DescribeError = errors.New("operation failed")
-	//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("Service Plan 'unknown' not found"))
+			})
+		})
 
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("operation failed"))
-	//})
+		Context("when describing the DB Instance fails", func() {
+			BeforeEach(func() {
+				rdsInstance.DescribeReturns(nil, errors.New("operation failed"))
+			})
 
-	//Context("when the DB Instance does not exists", func() {
-	//BeforeEach(func() {
-	//dbInstance.DescribeError = awsrds.ErrDBInstanceDoesNotExist
-	//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("operation failed"))
+			})
 
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
-	//})
-	//})
-	//})
+			Context("when the DB Instance does not exists", func() {
+				BeforeEach(func() {
+					rdsInstance.DescribeReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
+				})
 
-	//Context("when getting the SQL Engine fails", func() {
-	//BeforeEach(func() {
-	//sqlProvider.GetSQLEngineError = errors.New("Engine 'unknown' not supported")
-	//})
+				It("returns the proper error", func() {
+					_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+				})
+			})
+		})
 
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Engine 'unknown' not supported"))
-	//})
-	//})
+		Context("when getting the SQL Engine fails", func() {
+			BeforeEach(func() {
+				sqlProvider.GetSQLEngineError = errors.New("Engine 'unknown' not supported")
+			})
 
-	//Context("when opening a DB connection fails", func() {
-	//BeforeEach(func() {
-	//sqlEngine.OpenError = errors.New("Failed to open sqlEngine")
-	//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("Engine 'unknown' not supported"))
+			})
+		})
 
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Failed to open sqlEngine"))
-	//})
-	//})
+		Context("when opening a DB connection fails", func() {
+			BeforeEach(func() {
+				sqlEngine.OpenError = errors.New("Failed to open sqlEngine")
+			})
 
-	//Context("when creating a DB user fails", func() {
-	//BeforeEach(func() {
-	//sqlEngine.CreateUserError = errors.New("Failed to create user")
-	//})
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("Failed to open sqlEngine"))
+			})
+		})
 
-	//It("returns the proper error", func() {
-	//_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Failed to create user"))
-	//Expect(sqlEngine.CloseCalled).To(BeTrue())
-	//})
-	//})
-	//})
+		Context("when creating a DB user fails", func() {
+			BeforeEach(func() {
+				sqlEngine.CreateUserError = errors.New("Failed to create user")
+			})
 
-	//Describe("Unbind", func() {
-	//var (
-	//unbindDetails brokerapi.UnbindDetails
-	//)
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("Failed to create user"))
+				Expect(sqlEngine.CloseCalled).To(BeTrue())
+			})
+		})
+	})
 
-	//BeforeEach(func() {
-	//unbindDetails = brokerapi.UnbindDetails{
-	//ServiceID: "Service-1",
-	//PlanID:    "Plan-1",
-	//}
+	Describe("Unbind", func() {
+		var (
+			unbindDetails brokerapi.UnbindDetails
+		)
 
-	//dbInstance.DescribeDBInstanceDetails = awsrds.DBInstanceDetails{
-	//Identifier:     dbInstanceIdentifier,
-	//Address:        "endpoint-address",
-	//Port:           3306,
-	//DBName:         "test-db",
-	//MasterUsername: "master-username",
-	//}
-	//})
+		BeforeEach(func() {
+			unbindDetails = brokerapi.UnbindDetails{
+				ServiceID: "Service-1",
+				PlanID:    "Plan-1",
+			}
 
-	//It("makes the proper calls", func() {
-	//err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
-	//Expect(dbInstance.DescribeCalled).To(BeTrue())
-	//Expect(dbInstance.DescribeID).To(Equal(dbInstanceIdentifier))
-	//Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
-	//Expect(sqlProvider.GetSQLEngineEngine).To(Equal("test-engine-1"))
-	//Expect(sqlEngine.OpenCalled).To(BeTrue())
-	//Expect(sqlEngine.OpenAddress).To(Equal("endpoint-address"))
-	//Expect(sqlEngine.OpenPort).To(Equal(int64(3306)))
-	//Expect(sqlEngine.OpenDBName).To(Equal("test-db"))
-	//Expect(sqlEngine.OpenUsername).To(Equal("master-username"))
-	//Expect(sqlEngine.OpenPassword).ToNot(BeEmpty())
-	//Expect(sqlEngine.DropUserCalled).To(BeTrue())
-	//Expect(sqlEngine.DropUserBindingID).To(Equal(bindingID))
-	//Expect(sqlEngine.CloseCalled).To(BeTrue())
-	//Expect(err).ToNot(HaveOccurred())
-	//})
+			rdsInstance.DescribeReturns(&rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				Endpoint: &rds.Endpoint{
+					Address: aws.String("endpoint-address"),
+					Port:    aws.Int64(3306),
+				},
+				DBName:         aws.String("test-db"),
+				MasterUsername: aws.String("master-username"),
+				Engine:         aws.String("test-engine-1"),
+			}, nil)
+		})
 
-	//Context("when Service Plan is not found", func() {
-	//BeforeEach(func() {
-	//unbindDetails.PlanID = "unknown"
-	//})
+		It("makes the proper calls", func() {
+			err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
 
-	//It("returns the proper error", func() {
-	//err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Service Plan 'unknown' not found"))
-	//})
-	//})
+			Expect(rdsInstance.DescribeCallCount()).To(Equal(1))
+			Expect(err).ToNot(HaveOccurred())
+			id := rdsInstance.DescribeArgsForCall(0)
+			Expect(id).To(Equal(dbInstanceIdentifier))
 
-	//Context("when describing the DB Instance fails", func() {
-	//BeforeEach(func() {
-	//dbInstance.DescribeError = errors.New("operation failed")
-	//})
+			// TODO: Refactor fake sqlProvider and sqlEngine to use counterfeit
+			Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
+			Expect(sqlProvider.GetSQLEngineEngine).To(Equal("test-engine-1"))
+			Expect(sqlEngine.OpenCalled).To(BeTrue())
+			Expect(sqlEngine.OpenAddress).To(Equal("endpoint-address"))
+			Expect(sqlEngine.OpenPort).To(Equal(int64(3306)))
+			Expect(sqlEngine.OpenDBName).To(Equal("test-db"))
+			Expect(sqlEngine.OpenUsername).To(Equal("master-username"))
+			Expect(sqlEngine.OpenPassword).ToNot(BeEmpty())
+			Expect(sqlEngine.DropUserCalled).To(BeTrue())
+			Expect(sqlEngine.DropUserBindingID).To(Equal(bindingID))
+			Expect(sqlEngine.CloseCalled).To(BeTrue())
+		})
 
-	//It("returns the proper error", func() {
-	//err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("operation failed"))
-	//})
+		Context("when Service Plan is not found", func() {
+			BeforeEach(func() {
+				unbindDetails.PlanID = "unknown"
+			})
 
-	//Context("when the DB Instance does not exists", func() {
-	//BeforeEach(func() {
-	//dbInstance.DescribeError = awsrds.ErrDBInstanceDoesNotExist
-	//})
+			It("returns the proper error", func() {
+				err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("Service Plan 'unknown' not found"))
+			})
+		})
 
-	//It("returns the proper error", func() {
-	//err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
-	//})
-	//})
-	//})
+		Context("when describing the DB Instance fails", func() {
+			BeforeEach(func() {
+				rdsInstance.DescribeReturns(nil, errors.New("operation failed"))
+			})
 
-	//Context("when getting the SQL Engine fails", func() {
-	//BeforeEach(func() {
-	//sqlProvider.GetSQLEngineError = errors.New("SQL Engine 'unknown' not supported")
-	//})
+			It("returns the proper error", func() {
+				err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("operation failed"))
+			})
 
-	//It("returns the proper error", func() {
-	//err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("SQL Engine 'unknown' not supported"))
-	//})
-	//})
+			Context("when the DB Instance does not exists", func() {
+				BeforeEach(func() {
+					rdsInstance.DescribeReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
+				})
 
-	//Context("when opening a DB connection fails", func() {
-	//BeforeEach(func() {
-	//sqlEngine.OpenError = errors.New("Failed to open sqlEngine")
-	//})
+				It("returns the proper error", func() {
+					err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+				})
+			})
+		})
 
-	//It("returns the proper error", func() {
-	//err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Failed to open sqlEngine"))
-	//})
-	//})
+		Context("when getting the SQL Engine fails", func() {
+			BeforeEach(func() {
+				sqlProvider.GetSQLEngineError = errors.New("SQL Engine 'unknown' not supported")
+			})
 
-	//Context("when deleting a user fails", func() {
-	//BeforeEach(func() {
-	//sqlEngine.DropUserError = errors.New("Failed to delete user")
-	//})
+			It("returns the proper error", func() {
+				err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("SQL Engine 'unknown' not supported"))
+			})
+		})
 
-	//It("returns the proper error", func() {
-	//err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
-	//Expect(err).To(HaveOccurred())
-	//Expect(err.Error()).To(Equal("Failed to delete user"))
-	//Expect(sqlEngine.CloseCalled).To(BeTrue())
-	//})
-	//})
-	//})
+		Context("when opening a DB connection fails", func() {
+			BeforeEach(func() {
+				sqlEngine.OpenError = errors.New("Failed to open sqlEngine")
+			})
+
+			It("returns the proper error", func() {
+				err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("Failed to open sqlEngine"))
+			})
+		})
+
+		Context("when deleting a user fails", func() {
+			BeforeEach(func() {
+				sqlEngine.DropUserError = errors.New("Failed to delete user")
+			})
+
+			It("returns the proper error", func() {
+				err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("Failed to delete user"))
+				Expect(sqlEngine.CloseCalled).To(BeTrue())
+			})
+		})
+	})
 
 	//Describe("LastOperation", func() {
 	//var (
