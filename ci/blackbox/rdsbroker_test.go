@@ -42,7 +42,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 	BeforeEach(func() {
 		// Give a different Broker Name in each execution, to avoid conflicts
-		fmt.Sprintf(
+		brokerName = fmt.Sprintf(
 			"%s-%s",
 			suiteData.RdsBrokerConfig.RDSConfig.BrokerName,
 			uuid.NewV4().String(),
