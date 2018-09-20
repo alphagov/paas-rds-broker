@@ -631,11 +631,14 @@ var _ = Describe("RDS DB Instance", func() {
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 				DBInstanceArn:        aws.String(dbInstanceArn),
 				DBInstanceStatus:     aws.String("available"),
-				Engine:               aws.String("test-engine"),
-				EngineVersion:        aws.String("1.2.3"),
-				DBName:               aws.String("test-dbname"),
-				MasterUsername:       aws.String("test-master-username"),
-				AllocatedStorage:     aws.Int64(100),
+				DBSubnetGroup: &rds.DBSubnetGroup{
+					DBSubnetGroupName: aws.String("test-subnet-group"),
+				},
+				Engine:           aws.String("test-engine"),
+				EngineVersion:    aws.String("1.2.3"),
+				DBName:           aws.String("test-dbname"),
+				MasterUsername:   aws.String("test-master-username"),
+				AllocatedStorage: aws.Int64(100),
 			}
 			describeDBInstances = []*rds.DBInstance{describeDBInstance}
 
@@ -710,6 +713,18 @@ var _ = Describe("RDS DB Instance", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(receivedModifyDBInstanceInput).ToNot(Equal(modifyDBInstanceInput))
 			Expect(receivedModifyDBInstanceInput.AllocatedStorage).To(BeNil())
+		})
+
+		It("does not update SubnetGroup if it is the same", func() {
+			modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBSubnetGroupName:    aws.String("test-subnet-group"),
+			}
+
+			_, err := rdsDBInstance.Modify(modifyDBInstanceInput)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(receivedModifyDBInstanceInput).ToNot(Equal(modifyDBInstanceInput))
+			Expect(receivedModifyDBInstanceInput.DBSubnetGroupName).To(BeNil())
 		})
 
 		Context("when describing the DB instance fails", func() {
