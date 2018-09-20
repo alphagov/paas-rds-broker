@@ -13,7 +13,6 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/config"
 	. "github.com/onsi/gomega"
 
 	"github.com/aws/aws-sdk-go/aws"
