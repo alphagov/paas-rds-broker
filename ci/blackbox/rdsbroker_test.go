@@ -272,7 +272,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(err).To(HaveOccurred())
 			})
 
-			FIt("should not create a final snapshot when `skip_final_snapshot` is set via update", func() {
+			It("should not create a final snapshot when `skip_final_snapshot` is set via update", func() {
 				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
@@ -308,7 +308,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			TestFinalSnapshot("postgres")
 		})
 
-		PDescribe("MySQL", func() {
+		Describe("MySQL", func() {
 			TestFinalSnapshot("mysql")
 		})
 	})
