@@ -37,10 +37,18 @@ var _ = Describe("RDS Broker Daemon", func() {
 		rdsBrokerSession *gexec.Session
 		brokerAPIClient  *BrokerAPIClient
 		rdsClient        *RDSClient
+		brokerName       string
 	)
 
 	BeforeEach(func() {
-		rdsBrokerSession, brokerAPIClient, rdsClient = startNewBroker(suiteData.RdsBrokerConfig)
+		// Give a different Broker Name in each execution, to avoid conflicts
+		fmt.Sprintf(
+			"%s-%s",
+			suiteData.RdsBrokerConfig.RDSConfig.BrokerName,
+			uuid.NewV4().String(),
+		)
+
+		rdsBrokerSession, brokerAPIClient, rdsClient = startNewBroker(suiteData.RdsBrokerConfig, brokerName)
 	})
 
 	AfterEach(func() {
@@ -152,7 +160,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				newRDSConfig.MasterPasswordSeed = "otherseed"
 				newRDSBrokerConfig := *suiteData.RdsBrokerConfig
 				newRDSBrokerConfig.RDSConfig = &newRDSConfig
-				rdsBrokerSession, brokerAPIClient, rdsClient = startNewBroker(&newRDSBrokerConfig)
+				rdsBrokerSession, brokerAPIClient, rdsClient = startNewBroker(&newRDSBrokerConfig, brokerName)
 
 				Eventually(rdsBrokerSession, 30*time.Second).Should(gbytes.Say("Will attempt to reset the password."))
 				Eventually(rdsBrokerSession, 30*time.Second).Should(gbytes.Say("credentials check has ended"))
@@ -463,23 +471,19 @@ type bindingResponse struct {
 	Credentials rdsbroker.Credentials `json:"credentials"`
 }
 
-func startNewBroker(rdsBrokerConfig *config.Config) (*gexec.Session, *BrokerAPIClient, *RDSClient) {
+func startNewBroker(rdsBrokerConfig *config.Config, brokerName string) (*gexec.Session, *BrokerAPIClient, *RDSClient) {
 	configFile, err := ioutil.TempFile("", "rds-broker")
 	Expect(err).ToNot(HaveOccurred())
 	defer os.Remove(configFile.Name())
 
+	newRDSBrokerConfig := *rdsBrokerConfig
 	// start the broker in a random port
 	rdsBrokerPort := freeport.GetPort()
-	rdsBrokerConfig.Port = rdsBrokerPort
+	newRDSBrokerConfig.Port = rdsBrokerPort
 
-	// Give a different Broker Name in each execution, to avoid conflicts
-	rdsBrokerConfig.RDSConfig.BrokerName = fmt.Sprintf(
-		"%s-%s",
-		rdsBrokerConfig.RDSConfig.BrokerName,
-		uuid.NewV4().String(),
-	)
+	newRDSBrokerConfig.RDSConfig.BrokerName = brokerName
 
-	configJSON, err := json.Marshal(rdsBrokerConfig)
+	configJSON, err := json.Marshal(&newRDSBrokerConfig)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(ioutil.WriteFile(configFile.Name(), configJSON, 0644)).To(Succeed())
 	Expect(configFile.Close()).To(Succeed())
