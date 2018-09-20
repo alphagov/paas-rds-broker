@@ -789,7 +789,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 
 	return &rds.RestoreDBInstanceFromDBSnapshotInput{
 		DBSnapshotIdentifier:    aws.String(snapshotIdentifier),
-		DBInstanceIdentifier:    aws.String(instanceID),
+		DBInstanceIdentifier:    aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBInstanceClass:         servicePlan.RDSProperties.DBInstanceClass,
 		Engine:                  servicePlan.RDSProperties.Engine,
 		AutoMinorVersionUpgrade: servicePlan.RDSProperties.AutoMinorVersionUpgrade,

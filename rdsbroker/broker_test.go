@@ -406,7 +406,7 @@ var _ = Describe("RDS Broker", func() {
 
 				Expect(rdsInstance.RestoreCallCount()).To(Equal(1))
 				input := rdsInstance.RestoreArgsForCall(0)
-				Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(instanceID))
+				Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
 				Expect(aws.StringValue(input.DBSnapshotIdentifier)).To(Equal(restoreFromSnapshotDBInstanceID + "-1"))
 				Expect(aws.StringValue(input.DBInstanceClass)).To(Equal("db.m1.test"))
 				Expect(aws.StringValue(input.Engine)).To(Equal("postgres"))
@@ -450,7 +450,6 @@ var _ = Describe("RDS Broker", func() {
 
 				Expect(rdsInstance.RestoreCallCount()).To(Equal(1))
 				input := rdsInstance.RestoreArgsForCall(0)
-				Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(instanceID))
 				Expect(aws.StringValue(input.DBSnapshotIdentifier)).To(Equal(restoreFromSnapshotDBInstanceID + "-1"))
 			})
 
