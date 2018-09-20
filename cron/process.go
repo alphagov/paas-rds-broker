@@ -12,11 +12,11 @@ import (
 type Process struct {
 	cron       *robfig_cron.Cron
 	config     *config.Config
-	dbInstance awsrds.DBInstance
+	dbInstance awsrds.RDSInstance
 	logger     lager.Logger
 }
 
-func NewProcess(config *config.Config, dbInstance awsrds.DBInstance, logger lager.Logger) *Process {
+func NewProcess(config *config.Config, dbInstance awsrds.RDSInstance, logger lager.Logger) *Process {
 	return &Process{
 		config:     config,
 		dbInstance: dbInstance,

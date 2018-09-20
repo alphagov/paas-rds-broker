@@ -74,7 +74,7 @@ func buildHTTPHandler(serviceBroker *rdsbroker.RDSBroker, logger lager.Logger, c
 	return mux
 }
 
-func buildDBInstance(region string, logger lager.Logger) awsrds.DBInstance {
+func buildDBInstance(region string, logger lager.Logger) awsrds.RDSInstance {
 	awsConfig := aws.NewConfig().WithRegion(region).WithMaxRetries(3)
 	awsSession := session.New(awsConfig)
 	rdssvc := rds.New(awsSession)
@@ -102,7 +102,7 @@ func startHTTPServer(
 
 func startCronProcess(
 	cfg *config.Config,
-	dbInstance awsrds.DBInstance,
+	dbInstance awsrds.RDSInstance,
 	logger lager.Logger,
 ) {
 	cronProcess := cron.NewProcess(cfg, dbInstance, logger)
