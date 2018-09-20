@@ -12,9 +12,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/config"
 	. "github.com/onsi/gomega"
+
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 	"github.com/phayes/freeport"
@@ -470,6 +472,13 @@ func startNewBroker(rdsBrokerConfig *config.Config) (*gexec.Session, *BrokerAPIC
 	// start the broker in a random port
 	rdsBrokerPort := freeport.GetPort()
 	rdsBrokerConfig.Port = rdsBrokerPort
+
+	// Give a different Broker Name in each execution, to avoid conflicts
+	rdsBrokerConfig.RDSConfig.BrokerName = fmt.Sprintf(
+		"%s-%s",
+		rdsBrokerConfig.RDSConfig.BrokerName,
+		uuid.NewV4().String(),
+	)
 
 	configJSON, err := json.Marshal(rdsBrokerConfig)
 	Expect(err).ToNot(HaveOccurred())
