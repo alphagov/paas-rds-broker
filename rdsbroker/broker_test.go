@@ -12,18 +12,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/rds"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/alphagov/paas-rds-broker/awsrds"
 	. "github.com/alphagov/paas-rds-broker/rdsbroker"
+	"github.com/alphagov/paas-rds-broker/sqlengine"
 
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
 	"github.com/pivotal-cf/brokerapi"
 
-	"github.com/alphagov/paas-rds-broker/awsrds"
 	rdsfake "github.com/alphagov/paas-rds-broker/awsrds/fakes"
-	"github.com/alphagov/paas-rds-broker/sqlengine"
 	sqlfake "github.com/alphagov/paas-rds-broker/sqlengine/fakes"
 )
 
@@ -44,7 +46,7 @@ var _ = Describe("RDS Broker", func() {
 
 		config Config
 
-		dbInstance *rdsfake.FakeDBInstance
+		rdsInstance *rdsfake.FakeRDSInstance
 
 		sqlProvider *sqlfake.FakeProvider
 		sqlEngine   *sqlfake.FakeSQLEngine
@@ -73,6 +75,7 @@ var _ = Describe("RDS Broker", func() {
 		instanceID           = "instance-id"
 		bindingID            = "binding-id"
 		dbInstanceIdentifier = "cf-instance-id"
+		dbInstanceArn        = "arn:aws:rds:rds-region:1234567890:db:cf-instance-id"
 		dbName               = "cf_instance_id"
 		dbUsername           = "uvMSB820K_t3WvCX"
 		masterUserPassword   = "R2gfMWWb3naYDTL6rrBcGp-C5dmcThId"
@@ -91,34 +94,34 @@ var _ = Describe("RDS Broker", func() {
 		dbPrefix = "cf"
 		brokerName = "mybroker"
 
-		dbInstance = &rdsfake.FakeDBInstance{}
+		rdsInstance = &rdsfake.FakeRDSInstance{}
 
 		sqlProvider = &sqlfake.FakeProvider{}
 		sqlEngine = &sqlfake.FakeSQLEngine{}
 		sqlProvider.GetSQLEngineSQLEngine = sqlEngine
 
 		rdsProperties1 = RDSProperties{
-			DBInstanceClass:   "db.m1.test",
-			Engine:            "test-engine-1",
-			EngineVersion:     "1.2.3",
-			AllocatedStorage:  100,
-			SkipFinalSnapshot: skipFinalSnapshot,
+			DBInstanceClass:   stringPointer("db.m1.test"),
+			Engine:            stringPointer("test-engine-1"),
+			EngineVersion:     stringPointer("1.2.3"),
+			AllocatedStorage:  int64Pointer(100),
+			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
 		}
 
 		rdsProperties2 = RDSProperties{
-			DBInstanceClass:   "db.m2.test",
-			Engine:            "test-engine-2",
-			EngineVersion:     "4.5.6",
-			AllocatedStorage:  200,
-			SkipFinalSnapshot: skipFinalSnapshot,
+			DBInstanceClass:   stringPointer("db.m2.test"),
+			Engine:            stringPointer("test-engine-2"),
+			EngineVersion:     stringPointer("4.5.6"),
+			AllocatedStorage:  int64Pointer(200),
+			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
 		}
 
 		rdsProperties3 = RDSProperties{
-			DBInstanceClass:   "db.m3.test",
-			Engine:            "postgres",
-			EngineVersion:     "4.5.6",
-			AllocatedStorage:  300,
-			SkipFinalSnapshot: false,
+			DBInstanceClass:   stringPointer("db.m3.test"),
+			Engine:            stringPointer("postgres"),
+			EngineVersion:     stringPointer("4.5.6"),
+			AllocatedStorage:  int64Pointer(300),
+			SkipFinalSnapshot: boolPointer(false),
 		}
 	})
 
@@ -185,7 +188,7 @@ var _ = Describe("RDS Broker", func() {
 		testSink = lagertest.NewTestSink()
 		logger.RegisterSink(testSink)
 
-		rdsBroker = New(config, dbInstance, sqlProvider, logger)
+		rdsBroker = New(config, rdsInstance, sqlProvider, logger)
 
 		brokeruser = "brokeruser"
 		brokerpass = "brokerpass"
@@ -357,15 +360,17 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when restoring from a snapshot", func() {
 			var (
-				restoreFromSnapshotInstanceGUID string
-				restoreFromSnapshotDBInstanceID string
-				dbSnapshotTags                  map[string]string
+				restoreFromSnapshotInstanceGUID  string
+				restoreFromSnapshotDBInstanceID  string
+				restoreFromSnapshotDBSnapshotArn string
+				dbSnapshotTags                   map[string]string
 			)
 
 			BeforeEach(func() {
-				rdsProperties1.Engine = "postgres"
+				rdsProperties1.Engine = stringPointer("postgres")
 				restoreFromSnapshotInstanceGUID = "guid-of-origin-instance"
 				restoreFromSnapshotDBInstanceID = dbPrefix + "-" + restoreFromSnapshotInstanceGUID
+				restoreFromSnapshotDBSnapshotArn = "arn:aws:rds:rds-region:1234567890:snapshot:cf-instance-id"
 				provisionDetails.RawParameters = json.RawMessage(`{"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `"}`)
 				dbSnapshotTags = map[string]string{
 					"Space ID":        "space-id",
@@ -375,56 +380,69 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			JustBeforeEach(func() {
-				dbInstance.DescribeSnapshotsDBSnapshotsDetails = []*awsrds.DBSnapshotDetails{
-					&awsrds.DBSnapshotDetails{
-						Identifier:         restoreFromSnapshotDBInstanceID + "-1",
-						InstanceIdentifier: restoreFromSnapshotDBInstanceID,
-						CreateTime:         time.Now(),
-						Tags:               dbSnapshotTags,
+				rdsInstance.DescribeSnapshotsReturns([]*rds.DBSnapshot{
+					{
+						DBSnapshotIdentifier: aws.String(restoreFromSnapshotDBInstanceID + "-1"),
+						DBSnapshotArn:        aws.String(restoreFromSnapshotDBSnapshotArn + "-1"),
+						DBInstanceIdentifier: aws.String(restoreFromSnapshotDBInstanceID),
+						SnapshotCreateTime:   aws.Time(time.Now()),
 					},
-					&awsrds.DBSnapshotDetails{
-						Identifier:         restoreFromSnapshotDBInstanceID + "-2",
-						InstanceIdentifier: restoreFromSnapshotDBInstanceID,
-						CreateTime:         time.Now(),
-						Tags:               dbSnapshotTags,
+					{
+						DBSnapshotIdentifier: aws.String(restoreFromSnapshotDBInstanceID + "-2"),
+						DBSnapshotArn:        aws.String(restoreFromSnapshotDBSnapshotArn + "-2"),
+						DBInstanceIdentifier: aws.String(restoreFromSnapshotDBInstanceID),
+						SnapshotCreateTime:   aws.Time(time.Now()),
 					},
-				}
+				}, nil)
+
+				rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbSnapshotTags), nil)
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-				Expect(dbInstance.DescribeSnapshotsCalled).To(BeTrue())
-				Expect(dbInstance.DescribeSnapshotsDBInstanceID).To(Equal(restoreFromSnapshotDBInstanceID))
-				Expect(dbInstance.RestoreCalled).To(BeTrue())
-				Expect(dbInstance.RestoreID).To(Equal(dbInstanceIdentifier))
-				Expect(dbInstance.RestoreDBInstanceDetails.DBInstanceClass).To(Equal("db.m1.test"))
-				Expect(dbInstance.RestoreDBInstanceDetails.Engine).To(Equal("postgres"))
-				Expect(dbInstance.RestoreDBInstanceDetails.DBName).To(BeEmpty())
-				Expect(dbInstance.RestoreDBInstanceDetails.MasterUsername).To(BeEmpty())
-				Expect(dbInstance.RestoreDBInstanceDetails.MasterUserPassword).To(BeEmpty())
+				Expect(rdsInstance.DescribeSnapshotsCallCount()).To(Equal(1))
+				id := rdsInstance.DescribeSnapshotsArgsForCall(0)
+				Expect(id).To(Equal(restoreFromSnapshotDBInstanceID))
+
+				Expect(rdsInstance.RestoreCallCount()).To(Equal(1))
+				input := rdsInstance.RestoreArgsForCall(0)
+				Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
+				Expect(aws.StringValue(input.DBSnapshotIdentifier)).To(Equal(restoreFromSnapshotDBInstanceID + "-1"))
+				Expect(aws.StringValue(input.DBInstanceClass)).To(Equal("db.m1.test"))
+				Expect(aws.StringValue(input.Engine)).To(Equal("postgres"))
+				Expect(aws.StringValue(input.DBName)).To(BeEmpty())
 				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("sets the right tags", func() {
 				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-				expectedSnapshotIdentifier := dbInstance.DescribeSnapshotsDBSnapshotsDetails[0].Identifier
-				Expect(dbInstance.RestoreDBInstanceDetails.Tags["Owner"]).To(Equal("Cloud Foundry"))
-				Expect(dbInstance.RestoreDBInstanceDetails.Tags["Created by"]).To(Equal("AWS RDS Service Broker"))
-				Expect(dbInstance.RestoreDBInstanceDetails.Tags).To(HaveKey("Created at"))
-				Expect(dbInstance.RestoreDBInstanceDetails.Tags["Service ID"]).To(Equal("Service-1"))
-				Expect(dbInstance.RestoreDBInstanceDetails.Tags["Plan ID"]).To(Equal("Plan-1"))
-				Expect(dbInstance.RestoreDBInstanceDetails.Tags["Organization ID"]).To(Equal("organization-id"))
-				Expect(dbInstance.RestoreDBInstanceDetails.Tags["Space ID"]).To(Equal("space-id"))
-				Expect(dbInstance.RestoreDBInstanceDetails.Tags["Restored From Snapshot"]).To(Equal(expectedSnapshotIdentifier))
-				Expect(dbInstance.RestoreDBInstanceDetails.Tags["PendingResetUserPassword"]).To(Equal("true"))
-				Expect(dbInstance.RestoreDBInstanceDetails.Tags["PendingUpdateSettings"]).To(Equal("true"))
+
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.DescribeSnapshotsCallCount()).To(Equal(1))
+				id := rdsInstance.DescribeSnapshotsArgsForCall(0)
+				Expect(id).To(Equal(restoreFromSnapshotDBInstanceID))
+
+				Expect(rdsInstance.RestoreCallCount()).To(Equal(1))
+				input := rdsInstance.RestoreArgsForCall(0)
+
+				tagsByName := awsrds.RDSTagsValues(input.Tags)
+				Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
+				Expect(tagsByName["Restored by"]).To(Equal("AWS RDS Service Broker"))
+				Expect(tagsByName).To(HaveKey("Restored at"))
+				Expect(tagsByName["Service ID"]).To(Equal("Service-1"))
+				Expect(tagsByName["Plan ID"]).To(Equal("Plan-1"))
+				Expect(tagsByName["Organization ID"]).To(Equal("organization-id"))
+				Expect(tagsByName["Space ID"]).To(Equal("space-id"))
+				Expect(tagsByName["Restored From Snapshot"]).To(Equal(restoreFromSnapshotDBInstanceID + "-1"))
+				Expect(tagsByName["PendingResetUserPassword"]).To(Equal("true"))
+				Expect(tagsByName["PendingUpdateSettings"]).To(Equal("true"))
 			})
 
 			It("selects the latest snapshot", func() {
 				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-				expectedSnapshotIdentifier := dbInstance.DescribeSnapshotsDBSnapshotsDetails[0].Identifier
-				Expect(dbInstance.RestoreSnapshotIdentifier).To(Equal(expectedSnapshotIdentifier))
+				Expect(rdsInstance.RestoreCallCount()).To(Equal(1))
+				input := rdsInstance.RestoreArgsForCall(0)
+				Expect(aws.StringValue(input.DBSnapshotIdentifier)).To(Equal(restoreFromSnapshotDBInstanceID + "-1"))
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -465,7 +483,7 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("when restoring the DB Instance fails", func() {
 				BeforeEach(func() {
-					dbInstance.RestoreError = errors.New("operation failed")
+					rdsInstance.RestoreReturns(errors.New("operation failed"))
 				})
 
 				It("returns the proper error", func() {
@@ -477,7 +495,7 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("and no snapshots are found", func() {
 				JustBeforeEach(func() {
-					dbInstance.DescribeSnapshotsDBSnapshotsDetails = []*awsrds.DBSnapshotDetails{}
+					rdsInstance.DescribeSnapshotsReturns([]*rds.DBSnapshot{}, nil)
 				})
 
 				It("returns the correct error", func() {
@@ -489,7 +507,7 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("when the engine is not 'postgres'", func() {
 				BeforeEach(func() {
-					rdsProperties1.Engine = "some-other-engine"
+					rdsProperties1.Engine = stringPointer("some-other-engine")
 				})
 
 				It("returns the correct error", func() {
@@ -515,33 +533,50 @@ var _ = Describe("RDS Broker", func() {
 		Context("when creating a new service instance", func() {
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-				Expect(dbInstance.CreateCalled).To(BeTrue())
-				Expect(dbInstance.CreateID).To(Equal(dbInstanceIdentifier))
-				Expect(dbInstance.CreateDBInstanceDetails.DBInstanceClass).To(Equal("db.m1.test"))
-				Expect(dbInstance.CreateDBInstanceDetails.Engine).To(Equal("test-engine-1"))
-				Expect(dbInstance.CreateDBInstanceDetails.DBName).To(Equal(dbName))
-				Expect(dbInstance.CreateDBInstanceDetails.MasterUsername).ToNot(BeEmpty())
-				Expect(dbInstance.CreateDBInstanceDetails.MasterUserPassword).To(Equal(masterUserPassword))
 				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+				input := rdsInstance.CreateArgsForCall(0)
+				Expect(input).ToNot(BeNil())
+
+				Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
+				Expect(aws.StringValue(input.DBInstanceClass)).To(Equal("db.m1.test"))
+				Expect(aws.StringValue(input.Engine)).To(Equal("test-engine-1"))
+				Expect(aws.StringValue(input.DBName)).To(Equal(dbName))
+				Expect(aws.StringValue(input.MasterUsername)).ToNot(BeEmpty())
+				Expect(aws.StringValue(input.MasterUserPassword)).To(Equal(masterUserPassword))
+
 			})
 
 			It("sets the right tags", func() {
 				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-				Expect(dbInstance.CreateDBInstanceDetails.Tags["Owner"]).To(Equal("Cloud Foundry"))
-				Expect(dbInstance.CreateDBInstanceDetails.Tags["Created by"]).To(Equal("AWS RDS Service Broker"))
-				Expect(dbInstance.CreateDBInstanceDetails.Tags).To(HaveKey("Created at"))
-				Expect(dbInstance.CreateDBInstanceDetails.Tags["Service ID"]).To(Equal("Service-1"))
-				Expect(dbInstance.CreateDBInstanceDetails.Tags["Plan ID"]).To(Equal("Plan-1"))
-				Expect(dbInstance.CreateDBInstanceDetails.Tags["Organization ID"]).To(Equal("organization-id"))
-				Expect(dbInstance.CreateDBInstanceDetails.Tags["Space ID"]).To(Equal("space-id"))
 				Expect(err).ToNot(HaveOccurred())
 
+				Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+				input := rdsInstance.CreateArgsForCall(0)
+				Expect(input).ToNot(BeNil())
+
+				tagsByName := awsrds.RDSTagsValues(input.Tags)
+
+				Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
+				Expect(tagsByName["Created by"]).To(Equal("AWS RDS Service Broker"))
+				Expect(tagsByName).To(HaveKey("Created at"))
+				Expect(tagsByName["Service ID"]).To(Equal("Service-1"))
+				Expect(tagsByName["Plan ID"]).To(Equal("Plan-1"))
+				Expect(tagsByName["Organization ID"]).To(Equal("organization-id"))
+				Expect(tagsByName["Space ID"]).To(Equal("space-id"))
 			})
 
 			It("does not set a 'Restored From Snapshot' tag", func() {
 				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-				Expect(dbInstance.CreateDBInstanceDetails.Tags).ToNot(HaveKey("Restored From Snapshot"))
 				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+				input := rdsInstance.CreateArgsForCall(0)
+				Expect(input).ToNot(BeNil())
+
+				tagsByName := awsrds.RDSTagsValues(input.Tags)
+				Expect(tagsByName).ToNot(HaveKey("Restored From Snapshot"))
 			})
 
 			Context("creates a SkipFinalSnapshot tag", func() {
@@ -559,8 +594,14 @@ var _ = Describe("RDS Broker", func() {
 
 					It("sets the tag to false (default behaviour)", func() {
 						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-						Expect(dbInstance.CreateDBInstanceDetails.Tags["SkipFinalSnapshot"]).To(Equal("false"))
 						Expect(err).ToNot(HaveOccurred())
+
+						Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+						input := rdsInstance.CreateArgsForCall(0)
+						Expect(input).ToNot(BeNil())
+
+						tagsByName := awsrds.RDSTagsValues(input.Tags)
+						Expect(tagsByName["SkipFinalSnapshot"]).To(Equal("false"))
 					})
 				})
 
@@ -573,8 +614,14 @@ var _ = Describe("RDS Broker", func() {
 
 					It("the parameters override the default", func() {
 						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-						Expect(dbInstance.CreateDBInstanceDetails.Tags["SkipFinalSnapshot"]).To(Equal("true"))
 						Expect(err).ToNot(HaveOccurred())
+
+						Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+						input := rdsInstance.CreateArgsForCall(0)
+						Expect(input).ToNot(BeNil())
+
+						tagsByName := awsrds.RDSTagsValues(input.Tags)
+						Expect(tagsByName["SkipFinalSnapshot"]).To(Equal("true"))
 					})
 				})
 
@@ -588,58 +635,67 @@ var _ = Describe("RDS Broker", func() {
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 					Expect(err).ToNot(HaveOccurred())
-					Expect(dbInstance.CreateCalled).To(BeTrue())
-					Expect(dbInstance.CreateID).To(Equal("with-dash-underscore-" + instanceID))
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal("with-dash-underscore-" + instanceID))
 					expectedDBName := "with_dash_underscore_" + strings.Replace(instanceID, "-", "_", -1)
-					Expect(dbInstance.CreateDBInstanceDetails.DBName).To(Equal(expectedDBName))
+					Expect(aws.StringValue(input.DBName)).To(Equal(expectedDBName))
 				})
 			})
 
 			Context("when has AllocatedStorage", func() {
 				BeforeEach(func() {
-					rdsProperties1.AllocatedStorage = int64(100)
+					rdsProperties1.AllocatedStorage = int64Pointer(100)
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.AllocatedStorage).To(Equal(int64(100)))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.Int64Value(input.AllocatedStorage)).To(Equal(int64(100)))
 				})
 			})
 
 			Context("when has AutoMinorVersionUpgrade", func() {
 				BeforeEach(func() {
-					rdsProperties1.AutoMinorVersionUpgrade = true
+					rdsProperties1.AutoMinorVersionUpgrade = boolPointer(true)
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.AutoMinorVersionUpgrade).To(BeTrue())
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.BoolValue(input.AutoMinorVersionUpgrade)).To(BeTrue())
 				})
 			})
 
 			Context("when has AvailabilityZone", func() {
 				BeforeEach(func() {
-					rdsProperties1.AvailabilityZone = "test-az"
+					rdsProperties1.AvailabilityZone = stringPointer("test-az")
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.AvailabilityZone).To(Equal("test-az"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.StringValue(input.AvailabilityZone)).To(Equal("test-az"))
 				})
 			})
 
 			Context("when has BackupRetentionPeriod", func() {
 				BeforeEach(func() {
-					rdsProperties1.BackupRetentionPeriod = int64(7)
+					rdsProperties1.BackupRetentionPeriod = int64Pointer(7)
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(7)))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.Int64Value(input.BackupRetentionPeriod)).To(Equal(int64(7)))
 				})
 
 				//FIXME: These tests are pending until we allow this user provided parameter
@@ -650,8 +706,10 @@ var _ = Describe("RDS Broker", func() {
 
 					It("makes the proper calls", func() {
 						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-						Expect(dbInstance.CreateDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(12)))
 						Expect(err).ToNot(HaveOccurred())
+						Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+						input := rdsInstance.CreateArgsForCall(0)
+						Expect(aws.Int64Value(input.BackupRetentionPeriod)).To(Equal(int64(12)))
 					})
 				})
 			})
@@ -659,20 +717,24 @@ var _ = Describe("RDS Broker", func() {
 			Context("when has default BackupRetentionPeriod", func() {
 				It("has backups turned off", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(0)))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.Int64Value(input.BackupRetentionPeriod)).To(Equal(int64(0)))
 				})
 			})
 
 			Context("when has CharacterSetName", func() {
 				BeforeEach(func() {
-					rdsProperties1.CharacterSetName = "test-characterset-name"
+					rdsProperties1.CharacterSetName = stringPointer("test-characterset-name")
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.CharacterSetName).To(Equal("test-characterset-name"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.StringValue(input.CharacterSetName)).To(Equal("test-characterset-name"))
 				})
 
 				//FIXME: These tests are pending until we allow this user provided parameter
@@ -683,21 +745,25 @@ var _ = Describe("RDS Broker", func() {
 
 					It("makes the proper calls", func() {
 						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-						Expect(dbInstance.CreateDBInstanceDetails.CharacterSetName).To(Equal("test-characterset-name-parameter"))
 						Expect(err).ToNot(HaveOccurred())
+						Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+						input := rdsInstance.CreateArgsForCall(0)
+						Expect(aws.StringValue(input.CharacterSetName)).To(Equal("test-characterset-name-parameter"))
 					})
 				})
 			})
 
 			Context("when has CopyTagsToSnapshot", func() {
 				BeforeEach(func() {
-					rdsProperties1.CopyTagsToSnapshot = true
+					rdsProperties1.CopyTagsToSnapshot = boolPointer(true)
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.CopyTagsToSnapshot).To(BeTrue())
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.BoolValue(input.CopyTagsToSnapshot)).To(BeTrue())
 				})
 			})
 
@@ -709,140 +775,166 @@ var _ = Describe("RDS Broker", func() {
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.DBName).To(Equal("test-dbname"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.StringValue(input.DBName)).To(Equal("test-dbname"))
 				})
 			})
 
 			Context("when has DBParameterGroupName", func() {
 				BeforeEach(func() {
-					rdsProperties1.DBParameterGroupName = "test-db-parameter-group-name"
+					rdsProperties1.DBParameterGroupName = stringPointer("test-db-parameter-group-name")
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.DBParameterGroupName).To(Equal("test-db-parameter-group-name"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal("test-db-parameter-group-name"))
 				})
 			})
 
 			Context("when has DBSecurityGroups", func() {
 				BeforeEach(func() {
-					rdsProperties1.DBSecurityGroups = []string{"test-db-security-group"}
+					rdsProperties1.DBSecurityGroups = []*string{stringPointer("test-db-security-group")}
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.DBSecurityGroups).To(Equal([]string{"test-db-security-group"}))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(input.DBSecurityGroups).To(Equal(
+						[]*string{aws.String("test-db-security-group")},
+					))
 				})
 			})
 
 			Context("when has DBSubnetGroupName", func() {
 				BeforeEach(func() {
-					rdsProperties1.DBSubnetGroupName = "test-db-subnet-group-name"
+					rdsProperties1.DBSubnetGroupName = stringPointer("test-db-subnet-group-name")
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.DBSubnetGroupName).To(Equal("test-db-subnet-group-name"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.StringValue(input.DBSubnetGroupName)).To(Equal("test-db-subnet-group-name"))
 				})
 			})
 
 			Context("when has EngineVersion", func() {
 				BeforeEach(func() {
-					rdsProperties1.EngineVersion = "1.2.3"
+					rdsProperties1.EngineVersion = stringPointer("1.2.3")
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.EngineVersion).To(Equal("1.2.3"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.StringValue(input.EngineVersion)).To(Equal("1.2.3"))
 				})
 			})
 
 			Context("when has Iops", func() {
 				BeforeEach(func() {
-					rdsProperties1.Iops = int64(1000)
+					rdsProperties1.Iops = int64Pointer(1000)
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.Iops).To(Equal(int64(1000)))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.Int64Value(input.Iops)).To(Equal(int64(1000)))
 				})
 			})
 
 			Context("when has KmsKeyID", func() {
 				BeforeEach(func() {
-					rdsProperties1.KmsKeyID = "test-kms-key-id"
+					rdsProperties1.KmsKeyID = stringPointer("test-kms-key-id")
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.KmsKeyID).To(Equal("test-kms-key-id"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.StringValue(input.KmsKeyId)).To(Equal("test-kms-key-id"))
 				})
 			})
 
 			Context("when has LicenseModel", func() {
 				BeforeEach(func() {
-					rdsProperties1.LicenseModel = "test-license-model"
+					rdsProperties1.LicenseModel = stringPointer("test-license-model")
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.LicenseModel).To(Equal("test-license-model"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.StringValue(input.LicenseModel)).To(Equal("test-license-model"))
 				})
 			})
 
 			Context("when has MultiAZ", func() {
 				BeforeEach(func() {
-					rdsProperties1.MultiAZ = true
+					rdsProperties1.MultiAZ = boolPointer(true)
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.MultiAZ).To(BeTrue())
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.BoolValue(input.MultiAZ)).To(BeTrue())
 				})
 			})
 
 			Context("when has OptionGroupName", func() {
 				BeforeEach(func() {
-					rdsProperties1.OptionGroupName = "test-option-group-name"
+					rdsProperties1.OptionGroupName = stringPointer("test-option-group-name")
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.OptionGroupName).To(Equal("test-option-group-name"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.StringValue(input.OptionGroupName)).To(Equal("test-option-group-name"))
 				})
 			})
 
 			Context("when has Port", func() {
 				BeforeEach(func() {
-					rdsProperties1.Port = int64(3306)
+					rdsProperties1.Port = int64Pointer(3306)
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.Port).To(Equal(int64(3306)))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.Int64Value(input.Port)).To(Equal(int64(3306)))
 				})
 			})
 
 			Context("when has PreferredBackupWindow", func() {
 				BeforeEach(func() {
-					rdsProperties1.PreferredBackupWindow = "test-preferred-backup-window"
+					rdsProperties1.PreferredBackupWindow = stringPointer("test-preferred-backup-window")
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.StringValue(input.PreferredBackupWindow)).To(Equal("test-preferred-backup-window"))
 				})
 
 				//FIXME: These tests are pending until we allow this user provided parameter
@@ -853,21 +945,25 @@ var _ = Describe("RDS Broker", func() {
 
 					It("makes the proper calls", func() {
 						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-						Expect(dbInstance.CreateDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window-parameter"))
 						Expect(err).ToNot(HaveOccurred())
+						Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+						input := rdsInstance.CreateArgsForCall(0)
+						Expect(aws.StringValue(input.PreferredBackupWindow)).To(Equal("test-preferred-backup-window-parameter"))
 					})
 				})
 			})
 
 			Context("when has PreferredMaintenanceWindow", func() {
 				BeforeEach(func() {
-					rdsProperties1.PreferredMaintenanceWindow = "test-preferred-maintenance-window"
+					rdsProperties1.PreferredMaintenanceWindow = stringPointer("test-preferred-maintenance-window")
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.StringValue(input.PreferredMaintenanceWindow)).To(Equal("test-preferred-maintenance-window"))
 				})
 
 				//FIXME: These tests are pending until we allow this user provided parameter
@@ -878,57 +974,69 @@ var _ = Describe("RDS Broker", func() {
 
 					It("makes the proper calls", func() {
 						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-						Expect(dbInstance.CreateDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window-parameter"))
 						Expect(err).ToNot(HaveOccurred())
+						Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+						input := rdsInstance.CreateArgsForCall(0)
+						Expect(aws.StringValue(input.PreferredMaintenanceWindow)).To(Equal("test-preferred-maintenance-window-parameter"))
 					})
 				})
 			})
 
 			Context("when has PubliclyAccessible", func() {
 				BeforeEach(func() {
-					rdsProperties1.PubliclyAccessible = true
+					rdsProperties1.PubliclyAccessible = boolPointer(true)
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.PubliclyAccessible).To(BeTrue())
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.BoolValue(input.PubliclyAccessible)).To(BeTrue())
 				})
 			})
 
 			Context("when has StorageEncrypted", func() {
 				BeforeEach(func() {
-					rdsProperties1.StorageEncrypted = true
+					rdsProperties1.StorageEncrypted = boolPointer(true)
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.StorageEncrypted).To(BeTrue())
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.BoolValue(input.StorageEncrypted)).To(BeTrue())
 				})
 			})
 
 			Context("when has StorageType", func() {
 				BeforeEach(func() {
-					rdsProperties1.StorageType = "test-storage-type"
+					rdsProperties1.StorageType = stringPointer("test-storage-type")
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.StorageType).To(Equal("test-storage-type"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.StringValue(input.StorageType)).To(Equal("test-storage-type"))
 				})
 			})
 
 			Context("when has VpcSecurityGroupIds", func() {
 				BeforeEach(func() {
-					rdsProperties1.VpcSecurityGroupIds = []string{"test-vpc-security-group-ids"}
+					rdsProperties1.VpcSecurityGroupIds = []*string{stringPointer("test-vpc-security-group-ids")}
 				})
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(dbInstance.CreateDBInstanceDetails.VpcSecurityGroupIds).To(Equal([]string{"test-vpc-security-group-ids"}))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(input.VpcSecurityGroupIds).To(Equal(
+						[]*string{stringPointer("test-vpc-security-group-ids")},
+					))
 				})
 			})
 
@@ -971,7 +1079,7 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("when creating the DB Instance fails", func() {
 				BeforeEach(func() {
-					dbInstance.CreateError = errors.New("operation failed")
+					rdsInstance.CreateReturns(errors.New("operation failed"))
 				})
 
 				It("returns the proper error", func() {
@@ -1007,7 +1115,16 @@ var _ = Describe("RDS Broker", func() {
 			properUpdateServiceSpec = brokerapi.UpdateServiceSpec{
 				IsAsync: true,
 			}
+
+			rdsInstance.ModifyReturns(
+				&rds.DBInstance{
+					DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+					DBInstanceArn:        aws.String(dbInstanceArn),
+				},
+				nil,
+			)
 		})
+
 		It("returns the proper response", func() {
 			updateServiceSpec, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 			Expect(updateServiceSpec).To(Equal(properUpdateServiceSpec))
@@ -1016,22 +1133,29 @@ var _ = Describe("RDS Broker", func() {
 
 		It("makes the proper calls", func() {
 			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-			Expect(dbInstance.ModifyCalled).To(BeTrue())
-			Expect(dbInstance.ModifyID).To(Equal(dbInstanceIdentifier))
-			Expect(dbInstance.ModifyDBInstanceDetails.DBInstanceClass).To(Equal("db.m2.test"))
-			Expect(dbInstance.ModifyDBInstanceDetails.Engine).To(Equal("test-engine-2"))
 			Expect(err).ToNot(HaveOccurred())
+			Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+			input := rdsInstance.ModifyArgsForCall(0)
+			Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
+			Expect(aws.StringValue(input.DBInstanceClass)).To(Equal("db.m2.test"))
 		})
 
 		It("sets the right tags", func() {
 			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-			Expect(dbInstance.ModifyDBInstanceDetails.Tags["Owner"]).To(Equal("Cloud Foundry"))
-			Expect(dbInstance.ModifyDBInstanceDetails.Tags["Broker Name"]).To(Equal("mybroker"))
-			Expect(dbInstance.ModifyDBInstanceDetails.Tags["Updated by"]).To(Equal("AWS RDS Service Broker"))
-			Expect(dbInstance.ModifyDBInstanceDetails.Tags).To(HaveKey("Updated at"))
-			Expect(dbInstance.ModifyDBInstanceDetails.Tags["Service ID"]).To(Equal("Service-2"))
-			Expect(dbInstance.ModifyDBInstanceDetails.Tags["Plan ID"]).To(Equal("Plan-2"))
 			Expect(err).ToNot(HaveOccurred())
+
+			Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(1))
+			arn, tags := rdsInstance.AddTagsToResourceArgsForCall(0)
+			Expect(arn).To(Equal(dbInstanceArn))
+
+			tagsByName := awsrds.RDSTagsValues(tags)
+
+			Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
+			Expect(tagsByName["Broker Name"]).To(Equal("mybroker"))
+			Expect(tagsByName["Updated by"]).To(Equal("AWS RDS Service Broker"))
+			Expect(tagsByName).To(HaveKey("Updated at"))
+			Expect(tagsByName["Service ID"]).To(Equal("Service-2"))
+			Expect(tagsByName["Plan ID"]).To(Equal("Plan-2"))
 		})
 
 		Context("when custom parameters are not provided", func() {
@@ -1064,83 +1188,74 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when has AllocatedStorage", func() {
 			BeforeEach(func() {
-				rdsProperties2.AllocatedStorage = int64(100)
+				rdsProperties2.AllocatedStorage = int64Pointer(100)
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.AllocatedStorage).To(Equal(int64(100)))
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.Int64Value(input.AllocatedStorage)).To(Equal(int64(100)))
 			})
 		})
 
 		Context("when has AutoMinorVersionUpgrade", func() {
 			BeforeEach(func() {
-				rdsProperties2.AutoMinorVersionUpgrade = true
+				rdsProperties2.AutoMinorVersionUpgrade = boolPointer(true)
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.AutoMinorVersionUpgrade).To(BeTrue())
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.AutoMinorVersionUpgrade)).To(BeTrue())
 			})
 		})
 
-		Context("when has AvailabilityZone", func() {
-			BeforeEach(func() {
-				rdsProperties2.AvailabilityZone = "test-az"
-			})
-
-			It("makes the proper calls", func() {
-				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.AvailabilityZone).To(Equal("test-az"))
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has ApplyAtMaintanceWindow", func() {
-
-			var willApplyImmediately bool
-
-			BeforeEach(func() {
-				dbInstance.ModifyCallback = func(ID string, dbInstanceDetails awsrds.DBInstanceDetails, applyImmediately bool) error {
-					willApplyImmediately = applyImmediately
-					return nil
-				}
-			})
+		Context("when has ApplyAtMaintenanceWindow", func() {
 
 			It("applies immediately when apply_at_maintenance_window param is not given", func() {
 				updateDetails.RawParameters = json.RawMessage(`{}`)
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(willApplyImmediately).To(Equal(true))
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.ApplyImmediately)).To(BeTrue())
 			})
 
 			It("applies immediately when apply_at_maintenance_window param is false", func() {
 				updateDetails.RawParameters = json.RawMessage(`{"apply_at_maintenance_window": false}`)
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(willApplyImmediately).To(Equal(true))
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.ApplyImmediately)).To(BeTrue())
 			})
 
 			It("does not apply immediately when apply_at_maintenance_window param is true", func() {
 				updateDetails.RawParameters = json.RawMessage(`{"apply_at_maintenance_window": true}`)
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(willApplyImmediately).To(Equal(false))
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.ApplyImmediately)).To(BeFalse())
 			})
 
 		})
 
 		Context("when has BackupRetentionPeriod", func() {
 			BeforeEach(func() {
-				rdsProperties2.BackupRetentionPeriod = int64(7)
+				rdsProperties2.BackupRetentionPeriod = int64Pointer(7)
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(7)))
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.Int64Value(input.BackupRetentionPeriod)).To(Equal(int64(7)))
 			})
 
 			//FIXME: These tests are pending until we allow this user provided parameter
@@ -1151,101 +1266,105 @@ var _ = Describe("RDS Broker", func() {
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.BackupRetentionPeriod).To(Equal(int64(12)))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+					input := rdsInstance.ModifyArgsForCall(0)
+					Expect(aws.Int64Value(input.BackupRetentionPeriod)).To(Equal(int64(12)))
 				})
-			})
-		})
-
-		Context("when has CharacterSetName", func() {
-			BeforeEach(func() {
-				rdsProperties2.CharacterSetName = "test-characterset-name"
-			})
-
-			It("makes the proper calls", func() {
-				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.CharacterSetName).To(Equal("test-characterset-name"))
-				Expect(err).ToNot(HaveOccurred())
 			})
 		})
 
 		Context("when has CopyTagsToSnapshot", func() {
 			BeforeEach(func() {
-				rdsProperties2.CopyTagsToSnapshot = true
+				rdsProperties2.CopyTagsToSnapshot = boolPointer(true)
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.CopyTagsToSnapshot).To(BeTrue())
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.CopyTagsToSnapshot)).To(BeTrue())
 			})
 		})
 
 		Context("when has DBParameterGroupName", func() {
 			BeforeEach(func() {
-				rdsProperties2.DBParameterGroupName = "test-db-parameter-group-name"
+				rdsProperties2.DBParameterGroupName = stringPointer("test-db-parameter-group-name")
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.DBParameterGroupName).To(Equal("test-db-parameter-group-name"))
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal("test-db-parameter-group-name"))
 			})
 		})
 
 		Context("when has DBSecurityGroups", func() {
 			BeforeEach(func() {
-				rdsProperties2.DBSecurityGroups = []string{"test-db-security-group"}
+				rdsProperties2.DBSecurityGroups = []*string{stringPointer("test-db-security-group")}
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.DBSecurityGroups).To(Equal([]string{"test-db-security-group"}))
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(input.DBSecurityGroups).To(Equal(
+					[]*string{stringPointer("test-db-security-group")},
+				))
 			})
 		})
 
 		Context("when has DBSubnetGroupName", func() {
 			BeforeEach(func() {
-				rdsProperties2.DBSubnetGroupName = "test-db-subnet-group-name"
+				rdsProperties2.DBSubnetGroupName = stringPointer("test-db-subnet-group-name")
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.DBSubnetGroupName).To(Equal("test-db-subnet-group-name"))
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.DBSubnetGroupName)).To(Equal("test-db-subnet-group-name"))
 			})
 		})
 
 		Context("when has EngineVersion", func() {
 			BeforeEach(func() {
-				rdsProperties2.EngineVersion = "1.2.3"
+				rdsProperties2.EngineVersion = stringPointer("1.2.3")
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.EngineVersion).To(Equal("1.2.3"))
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.EngineVersion)).To(Equal("1.2.3"))
 			})
 		})
 
 		Context("when has Iops", func() {
 			BeforeEach(func() {
-				rdsProperties2.Iops = int64(1000)
+				rdsProperties2.Iops = int64Pointer(1000)
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.Iops).To(Equal(int64(1000)))
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.Int64Value(input.Iops)).To(Equal(int64(1000)))
 			})
 		})
 
 		Context("when storage encryption settings are updated", func() {
 			Context("when tries to enable StorageEncrypted", func() {
 				BeforeEach(func() {
-					rdsProperties1.StorageEncrypted = false
-					rdsProperties2.StorageEncrypted = true
+					rdsProperties1.StorageEncrypted = boolPointer(false)
+					rdsProperties2.StorageEncrypted = boolPointer(true)
 				})
 
 				It("fails noisily", func() {
@@ -1256,8 +1375,8 @@ var _ = Describe("RDS Broker", func() {
 			})
 			Context("when tries to disable StorageEncrypted", func() {
 				BeforeEach(func() {
-					rdsProperties1.StorageEncrypted = true
-					rdsProperties2.StorageEncrypted = false
+					rdsProperties1.StorageEncrypted = boolPointer(true)
+					rdsProperties2.StorageEncrypted = boolPointer(false)
 				})
 
 				It("fails noisily", func() {
@@ -1268,10 +1387,10 @@ var _ = Describe("RDS Broker", func() {
 			})
 			Context("when changes KmsKeyID with StorageEncrypted enabled", func() {
 				BeforeEach(func() {
-					rdsProperties1.StorageEncrypted = true
-					rdsProperties2.StorageEncrypted = true
-					rdsProperties2.KmsKeyID = "test-old-kms-key-id"
-					rdsProperties2.KmsKeyID = "test-new-kms-key-id"
+					rdsProperties1.StorageEncrypted = boolPointer(true)
+					rdsProperties2.StorageEncrypted = boolPointer(true)
+					rdsProperties2.KmsKeyID = stringPointer("test-old-kms-key-id")
+					rdsProperties2.KmsKeyID = stringPointer("test-new-kms-key-id")
 				})
 
 				It("fails noisily", func() {
@@ -1285,61 +1404,57 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when has LicenseModel", func() {
 			BeforeEach(func() {
-				rdsProperties2.LicenseModel = "test-license-model"
+				rdsProperties2.LicenseModel = stringPointer("test-license-model")
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.LicenseModel).To(Equal("test-license-model"))
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.LicenseModel)).To(Equal("test-license-model"))
 			})
 		})
 
 		Context("when has MultiAZ", func() {
 			BeforeEach(func() {
-				rdsProperties2.MultiAZ = true
+				rdsProperties2.MultiAZ = boolPointer(true)
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.MultiAZ).To(BeTrue())
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.MultiAZ)).To(BeTrue())
 			})
 		})
 
 		Context("when has OptionGroupName", func() {
 			BeforeEach(func() {
-				rdsProperties2.OptionGroupName = "test-option-group-name"
+				rdsProperties2.OptionGroupName = stringPointer("test-option-group-name")
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.OptionGroupName).To(Equal("test-option-group-name"))
 				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-
-		Context("when has Port", func() {
-			BeforeEach(func() {
-				rdsProperties2.Port = int64(3306)
-			})
-
-			It("makes the proper calls", func() {
-				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.Port).To(Equal(int64(3306)))
-				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.OptionGroupName)).To(Equal("test-option-group-name"))
 			})
 		})
 
 		Context("when has PreferredBackupWindow", func() {
 			BeforeEach(func() {
-				rdsProperties2.PreferredBackupWindow = "test-preferred-backup-window"
+				rdsProperties2.PreferredBackupWindow = stringPointer("test-preferred-backup-window")
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window"))
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.PreferredBackupWindow)).To(Equal("test-preferred-backup-window"))
 			})
 
 			//FIXME: These tests are pending until we allow this user provided parameter
@@ -1350,21 +1465,25 @@ var _ = Describe("RDS Broker", func() {
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.PreferredBackupWindow).To(Equal("test-preferred-backup-window-parameter"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+					input := rdsInstance.ModifyArgsForCall(0)
+					Expect(aws.StringValue(input.PreferredBackupWindow)).To(Equal("test-preferred-backup-window-parameter"))
 				})
 			})
 		})
 
 		Context("when has PreferredMaintenanceWindow", func() {
 			BeforeEach(func() {
-				rdsProperties2.PreferredMaintenanceWindow = "test-preferred-maintenance-window"
+				rdsProperties2.PreferredMaintenanceWindow = stringPointer("test-preferred-maintenance-window")
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window"))
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.PreferredMaintenanceWindow)).To(Equal("test-preferred-maintenance-window"))
 			})
 
 			//FIXME: These tests are pending until we allow this user provided parameter
@@ -1375,45 +1494,55 @@ var _ = Describe("RDS Broker", func() {
 
 				It("makes the proper calls", func() {
 					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-					Expect(dbInstance.ModifyDBInstanceDetails.PreferredMaintenanceWindow).To(Equal("test-preferred-maintenance-window-parameter"))
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+					input := rdsInstance.ModifyArgsForCall(0)
+					Expect(aws.StringValue(input.PreferredMaintenanceWindow)).To(Equal("test-preferred-maintenance-window-parameter"))
 				})
 			})
 		})
 
 		Context("when has PubliclyAccessible", func() {
 			BeforeEach(func() {
-				rdsProperties2.PubliclyAccessible = true
+				rdsProperties2.PubliclyAccessible = boolPointer(true)
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.PubliclyAccessible).To(BeTrue())
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.BoolValue(input.PubliclyAccessible)).To(BeTrue())
 			})
 		})
 
 		Context("when has StorageType", func() {
 			BeforeEach(func() {
-				rdsProperties2.StorageType = "test-storage-type"
+				rdsProperties2.StorageType = stringPointer("test-storage-type")
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.StorageType).To(Equal("test-storage-type"))
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.StorageType)).To(Equal("test-storage-type"))
 			})
 		})
 
 		Context("when has VpcSecurityGroupIds", func() {
 			BeforeEach(func() {
-				rdsProperties2.VpcSecurityGroupIds = []string{"test-vpc-security-group-ids"}
+				rdsProperties2.VpcSecurityGroupIds = []*string{stringPointer("test-vpc-security-group-ids")}
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(dbInstance.ModifyDBInstanceDetails.VpcSecurityGroupIds).To(Equal([]string{"test-vpc-security-group-ids"}))
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(input.VpcSecurityGroupIds).To(Equal(
+					[]*string{stringPointer("test-vpc-security-group-ids")},
+				))
 			})
 		})
 
@@ -1480,7 +1609,7 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when modifying the DB Instance fails", func() {
 			BeforeEach(func() {
-				dbInstance.ModifyError = errors.New("operation failed")
+				rdsInstance.ModifyReturns(nil, errors.New("operation failed"))
 			})
 
 			It("returns the proper error", func() {
@@ -1491,7 +1620,7 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("when the DB Instance does not exists", func() {
 				BeforeEach(func() {
-					dbInstance.ModifyError = awsrds.ErrDBInstanceDoesNotExist
+					rdsInstance.ModifyReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
 				})
 
 				It("returns the proper error", func() {
@@ -1499,6 +1628,17 @@ var _ = Describe("RDS Broker", func() {
 					Expect(err).To(HaveOccurred())
 					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
 				})
+			})
+		})
+
+		Context("when getting resource tags errors", func () {
+			BeforeEach(func () {
+				rdsInstance.GetResourceTagsReturns(nil, errors.New("operation failed"))
+			})
+
+			It("does not return an error", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
 			})
 		})
 	})
@@ -1529,23 +1669,25 @@ var _ = Describe("RDS Broker", func() {
 
 		It("makes the proper calls", func() {
 			_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
-			Expect(dbInstance.DeleteCalled).To(BeTrue())
-			Expect(dbInstance.DeleteID).To(Equal(dbInstanceIdentifier))
-			Expect(dbInstance.DeleteSkipFinalSnapshot).To(BeTrue())
 			Expect(err).ToNot(HaveOccurred())
+			Expect(rdsInstance.DeleteCallCount()).To(Equal(1))
+			id, skipFinalSnapshot := rdsInstance.DeleteArgsForCall(0)
+			Expect(id).To(Equal(dbInstanceIdentifier))
+			Expect(skipFinalSnapshot).To(BeTrue())
 		})
 
 		Context("when it does not skip final snaphot", func() {
 			BeforeEach(func() {
-				rdsProperties1.SkipFinalSnapshot = false
+				rdsProperties1.SkipFinalSnapshot = boolPointer(false)
 			})
 
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
-				Expect(dbInstance.DeleteCalled).To(BeTrue())
-				Expect(dbInstance.DeleteID).To(Equal(dbInstanceIdentifier))
-				Expect(dbInstance.DeleteSkipFinalSnapshot).To(BeFalse())
 				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.DeleteCallCount()).To(Equal(1))
+				id, skipFinalSnapshot := rdsInstance.DeleteArgsForCall(0)
+				Expect(id).To(Equal(dbInstanceIdentifier))
+				Expect(skipFinalSnapshot).To(BeFalse())
 			})
 		})
 
@@ -1575,7 +1717,7 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when deleting the DB Instance fails", func() {
 			BeforeEach(func() {
-				dbInstance.DeleteError = errors.New("operation failed")
+				rdsInstance.DeleteReturns(errors.New("operation failed"))
 			})
 
 			It("returns the proper error", func() {
@@ -1586,7 +1728,7 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("when the DB instance does not exists", func() {
 				BeforeEach(func() {
-					dbInstance.DeleteError = awsrds.ErrDBInstanceDoesNotExist
+					rdsInstance.DeleteReturns(awsrds.ErrDBInstanceDoesNotExist)
 				})
 
 				It("returns the proper error", func() {
@@ -1611,13 +1753,15 @@ var _ = Describe("RDS Broker", func() {
 				RawParameters: json.RawMessage{},
 			}
 
-			dbInstance.DescribeDBInstanceDetails = awsrds.DBInstanceDetails{
-				Identifier:     dbInstanceIdentifier,
-				Address:        "endpoint-address",
-				Port:           3306,
-				DBName:         "test-db",
-				MasterUsername: "master-username",
-			}
+			rdsInstance.DescribeReturns(&rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				Endpoint: &rds.Endpoint{
+					Address: aws.String("endpoint-address"),
+					Port:    aws.Int64(3306),
+				},
+				DBName:         aws.String("test-db"),
+				MasterUsername: aws.String("master-username"),
+			}, nil)
 
 			sqlEngine.CreateUserUsername = dbUsername
 			sqlEngine.CreateUserPassword = "secret"
@@ -1640,8 +1784,11 @@ var _ = Describe("RDS Broker", func() {
 
 		It("makes the proper calls", func() {
 			_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
-			Expect(dbInstance.DescribeCalled).To(BeTrue())
-			Expect(dbInstance.DescribeID).To(Equal(dbInstanceIdentifier))
+			Expect(rdsInstance.DescribeCallCount()).To(Equal(1))
+			Expect(err).ToNot(HaveOccurred())
+			id := rdsInstance.DescribeArgsForCall(0)
+			Expect(id).To(Equal(dbInstanceIdentifier))
+
 			Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
 			Expect(sqlProvider.GetSQLEngineEngine).To(Equal("test-engine-1"))
 			Expect(sqlEngine.OpenCalled).To(BeTrue())
@@ -1654,21 +1801,20 @@ var _ = Describe("RDS Broker", func() {
 			Expect(sqlEngine.CreateUserBindingID).To(Equal(bindingID))
 			Expect(sqlEngine.CreateUserDBName).To(Equal("test-db"))
 			Expect(sqlEngine.CloseCalled).To(BeTrue())
-			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("brokerapi integration returns the proper response", func() {
 			recorder := httptest.NewRecorder()
 
 			bindingDetailsJson := []byte(`
-				{
-					"service_id": "Service-1",
-					"plan_id": "Plan-1",
-					"bind_resource": {
-						"app_guid": "Application-1"
-					},
-					"parameters": {}
-				}`)
+	{
+	"service_id": "Service-1",
+	"plan_id": "Plan-1",
+	"bind_resource": {
+	"app_guid": "Application-1"
+	},
+	"parameters": {}
+	}`)
 
 			req, _ := http.NewRequest(
 				"PUT",
@@ -1798,7 +1944,7 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when describing the DB Instance fails", func() {
 			BeforeEach(func() {
-				dbInstance.DescribeError = errors.New("operation failed")
+				rdsInstance.DescribeReturns(nil, errors.New("operation failed"))
 			})
 
 			It("returns the proper error", func() {
@@ -1809,7 +1955,7 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("when the DB Instance does not exists", func() {
 				BeforeEach(func() {
-					dbInstance.DescribeError = awsrds.ErrDBInstanceDoesNotExist
+					rdsInstance.DescribeReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
 				})
 
 				It("returns the proper error", func() {
@@ -1869,19 +2015,26 @@ var _ = Describe("RDS Broker", func() {
 				PlanID:    "Plan-1",
 			}
 
-			dbInstance.DescribeDBInstanceDetails = awsrds.DBInstanceDetails{
-				Identifier:     dbInstanceIdentifier,
-				Address:        "endpoint-address",
-				Port:           3306,
-				DBName:         "test-db",
-				MasterUsername: "master-username",
-			}
+			rdsInstance.DescribeReturns(&rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				Endpoint: &rds.Endpoint{
+					Address: aws.String("endpoint-address"),
+					Port:    aws.Int64(3306),
+				},
+				DBName:         aws.String("test-db"),
+				MasterUsername: aws.String("master-username"),
+				Engine:         aws.String("test-engine-1"),
+			}, nil)
 		})
 
 		It("makes the proper calls", func() {
 			err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails)
-			Expect(dbInstance.DescribeCalled).To(BeTrue())
-			Expect(dbInstance.DescribeID).To(Equal(dbInstanceIdentifier))
+
+			Expect(rdsInstance.DescribeCallCount()).To(Equal(1))
+			Expect(err).ToNot(HaveOccurred())
+			id := rdsInstance.DescribeArgsForCall(0)
+			Expect(id).To(Equal(dbInstanceIdentifier))
+
 			Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
 			Expect(sqlProvider.GetSQLEngineEngine).To(Equal("test-engine-1"))
 			Expect(sqlEngine.OpenCalled).To(BeTrue())
@@ -1893,7 +2046,6 @@ var _ = Describe("RDS Broker", func() {
 			Expect(sqlEngine.DropUserCalled).To(BeTrue())
 			Expect(sqlEngine.DropUserBindingID).To(Equal(bindingID))
 			Expect(sqlEngine.CloseCalled).To(BeTrue())
-			Expect(err).ToNot(HaveOccurred())
 		})
 
 		Context("when Service Plan is not found", func() {
@@ -1910,7 +2062,7 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when describing the DB Instance fails", func() {
 			BeforeEach(func() {
-				dbInstance.DescribeError = errors.New("operation failed")
+				rdsInstance.DescribeReturns(nil, errors.New("operation failed"))
 			})
 
 			It("returns the proper error", func() {
@@ -1921,7 +2073,7 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("when the DB Instance does not exists", func() {
 				BeforeEach(func() {
-					dbInstance.DescribeError = awsrds.ErrDBInstanceDoesNotExist
+					rdsInstance.DescribeReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
 				})
 
 				It("returns the proper error", func() {
@@ -1975,25 +2127,40 @@ var _ = Describe("RDS Broker", func() {
 			dbInstanceStatus            string
 			lastOperationState          brokerapi.LastOperationState
 			properLastOperationResponse brokerapi.LastOperation
-		)
 
-		JustBeforeEach(func() {
-			dbInstance.DescribeDBInstanceDetails = awsrds.DBInstanceDetails{
-				Identifier:     dbInstanceIdentifier,
-				Engine:         "test-engine",
-				Address:        "endpoint-address",
-				Port:           3306,
-				DBName:         "test-db",
-				MasterUsername: "master-username",
-				Status:         dbInstanceStatus,
-				Tags: map[string]string{
-					"Owner":       "Cloud Foundry",
-					"Broker Name": "mybroker",
-					"Created by":  "AWS RDS Service Broker",
-					"Service ID":  "Service-1",
-					"Plan ID":     "Plan-1",
+			defaultDBInstance = &rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBInstanceArn:        aws.String(dbInstanceArn),
+				Engine:               aws.String("test-engine"),
+				Endpoint: &rds.Endpoint{
+					Address: aws.String("endpoint-address"),
+					Port:    aws.Int64(3306),
 				},
+				DBName:         aws.String("test-db"),
+				MasterUsername: aws.String("master-username"),
 			}
+
+			defaultDBInstanceTags = []*rds.Tag{
+				{Key: aws.String("Owner"), Value: aws.String("Cloud Foundry")},
+				{Key: aws.String("Broker Name"), Value: aws.String("mybroker")},
+				{Key: aws.String("Created by"), Value: aws.String("AWS RDS Service Broker")},
+				{Key: aws.String("Service ID"), Value: aws.String("Service-1")},
+				{Key: aws.String("Plan ID"), Value: aws.String("Plan-1")},
+			}
+		)
+		JustBeforeEach(func() {
+			defaultDBInstance.DBInstanceStatus = aws.String(dbInstanceStatus)
+			rdsInstance.DescribeReturns(defaultDBInstance, nil)
+
+			rdsInstance.GetResourceTagsReturns(defaultDBInstanceTags, nil)
+
+			rdsInstance.ModifyReturns(
+				&rds.DBInstance{
+					DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+					DBInstanceArn:        aws.String(dbInstanceArn),
+				},
+				nil,
+			)
 
 			properLastOperationResponse = brokerapi.LastOperation{
 				State:       lastOperationState,
@@ -2002,8 +2169,8 @@ var _ = Describe("RDS Broker", func() {
 		})
 
 		Context("when describing the DB Instance fails", func() {
-			BeforeEach(func() {
-				dbInstance.DescribeError = errors.New("operation failed")
+			JustBeforeEach(func() {
+				rdsInstance.DescribeReturns(nil, errors.New("operation failed"))
 			})
 
 			It("returns the proper error", func() {
@@ -2013,8 +2180,8 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			Context("when the DB Instance does not exists", func() {
-				BeforeEach(func() {
-					dbInstance.DescribeError = awsrds.ErrDBInstanceDoesNotExist
+				JustBeforeEach(func() {
+					rdsInstance.DescribeReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
 				})
 
 				It("returns the proper error", func() {
@@ -2041,18 +2208,29 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
+		It("returns InstanceDoesNotExist if it is not found when getting the tags", func() {
+			rdsInstance.GetResourceTagsReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
+			_, err := rdsBroker.LastOperation(ctx, instanceID, "")
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+		})
+
 		Context("when last operation is still in progress", func() {
 			BeforeEach(func() {
 				dbInstanceStatus = "creating"
 				lastOperationState = brokerapi.InProgress
 			})
 
-			It("calls Describe() with the refresh cache option", func() {
+			It("calls GetResourceTags() with the refresh cache option", func() {
 				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
 
-				Expect(dbInstance.DescribeOpts).To(ContainElement(awsrds.DescribeRefreshCacheOption))
+				Expect(rdsInstance.GetResourceTagsCallCount()).To(Equal(1))
+				id, opts := rdsInstance.GetResourceTagsArgsForCall(0)
+				Expect(id).To(Equal(dbInstanceArn))
+
+				Expect(opts).To(ContainElement(awsrds.DescribeRefreshCacheOption))
 			})
 
 			It("returns the proper LastOperationResponse", func() {
@@ -2063,18 +2241,24 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("and there are pending post restore tasks", func() {
 				JustBeforeEach(func() {
-					dbInstance.DescribeDBInstanceDetails.Tags["PendingUpdateSettings"] = "true"
+					rdsInstance.GetResourceTagsReturns(
+						append(
+							defaultDBInstanceTags,
+							&rds.Tag{Key: aws.String("PendingUpdateSettings"), Value: aws.String("true")},
+						),
+						nil,
+					)
 				})
 				It("should not call RemoveTag to remove the tag PendingUpdateSettings", func() {
 					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
 					Expect(err).ToNot(HaveOccurred())
-					Expect(dbInstance.RemoveTagCalled).To(BeFalse())
+					Expect(rdsInstance.RemoveTagCallCount()).To(Equal(0))
 				})
 
 				It("should not modify the DB instance", func() {
 					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
 					Expect(err).ToNot(HaveOccurred())
-					Expect(dbInstance.ModifyCalled).To(BeFalse())
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
 				})
 			})
 
@@ -2107,9 +2291,8 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("the SQL engine is Postgres", func() {
 				JustBeforeEach(func() {
-					dbInstance.DescribeDBInstanceDetails.Tags = map[string]string{
-						"Plan ID": "Plan-3",
-					}
+					defaultDBInstance.Engine = aws.String("postgres")
+					rdsInstance.DescribeReturns(defaultDBInstance, nil)
 				})
 
 				It("attempts to create Postgres extenions", func() {
@@ -2122,7 +2305,11 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("but has pending modifications", func() {
 				JustBeforeEach(func() {
-					dbInstance.DescribeDBInstanceDetails.PendingModifications = true
+					newDBInstance := *defaultDBInstance
+					newDBInstance.PendingModifiedValues = &rds.PendingModifiedValues{
+						MasterUserPassword: aws.String("foo"),
+					}
+					rdsInstance.DescribeReturns(&newDBInstance, nil)
 
 					properLastOperationResponse = brokerapi.LastOperation{
 						State:       brokerapi.InProgress,
@@ -2137,9 +2324,24 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 
+			It("If instance.PendingModifiedValues is empty it returns the right state", func() {
+				newDBInstance := *defaultDBInstance
+				newDBInstance.PendingModifiedValues = &rds.PendingModifiedValues{}
+				rdsInstance.DescribeReturns(&newDBInstance, nil)
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+			})
+
 			Context("but there are pending post restore tasks", func() {
 				JustBeforeEach(func() {
-					dbInstance.DescribeDBInstanceDetails.Tags["PendingUpdateSettings"] = "true"
+					rdsInstance.GetResourceTagsReturns(
+						append(
+							defaultDBInstanceTags,
+							&rds.Tag{Key: aws.String("PendingUpdateSettings"), Value: aws.String("true")},
+						),
+						nil,
+					)
 
 					properLastOperationResponse = brokerapi.LastOperation{
 						State:       brokerapi.InProgress,
@@ -2149,9 +2351,10 @@ var _ = Describe("RDS Broker", func() {
 				It("should call RemoveTag to remove the tag PendingUpdateSettings", func() {
 					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
 					Expect(err).ToNot(HaveOccurred())
-					Expect(dbInstance.RemoveTagCalled).To(BeTrue())
-					Expect(dbInstance.RemoveTagID).To(Equal(dbInstanceIdentifier))
-					Expect(dbInstance.RemoveTagTagKey).To(Equal("PendingUpdateSettings"))
+					Expect(rdsInstance.RemoveTagCallCount()).To(Equal(1))
+					id, tagName := rdsInstance.RemoveTagArgsForCall(0)
+					Expect(id).To(Equal(dbInstanceIdentifier))
+					Expect(tagName).To(Equal("PendingUpdateSettings"))
 				})
 
 				It("should return the proper LastOperationResponse", func() {
@@ -2162,7 +2365,7 @@ var _ = Describe("RDS Broker", func() {
 
 				Context("when remove tag fails", func() {
 					BeforeEach(func() {
-						dbInstance.RemoveTagError = errors.New("Failed to remove tag")
+						rdsInstance.RemoveTagReturns(errors.New("Failed to remove tag"))
 					})
 					It("returns the proper error", func() {
 						_, err := rdsBroker.LastOperation(ctx, instanceID, "")
@@ -2174,58 +2377,75 @@ var _ = Describe("RDS Broker", func() {
 				It("modifies the DB instance", func() {
 					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
 					Expect(err).ToNot(HaveOccurred())
-					Expect(dbInstance.ModifyCalled).To(BeTrue())
-					Expect(dbInstance.ModifyID).To(Equal(dbInstanceIdentifier))
-					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+					input := rdsInstance.ModifyArgsForCall(0)
+					Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
 				})
 
 				It("sets the right tags", func() {
 					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Owner"]).To(Equal("Cloud Foundry"))
-					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Broker Name"]).To(Equal("mybroker"))
-					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Restored by"]).To(Equal("AWS RDS Service Broker"))
-					Expect(dbInstance.ModifyDBInstanceDetails.Tags).To(HaveKey("Restored at"))
-					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Service ID"]).To(Equal("Service-1"))
-					Expect(dbInstance.ModifyDBInstanceDetails.Tags["Plan ID"]).To(Equal("Plan-1"))
 					Expect(err).ToNot(HaveOccurred())
+
+					Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(1))
+					id, tags := rdsInstance.AddTagsToResourceArgsForCall(0)
+					Expect(id).To(Equal(dbInstanceArn))
+					tagsByName := awsrds.RDSTagsValues(tags)
+
+					Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
+					Expect(tagsByName["Broker Name"]).To(Equal("mybroker"))
+					Expect(tagsByName["Restored by"]).To(Equal("AWS RDS Service Broker"))
+					Expect(tagsByName).To(HaveKey("Restored at"))
+					Expect(tagsByName["Service ID"]).To(Equal("Service-1"))
+					Expect(tagsByName["Plan ID"]).To(Equal("Plan-1"))
 				})
 
 				Context("when the master password needs to be rotated", func() {
 					JustBeforeEach(func() {
 						sqlEngine.CorrectPassword = "some-other-password"
-						// use a callback function to set the password back to what it was before. This is because the Bind()
+						// use a stub function to set the password back to what it was before. This is because the Bind()
 						// uses two different calls to the SQL engine's Open() method, the first needs to fail and the second needs to pass.
-						dbInstance.ModifyCallback = func(ID string, dbInstanceDetails awsrds.DBInstanceDetails, applyImmediately bool) error {
-							sqlEngine.CorrectPassword = dbInstanceDetails.MasterUserPassword
-							return nil
+						rdsInstance.ModifyStub = func(input *rds.ModifyDBInstanceInput) (*rds.DBInstance, error) {
+							sqlEngine.CorrectPassword = aws.StringValue(input.MasterUserPassword)
+							return &rds.DBInstance{DBInstanceIdentifier: input.DBInstanceIdentifier}, nil
 						}
 					})
 
 					It("should try to change the master password", func() {
 						_, err := rdsBroker.LastOperation(ctx, instanceID, "")
 						Expect(err).ToNot(HaveOccurred())
-						Expect(dbInstance.ModifyCalled).To(BeTrue())
-						Expect(dbInstance.ModifyID).To(BeEquivalentTo(dbInstanceIdentifier))
-						Expect(dbInstance.ModifyDBInstanceDetails.MasterUserPassword).ToNot(BeEmpty())
+						Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+						input := rdsInstance.ModifyArgsForCall(0)
+						Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
+						Expect(aws.StringValue(input.MasterUserPassword)).ToNot(BeEmpty())
 					})
 				})
 
 				Context("when has DBSecurityGroups", func() {
 					BeforeEach(func() {
-						rdsProperties1.DBSecurityGroups = []string{"test-db-security-group"}
+						rdsProperties1.DBSecurityGroups = []*string{aws.String("test-db-security-group")}
 					})
 
-					It("makes the modify with the secutiry group", func() {
+					It("makes the modify with the security group", func() {
 						_, err := rdsBroker.LastOperation(ctx, instanceID, "")
-						Expect(dbInstance.ModifyDBInstanceDetails.DBSecurityGroups).To(Equal([]string{"test-db-security-group"}))
 						Expect(err).ToNot(HaveOccurred())
+						Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+						input := rdsInstance.ModifyArgsForCall(0)
+						Expect(input.DBSecurityGroups).To(Equal(
+							[]*string{aws.String("test-db-security-group")},
+						))
 					})
 				})
 			})
 
 			Context("but there are pending reboot", func() {
 				JustBeforeEach(func() {
-					dbInstance.DescribeDBInstanceDetails.Tags["PendingReboot"] = "true"
+					rdsInstance.GetResourceTagsReturns(
+						append(
+							defaultDBInstanceTags,
+							&rds.Tag{Key: aws.String("PendingReboot"), Value: aws.String("true")},
+						),
+						nil,
+					)
 
 					properLastOperationResponse = brokerapi.LastOperation{
 						State:       brokerapi.InProgress,
@@ -2236,9 +2456,10 @@ var _ = Describe("RDS Broker", func() {
 				It("should call RemoveTag to remove the tag PendingReboot", func() {
 					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
 					Expect(err).ToNot(HaveOccurred())
-					Expect(dbInstance.RemoveTagCalled).To(BeTrue())
-					Expect(dbInstance.RemoveTagID).To(Equal(dbInstanceIdentifier))
-					Expect(dbInstance.RemoveTagTagKey).To(Equal("PendingReboot"))
+					Expect(rdsInstance.RemoveTagCallCount()).To(Equal(1))
+					id, tagName := rdsInstance.RemoveTagArgsForCall(0)
+					Expect(id).To(Equal(dbInstanceIdentifier))
+					Expect(tagName).To(Equal("PendingReboot"))
 				})
 
 				It("should return the proper LastOperationResponse", func() {
@@ -2249,7 +2470,7 @@ var _ = Describe("RDS Broker", func() {
 
 				Context("when remove tag fails", func() {
 					BeforeEach(func() {
-						dbInstance.RemoveTagError = errors.New("Failed to remove tag")
+						rdsInstance.RemoveTagReturns(errors.New("Failed to remove tag"))
 					})
 					It("returns the proper error", func() {
 						_, err := rdsBroker.LastOperation(ctx, instanceID, "")
@@ -2261,14 +2482,21 @@ var _ = Describe("RDS Broker", func() {
 				It("reboot the DB instance", func() {
 					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
 					Expect(err).ToNot(HaveOccurred())
-					Expect(dbInstance.RebootCalled).To(BeTrue())
-					Expect(dbInstance.RebootID).To(Equal(dbInstanceIdentifier))
+					Expect(rdsInstance.RebootCallCount()).To(Equal(1))
+					id := rdsInstance.RebootArgsForCall(0)
+					Expect(id).To(Equal(dbInstanceIdentifier))
 				})
 			})
 
 			Context("but there is a pending reset user password", func() {
 				JustBeforeEach(func() {
-					dbInstance.DescribeDBInstanceDetails.Tags["PendingResetUserPassword"] = "true"
+					rdsInstance.GetResourceTagsReturns(
+						append(
+							defaultDBInstanceTags,
+							&rds.Tag{Key: aws.String("PendingResetUserPassword"), Value: aws.String("true")},
+						),
+						nil,
+					)
 
 					properLastOperationResponse = brokerapi.LastOperation{
 						State:       brokerapi.InProgress,
@@ -2279,9 +2507,10 @@ var _ = Describe("RDS Broker", func() {
 				It("should call RemoveTag to remove the tag PendingResetUserPassword", func() {
 					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
 					Expect(err).ToNot(HaveOccurred())
-					Expect(dbInstance.RemoveTagCalled).To(BeTrue())
-					Expect(dbInstance.RemoveTagID).To(Equal(dbInstanceIdentifier))
-					Expect(dbInstance.RemoveTagTagKey).To(Equal("PendingResetUserPassword"))
+					Expect(rdsInstance.RemoveTagCallCount()).To(Equal(1))
+					id, tagName := rdsInstance.RemoveTagArgsForCall(0)
+					Expect(id).To(Equal(dbInstanceIdentifier))
+					Expect(tagName).To(Equal("PendingResetUserPassword"))
 				})
 
 				It("should return the proper LastOperationResponse", func() {
@@ -2292,7 +2521,7 @@ var _ = Describe("RDS Broker", func() {
 
 				Context("when remove tag fails", func() {
 					BeforeEach(func() {
-						dbInstance.RemoveTagError = errors.New("Failed to remove tag")
+						rdsInstance.RemoveTagReturns(errors.New("Failed to remove tag"))
 					})
 					It("returns the proper error", func() {
 						_, err := rdsBroker.LastOperation(ctx, instanceID, "")
@@ -2323,7 +2552,7 @@ var _ = Describe("RDS Broker", func() {
 				It("should not try to change the master password", func() {
 					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
 					Expect(err).ToNot(HaveOccurred())
-					Expect(dbInstance.ModifyCalled).To(BeFalse())
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
 				})
 				It("should not reset the database state by not calling sqlengine.ResetState()", func() {
 					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
@@ -2333,7 +2562,7 @@ var _ = Describe("RDS Broker", func() {
 				It("should not call RemoveTag", func() {
 					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
 					Expect(err).ToNot(HaveOccurred())
-					Expect(dbInstance.RemoveTagCalled).To(BeFalse())
+					Expect(rdsInstance.RemoveTagCallCount()).To(Equal(0))
 				})
 			})
 		})
@@ -2406,6 +2635,11 @@ var _ = Describe("RDS Broker", func() {
 	})
 
 	Describe("CheckAndRotateCredentials", func() {
+		BeforeEach(func() {
+			sqlEngine = &sqlfake.FakeSQLEngine{}
+			sqlProvider.GetSQLEngineSQLEngine = sqlEngine
+		})
+
 		Context("when there is no DB instance", func() {
 			It("shouldn't try to connect to databases", func() {
 				rdsBroker.CheckAndRotateCredentials()
@@ -2416,23 +2650,26 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when there are DB instances", func() {
 			BeforeEach(func() {
-				dbInstance.DescribeByTagDBInstanceDetails = []*awsrds.DBInstanceDetails{
-					&awsrds.DBInstanceDetails{
-						Identifier:     dbInstanceIdentifier,
-						Address:        "endpoint-address",
-						Port:           3306,
-						DBName:         "test-db",
-						MasterUsername: "master-username",
-						Engine:         "fake-engine",
+				rdsInstance.DescribeByTagReturns([]*rds.DBInstance{{
+					DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+					Endpoint: &rds.Endpoint{
+						Address: aws.String("endpoint-address"),
+						Port:    aws.Int64(3306),
 					},
-				}
+					DBName:         aws.String("test-db"),
+					MasterUsername: aws.String("master-username"),
+					Engine:         aws.String("fake-engine"),
+				}}, nil)
 			})
 
 			It("should try to connect to databases", func() {
 				rdsBroker.CheckAndRotateCredentials()
-				Expect(dbInstance.DescribeByTagCalled).To(BeTrue())
-				Expect(dbInstance.DescribeByTagKey).To(BeEquivalentTo("Broker Name"))
-				Expect(dbInstance.DescribeByTagValue).To(BeEquivalentTo(brokerName))
+				Expect(rdsInstance.DescribeByTagCallCount()).To(Equal(1))
+				key, value, opts := rdsInstance.DescribeByTagArgsForCall(0)
+				Expect(key).To(BeEquivalentTo("Broker Name"))
+				Expect(value).To(BeEquivalentTo(brokerName))
+				Expect(opts).To(BeEmpty())
+
 				Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
 				Expect(sqlProvider.GetSQLEngineEngine).To(BeEquivalentTo("fake-engine"))
 				Expect(sqlEngine.OpenCalled).To(BeTrue())
@@ -2445,7 +2682,7 @@ var _ = Describe("RDS Broker", func() {
 			Context("and the passwords work", func() {
 				It("should not try to change the master password", func() {
 					rdsBroker.CheckAndRotateCredentials()
-					Expect(dbInstance.ModifyCalled).To(BeFalse())
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
 				})
 			})
 
@@ -2456,9 +2693,11 @@ var _ = Describe("RDS Broker", func() {
 
 				It("should try to change the master password", func() {
 					rdsBroker.CheckAndRotateCredentials()
-					Expect(dbInstance.ModifyCalled).To(BeTrue())
-					Expect(dbInstance.ModifyID).To(BeEquivalentTo(dbInstanceIdentifier))
-					Expect(dbInstance.ModifyDBInstanceDetails.MasterUserPassword).To(BeEquivalentTo(sqlEngine.OpenPassword))
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+					input := rdsInstance.ModifyArgsForCall(0)
+
+					Expect(aws.StringValue(input.DBInstanceIdentifier)).To(BeEquivalentTo(dbInstanceIdentifier))
+					Expect(aws.StringValue(input.MasterUserPassword)).To(BeEquivalentTo(sqlEngine.OpenPassword))
 				})
 			})
 
@@ -2469,18 +2708,18 @@ var _ = Describe("RDS Broker", func() {
 
 				It("should not try to change the master password", func() {
 					rdsBroker.CheckAndRotateCredentials()
-					Expect(dbInstance.ModifyCalled).To(BeFalse())
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
 				})
 			})
 
 			Context("and there is DescribeByTagError error", func() {
 				BeforeEach(func() {
-					dbInstance.DescribeByTagError = errors.New("Error when listing instances")
+					rdsInstance.DescribeByTagReturns(nil, errors.New("Error when listing instances"))
 				})
 
-				It("should exit with an error", func() {
+				It("should not call modify", func() {
 					rdsBroker.CheckAndRotateCredentials()
-					Expect(dbInstance.ModifyCalled).To(BeFalse())
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
 				})
 			})
 
@@ -2492,16 +2731,18 @@ var _ = Describe("RDS Broker", func() {
 			)
 
 			BeforeEach(func() {
-				dbInstance.DescribeByTagDBInstanceDetails = []*awsrds.DBInstanceDetails{
-					&awsrds.DBInstanceDetails{
-						Identifier:     dbInstanceIdentifier,
-						Address:        "endpoint-address",
-						Port:           3306,
-						DBName:         "test-db",
-						MasterUsername: "master-username",
-						Engine:         "fake-engine",
+				dbInstance := &rds.DBInstance{
+					DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+					Endpoint: &rds.Endpoint{
+						Address: aws.String("endpoint-address"),
+						Port:    aws.Int64(3306),
 					},
+					DBName:         aws.String("test-db"),
+					MasterUsername: aws.String("master-username"),
+					Engine:         aws.String("fake-engine"),
 				}
+				rdsInstance.DescribeByTagReturns([]*rds.DBInstance{dbInstance}, nil)
+				rdsInstance.DescribeReturns(dbInstance, nil)
 
 				bindDetails = brokerapi.BindDetails{
 					ServiceID:     "Service-1",
@@ -2515,8 +2756,10 @@ var _ = Describe("RDS Broker", func() {
 				sqlEngine.OpenError = sqlengine.LoginFailedError
 				rdsBroker.CheckAndRotateCredentials()
 				expectedMasterPassword := sqlEngine.OpenPassword
-				Expect(dbInstance.ModifyCalled).To(BeTrue())
-				Expect(dbInstance.ModifyDBInstanceDetails.MasterUserPassword).To(BeEquivalentTo(expectedMasterPassword))
+
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.MasterUserPassword)).To(BeEquivalentTo(expectedMasterPassword))
 
 				sqlEngine.OpenError = nil
 				_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
