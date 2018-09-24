@@ -253,11 +253,11 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PreviousValues.PlanID)
 	}
 
-	if servicePlan.RDSProperties.StorageEncrypted != previousServicePlan.RDSProperties.StorageEncrypted {
+	if !reflect.DeepEqual(servicePlan.RDSProperties.StorageEncrypted, previousServicePlan.RDSProperties.StorageEncrypted) {
 		return brokerapi.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
 	}
 
-	if servicePlan.RDSProperties.KmsKeyID != previousServicePlan.RDSProperties.KmsKeyID {
+	if !reflect.DeepEqual(servicePlan.RDSProperties.KmsKeyID, previousServicePlan.RDSProperties.KmsKeyID) {
 		return brokerapi.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
 	}
 

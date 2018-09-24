@@ -1360,6 +1360,34 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
+		Context("when has StorageEncrypted", func() {
+			Context("when tries to enable StorageEncrypted", func() {
+				BeforeEach(func() {
+					rdsProperties1.StorageEncrypted = boolPointer(true)
+					rdsProperties2.StorageEncrypted = boolPointer(true)
+				})
+
+				It("does nothing", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+		})
+
+		Context("when has KmsKeyID", func() {
+			Context("when tries to set KmsKeyID to the same value", func() {
+				BeforeEach(func() {
+					rdsProperties1.KmsKeyID = stringPointer("some-kms-key-id")
+					rdsProperties2.KmsKeyID = stringPointer("some-kms-key-id")
+				})
+
+				It("does nothing", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+		})
+
 		Context("when storage encryption settings are updated", func() {
 			Context("when tries to enable StorageEncrypted", func() {
 				BeforeEach(func() {
