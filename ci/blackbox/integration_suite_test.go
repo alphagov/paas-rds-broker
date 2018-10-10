@@ -63,8 +63,8 @@ func TestSuite(t *testing.T) {
 			for serviceIndex := range rdsBrokerConfig.RDSConfig.Catalog.Services {
 				for planIndex := range rdsBrokerConfig.RDSConfig.Catalog.Services[serviceIndex].Plans {
 					plan := &rdsBrokerConfig.RDSConfig.Catalog.Services[serviceIndex].Plans[planIndex]
-					plan.RDSProperties.DBSubnetGroupName = *rdsSubnetGroupName
-					plan.RDSProperties.VpcSecurityGroupIds = []string{*ec2SecurityGroupID}
+					plan.RDSProperties.DBSubnetGroupName = rdsSubnetGroupName
+					plan.RDSProperties.VpcSecurityGroupIds = []*string{ec2SecurityGroupID}
 				}
 			}
 
