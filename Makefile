@@ -8,7 +8,7 @@ unit:
 	POSTGRESQL_PASSWORD=$(POSTGRESQL_PASSWORD) ginkgo -r --skipPackage=ci
 
 integration:
-	ginkgo -p --nodes=4 -r ci/blackbox
+	ginkgo -p --nodes=9 -r ci/blackbox
 
 start_docker_dbs:
 	docker run -p 5432:5432 --name postgres -e POSTGRES_PASSWORD=$(POSTGRESQL_PASSWORD) -d postgres:9.5
