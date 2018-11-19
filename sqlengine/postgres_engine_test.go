@@ -24,7 +24,7 @@ func createMasterUser(connectionString string) (string, string) {
 	randomMasterUser := "master_" + utils.RandomLowerAlphaNum(6)
 	password := "mypass"
 
-	statement := "CREATE USER " + randomMasterUser + " UNENCRYPTED PASSWORD '" + password + "'"
+	statement := "CREATE USER " + randomMasterUser + " PASSWORD '" + password + "'"
 	_, err = db.Exec(statement)
 	Expect(err).ToNot(HaveOccurred())
 
