@@ -1,0 +1,46 @@
+version: 2
+jobs:
+  default:
+    docker:
+      - image: circleci/golang:1.8
+      - image: circleci/postgres:9.5-alpine
+        environment:
+          POSTGRES_PASSWORD: abc123
+          POSTGRES_INITDB_ARGS: "--auth-host=md5"
+      - image: circleci/mysql:5.7
+        environment:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+
+    working_directory: /go/src/github.com/alphagov/paas-rds-broker
+    steps:
+      - checkout
+      - run: go get -u github.com/onsi/ginkgo/ginkgo
+      - run:
+          command: ginkgo -r --skipPackage=ci
+          environment:
+            POSTGRESQL_PASSWORD: abc123
+  postgres-10:
+    docker:
+      - image: circleci/golang:1.8
+      - image: circleci/postgres:10.5-alpine
+        environment:
+          POSTGRES_PASSWORD: abc123
+          POSTGRES_INITDB_ARGS: "--auth-host=md5"
+      - image: circleci/mysql:5.7
+        environment:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+
+    working_directory: /go/src/github.com/alphagov/paas-rds-broker
+    steps:
+      - checkout
+      - run: go get -u github.com/onsi/ginkgo/ginkgo
+      - run:
+          command: ginkgo -r --skipPackage=ci
+          environment:
+            POSTGRESQL_PASSWORD: abc123
+workflows:
+  version: 2
+  all_db_versions:
+    jobs:
+      - default
+      - postgres-10
