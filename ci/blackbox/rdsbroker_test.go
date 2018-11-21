@@ -80,15 +80,13 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service2.Description).To(Equal("AWS RDS PostgreSQL service"))
 			Expect(service2.Bindable).To(BeTrue())
 			Expect(service2.PlanUpdatable).To(BeTrue())
-			Expect(service2.Plans).To(HaveLen(2))
+			Expect(service2.Plans).To(HaveLen(4))
 		})
 	})
 
 	Describe("Instance Provision/Bind/Deprovision and MasterPasswordSeed update", func() {
 
-		TestProvisionBindDeprovision := func(serviceID string) {
-			const planID = "micro-without-snapshot"
-
+		TestProvisionBindDeprovision := func(serviceID, planID string) {
 			var (
 				instanceID string
 				appGUID    string
@@ -203,19 +201,21 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres", func() {
-			TestProvisionBindDeprovision("postgres")
+		Describe("Postgres 9.5", func() {
+			TestProvisionBindDeprovision("postgres", "micro-without-snapshot")
+		})
+
+		Describe("Postgres 10.5", func() {
+			TestProvisionBindDeprovision("postgres", "micro-without-snapshot-10")
 		})
 
 		Describe("MySQL", func() {
-			TestProvisionBindDeprovision("mysql")
+			TestProvisionBindDeprovision("mysql", "micro-without-snapshot")
 		})
 	})
 
 	Describe("Final snapshot enable/disable", func() {
-		TestFinalSnapshot := func(serviceID string) {
-			const planID = "micro"
-
+		TestFinalSnapshot := func(serviceID, planID string) {
 			var (
 				instanceID      string
 				finalSnapshotID string
@@ -313,19 +313,21 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres", func() {
-			TestFinalSnapshot("postgres")
+		Describe("Postgres 9.5", func() {
+			TestFinalSnapshot("postgres", "micro")
+		})
+
+		Describe("Postgres 10.5", func() {
+			TestFinalSnapshot("postgres", "micro-10")
 		})
 
 		Describe("MySQL", func() {
-			TestFinalSnapshot("mysql")
+			TestFinalSnapshot("mysql", "micro")
 		})
 	})
 
 	Describe("Restore from snapshot", func() {
-		TestRestoreFromSnapshot := func(serviceID string) {
-			const planID = "micro"
-
+		TestRestoreFromSnapshot := func(serviceID, planID string) {
 			var (
 				instanceID         string
 				restoredInstanceID string
@@ -430,12 +432,16 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres", func() {
-			TestRestoreFromSnapshot("postgres")
+		Describe("Postgres 9.5", func() {
+			TestRestoreFromSnapshot("postgres", "micro")
+		})
+
+		Describe("Postgres 10.5", func() {
+			TestRestoreFromSnapshot("postgres", "micro-10")
 		})
 
 		Describe("MySQL", func() {
-			TestRestoreFromSnapshot("mysql")
+			TestRestoreFromSnapshot("mysql", "micro")
 		})
 	})
 

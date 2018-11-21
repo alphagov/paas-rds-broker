@@ -60,6 +60,52 @@
                                     "postgis"
                                 ]
                             }
+                        },
+                        {
+                            "description": "Micro plan - Postgres 10",
+                            "free": false,
+                            "id": "micro-10",
+                            "name": "micro-10",
+                            "rds_properties": {
+                                "allocated_storage": 10,
+                                "db_instance_class": "db.t2.micro",
+                                "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                                "engine": "postgres",
+                                "engine_version": "10.5",
+                                "copy_tags_to_snapshot":true,
+                                "vpc_security_group_ids": [
+                                    "POPULATED_BY_TEST_SUITE"
+                                ],
+                                "postgres_extensions": [
+                                    "uuid-ossp",
+                                    "postgis",
+                                    "citext"
+                                ]
+                            }
+                        },
+                        {
+                            "description": "Micro plan without final snapshot - Postgres 10",
+                            "free": false,
+                            "id": "micro-without-snapshot-10",
+                            "name": "micro-without-snapshot-10",
+                            "rds_properties": {
+                                "allocated_storage": 10,
+                                "auto_minor_version_upgrade": true,
+                                "db_instance_class": "db.t2.micro",
+                                "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                                "engine": "postgres",
+                                "engine_version": "10.5",
+                                "skip_final_snapshot": true,
+                                "copy_tags_to_snapshot":true,
+                                "vpc_security_group_ids": [
+                                    "POPULATED_BY_TEST_SUITE"
+                                ],
+                                "postgres_extensions": [
+                                    "uuid-ossp",
+                                    "postgis",
+                                    "citext"
+                                ]
+                            }
                         }
                     ]
                 },
