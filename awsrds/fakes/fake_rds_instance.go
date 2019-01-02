@@ -123,10 +123,10 @@ type FakeRDSInstance struct {
 	addTagsToResourceReturnsOnCall map[int]struct {
 		result1 error
 	}
-	RebootStub        func(ID string) error
+	RebootStub        func(rebootDBInstanceInput *rds.RebootDBInstanceInput) error
 	rebootMutex       sync.RWMutex
 	rebootArgsForCall []struct {
-		ID string
+		rebootDBInstanceInput *rds.RebootDBInstanceInput
 	}
 	rebootReturns struct {
 		result1 error
@@ -633,16 +633,16 @@ func (fake *FakeRDSInstance) AddTagsToResourceReturnsOnCall(i int, result1 error
 	}{result1}
 }
 
-func (fake *FakeRDSInstance) Reboot(ID string) error {
+func (fake *FakeRDSInstance) Reboot(rebootDBInstanceInput *rds.RebootDBInstanceInput) error {
 	fake.rebootMutex.Lock()
 	ret, specificReturn := fake.rebootReturnsOnCall[len(fake.rebootArgsForCall)]
 	fake.rebootArgsForCall = append(fake.rebootArgsForCall, struct {
-		ID string
-	}{ID})
-	fake.recordInvocation("Reboot", []interface{}{ID})
+		rebootDBInstanceInput *rds.RebootDBInstanceInput
+	}{rebootDBInstanceInput})
+	fake.recordInvocation("Reboot", []interface{}{rebootDBInstanceInput})
 	fake.rebootMutex.Unlock()
 	if fake.RebootStub != nil {
-		return fake.RebootStub(ID)
+		return fake.RebootStub(rebootDBInstanceInput)
 	}
 	if specificReturn {
 		return ret.result1
@@ -656,10 +656,10 @@ func (fake *FakeRDSInstance) RebootCallCount() int {
 	return len(fake.rebootArgsForCall)
 }
 
-func (fake *FakeRDSInstance) RebootArgsForCall(i int) string {
+func (fake *FakeRDSInstance) RebootArgsForCall(i int) *rds.RebootDBInstanceInput {
 	fake.rebootMutex.RLock()
 	defer fake.rebootMutex.RUnlock()
-	return fake.rebootArgsForCall[i].ID
+	return fake.rebootArgsForCall[i].rebootDBInstanceInput
 }
 
 func (fake *FakeRDSInstance) RebootReturns(result1 error) {

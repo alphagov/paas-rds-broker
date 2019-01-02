@@ -311,11 +311,7 @@ func (r *RDSDBInstance) AddTagsToResource(resourceARN string, tags []*rds.Tag) e
 	return nil
 }
 
-func (r *RDSDBInstance) Reboot(ID string) error {
-	rebootDBInstanceInput := &rds.RebootDBInstanceInput{
-		DBInstanceIdentifier: aws.String(ID),
-	}
-
+func (r *RDSDBInstance) Reboot(rebootDBInstanceInput *rds.RebootDBInstanceInput) error {
 	r.logger.Debug("reboot-db-instance", lager.Data{"input": rebootDBInstanceInput})
 
 	rebootDBInstanceOutput, err := r.rdssvc.RebootDBInstance(rebootDBInstanceInput)
