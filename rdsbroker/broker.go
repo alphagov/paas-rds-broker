@@ -795,11 +795,11 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		LicenseModel:               servicePlan.RDSProperties.LicenseModel,
 		MultiAZ:                    servicePlan.RDSProperties.MultiAZ,
 		Port:                       servicePlan.RDSProperties.Port,
-		PreferredBackupWindow: servicePlan.RDSProperties.PreferredBackupWindow,
-		StorageEncrypted:      servicePlan.RDSProperties.StorageEncrypted,
-		StorageType:           servicePlan.RDSProperties.StorageType,
-		VpcSecurityGroupIds:   servicePlan.RDSProperties.VpcSecurityGroupIds,
-		Tags:                  awsrds.BuilRDSTags(b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, "")),
+		PreferredBackupWindow:      servicePlan.RDSProperties.PreferredBackupWindow,
+		StorageEncrypted:           servicePlan.RDSProperties.StorageEncrypted,
+		StorageType:                servicePlan.RDSProperties.StorageType,
+		VpcSecurityGroupIds:        servicePlan.RDSProperties.VpcSecurityGroupIds,
+		Tags:                       awsrds.BuilRDSTags(b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, "")),
 	}
 }
 
