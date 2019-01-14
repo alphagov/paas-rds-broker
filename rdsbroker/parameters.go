@@ -16,6 +16,8 @@ type UpdateParameters struct {
 	PreferredBackupWindow      string `json:"preferred_backup_window"`
 	PreferredMaintenanceWindow string `json:"preferred_maintenance_window"`
 	SkipFinalSnapshot          *bool  `json:"skip_final_snapshot"`
+	Reboot                     *bool  `json:"reboot"`
+	ForceFailover              *bool  `json:"force_failover"`
 }
 
 type BindParameters struct {

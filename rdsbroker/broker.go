@@ -219,6 +219,8 @@ func (b *RDSBroker) Update(
 		asyncAllowedLogKey: asyncAllowed,
 	})
 
+	b.logger.Info("update", lager.Data{"instanceID": instanceID, "details": details})
+
 	if !asyncAllowed {
 		return brokerapi.UpdateServiceSpec{}, brokerapi.ErrAsyncRequired
 	}
@@ -237,6 +239,26 @@ func (b *RDSBroker) Update(
 	service, ok := b.catalog.FindService(details.ServiceID)
 	if !ok {
 		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Service '%s' not found", details.ServiceID)
+	}
+
+	if updateParameters.Reboot != nil && *updateParameters.Reboot {
+		if details.PlanID != details.PreviousValues.PlanID {
+			return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Invalid to reboot and update plan in the same command")
+		}
+
+		rebootDBInstanceInput := &rds.RebootDBInstanceInput{
+			DBInstanceIdentifier: aws.String(b.dbInstanceIdentifier(instanceID)),
+			ForceFailover:        updateParameters.ForceFailover,
+		}
+
+		err := b.dbInstance.Reboot(rebootDBInstanceInput)
+		if err != nil {
+			if err == awsrds.ErrDBInstanceDoesNotExist {
+				return brokerapi.UpdateServiceSpec{}, brokerapi.ErrInstanceDoesNotExist
+			}
+			return brokerapi.UpdateServiceSpec{}, err
+		}
+		return brokerapi.UpdateServiceSpec{IsAsync: true}, nil
 	}
 
 	if !service.PlanUpdatable {
@@ -588,7 +610,11 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 }
 
 func (b *RDSBroker) rebootInstance(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperarionTriggered bool, err error) {
-	err = b.dbInstance.Reboot(b.dbInstanceIdentifier(instanceID))
+	rebootDBInstanceInput := &rds.RebootDBInstanceInput{
+		DBInstanceIdentifier: aws.String(b.dbInstanceIdentifier(instanceID)),
+	}
+
+	err = b.dbInstance.Reboot(rebootDBInstanceInput)
 	if err != nil {
 		return false, err
 	}
@@ -769,11 +795,11 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		LicenseModel:               servicePlan.RDSProperties.LicenseModel,
 		MultiAZ:                    servicePlan.RDSProperties.MultiAZ,
 		Port:                       servicePlan.RDSProperties.Port,
-		PreferredBackupWindow: servicePlan.RDSProperties.PreferredBackupWindow,
-		StorageEncrypted:      servicePlan.RDSProperties.StorageEncrypted,
-		StorageType:           servicePlan.RDSProperties.StorageType,
-		VpcSecurityGroupIds:   servicePlan.RDSProperties.VpcSecurityGroupIds,
-		Tags:                  awsrds.BuilRDSTags(b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, "")),
+		PreferredBackupWindow:      servicePlan.RDSProperties.PreferredBackupWindow,
+		StorageEncrypted:           servicePlan.RDSProperties.StorageEncrypted,
+		StorageType:                servicePlan.RDSProperties.StorageType,
+		VpcSecurityGroupIds:        servicePlan.RDSProperties.VpcSecurityGroupIds,
+		Tags:                       awsrds.BuilRDSTags(b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, "")),
 	}
 }
 

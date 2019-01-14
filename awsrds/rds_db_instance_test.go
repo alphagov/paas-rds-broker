@@ -849,7 +849,9 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 
 		It("does not return error", func() {
-			err := rdsDBInstance.Reboot(dbInstanceIdentifier)
+			err := rdsDBInstance.Reboot(&rds.RebootDBInstanceInput{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+			})
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -859,7 +861,9 @@ var _ = Describe("RDS DB Instance", func() {
 			})
 
 			It("returns the proper error", func() {
-				err := rdsDBInstance.Reboot(dbInstanceIdentifier)
+				err := rdsDBInstance.Reboot(&rds.RebootDBInstanceInput{
+					DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				})
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("operation failed"))
 			})
@@ -871,7 +875,9 @@ var _ = Describe("RDS DB Instance", func() {
 				})
 
 				It("returns the proper error", func() {
-					err := rdsDBInstance.Reboot(dbInstanceIdentifier)
+					err := rdsDBInstance.Reboot(&rds.RebootDBInstanceInput{
+						DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+					})
 					Expect(err).To(HaveOccurred())
 					Expect(err).To(Equal(ErrDBInstanceDoesNotExist))
 				})

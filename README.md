@@ -67,13 +67,13 @@ Depending on the [broker configuration](https://github.com/alphagov/paas-rds-bro
 
 Provision calls support the following optional [arbitrary parameters](https://docs.cloudfoundry.org/devguide/services/managing-services.html#arbitrary-params-create):
 
-| Option                       | Type    | Description
-|:-----------------------------|:------- |:-----------
-| backup_retention_period      | Integer | The number of days that Amazon RDS should retain automatic backups of the DB instance (between `0` and `35`) (*)
-| character_set_name           | String  | For supported engines, indicates that the DB instance should be associated with the specified CharacterSet (*)
-| dbname                       | String  | The name of the Database to be provisioned. If it does not exists, the broker will create it, otherwise, it will reuse the existing one. If this parameter is not set, the broker will use a random Database name
-| preferred_backup_window      | String  | The daily time range during which automated backups are created if automated backups are enabled (*)
-| preferred_maintenance_window | String  | The weekly time range during which system maintenance can occur (*)
+| Option                         | Type    | Description
+|:-------------------------------|:------- |:-----------
+| `backup_retention_period`      | Integer | The number of days that Amazon RDS should retain automatic backups of the DB instance (between `0` and `35`) (*)
+| `character_set_name`           | String  | For supported engines, indicates that the DB instance should be associated with the specified CharacterSet (*)
+| `dbname`                       | String  | The name of the Database to be provisioned. If it does not exists, the broker will create it, otherwise, it will reuse the existing one. If this parameter is not set, the broker will use a random Database name
+| `preferred_backup_window`      | String  | The daily time range during which automated backups are created if automated backups are enabled (*)
+| `preferred_maintenance_window` | String  | The weekly time range during which system maintenance can occur (*)
 
 (*) Refer to the [Amazon Relational Database Service Documentation](https://aws.amazon.com/documentation/rds/) for more details about how to set these properties
 
@@ -81,14 +81,23 @@ Provision calls support the following optional [arbitrary parameters](https://do
 
 Update calls support the following optional [arbitrary parameters](https://docs.cloudfoundry.org/devguide/services/managing-services.html#arbitrary-params-update):
 
-| Option                       | Type    | Description
-|:-----------------------------|:------- |:-----------
-| apply_at_maintenance_window  | Boolean | Specifies whether the modifications in this request and any pending modifications are asynchronously applied as soon as possible (default) or if they should be queued until the Preferred Maintenance Window setting for the DB instance (*)
-| backup_retention_period      | Integer | The number of days that Amazon RDS should retain automatic backups of the DB instance (between `0` and `35`) (*)
-| preferred_backup_window      | String  | The daily time range during which automated backups are created if automated backups are enabled (*)
-| preferred_maintenance_window | String  | The weekly time range during which system maintenance can occur (*)
+| Option                         | Type    | Description
+|:-------------------------------|:------- |:-----------
+| `apply_at_maintenance_window`  | Boolean | Specifies whether the modifications in this request and any pending modifications are asynchronously applied as soon as possible (default) or if they should be queued until the Preferred Maintenance Window setting for the DB instance (*)
+| `backup_retention_period`      | Integer | The number of days that Amazon RDS should retain automatic backups of the DB instance (between `0` and `35`) (*)
+| `preferred_backup_window`      | String  | The daily time range during which automated backups are created if automated backups are enabled (*)
+| `preferred_maintenance_window` | String  | The weekly time range during which system maintenance can occur (*)
+| `preferred_maintenance_window` | String  | The weekly time range during which system maintenance can occur (*)
+| `reboot`                       | Boolean | Reboot the instance immediately. Any other parameter or change in the updated would be ignored. See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RebootInstance.html for detais.
+| `force_failover`               | Boolean | For HA failover during reboot. Only valid when used with `reboot` and for HA plans. See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RebootInstance.html for detais.
 
 (*) Refer to the [Amazon Relational Database Service Documentation](https://aws.amazon.com/documentation/rds/) for more details about how to set these properties
+
+#### Reboot
+
+Reboot is performed by passing the custom parameter `{ "reboot": true }` in an update. Pass `{ "reboot": true, "force_failover": true }` to force failover in a HA instance.
+
+It will not update the instance, so the new plan or custom parameters would be ignored.
 
 ### Housekeeping tasks
 

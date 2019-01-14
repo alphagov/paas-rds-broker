@@ -1092,6 +1092,72 @@ var _ = Describe("RDS Broker", func() {
 
 	})
 
+	Describe("Reboot", func() {
+		var (
+			updateDetails           brokerapi.UpdateDetails
+			acceptsIncomplete       bool
+			properUpdateServiceSpec brokerapi.UpdateServiceSpec
+		)
+
+		BeforeEach(func() {
+			updateDetails = brokerapi.UpdateDetails{
+				ServiceID: "Service-1",
+				PlanID:    "Plan-1",
+				PreviousValues: brokerapi.PreviousValues{
+					PlanID:    "Plan-1",
+					ServiceID: "Service-1",
+					OrgID:     "organization-id",
+					SpaceID:   "space-id",
+				},
+				RawParameters: json.RawMessage(`{ "reboot": true }`),
+			}
+			acceptsIncomplete = true
+			properUpdateServiceSpec = brokerapi.UpdateServiceSpec{
+				IsAsync: true,
+			}
+
+			rdsInstance.RebootReturns(
+				nil,
+			)
+		})
+
+		It("returns the proper response", func() {
+			updateServiceSpec, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+			Expect(updateServiceSpec).To(Equal(properUpdateServiceSpec))
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("makes the proper calls", func() {
+			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(rdsInstance.RebootCallCount()).To(Equal(1))
+			input := rdsInstance.RebootArgsForCall(0)
+			Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
+			Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
+		})
+
+		It("passes the force failover option", func() {
+			updateDetails.RawParameters = json.RawMessage(`{ "reboot": true, "force_failover": true }`)
+			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(rdsInstance.RebootCallCount()).To(Equal(1))
+			input := rdsInstance.RebootArgsForCall(0)
+			Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
+			Expect(aws.BoolValue(input.ForceFailover)).To(BeTrue())
+			Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
+		})
+
+		It("fails if the reboot include a plan change", func() {
+			updateDetails.RawParameters = json.RawMessage(`{ "reboot": true, "force_failover": true }`)
+			updateDetails.PlanID = "plan-2"
+			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("Invalid to reboot and update plan in the same command"))
+			Expect(rdsInstance.RebootCallCount()).To(Equal(0))
+			Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
+		})
+	})
+
 	Describe("Update", func() {
 		var (
 			updateDetails           brokerapi.UpdateDetails
@@ -1109,7 +1175,7 @@ var _ = Describe("RDS Broker", func() {
 					OrgID:     "organization-id",
 					SpaceID:   "space-id",
 				},
-				RawParameters: json.RawMessage{},
+				RawParameters: json.RawMessage(`{}`),
 			}
 			acceptsIncomplete = true
 			properUpdateServiceSpec = brokerapi.UpdateServiceSpec{
@@ -1158,7 +1224,7 @@ var _ = Describe("RDS Broker", func() {
 			Expect(tagsByName["Plan ID"]).To(Equal("Plan-2"))
 		})
 
-		Context("when custom parameters are not provided", func() {
+		Context("when custom update parameters are not provided", func() {
 			BeforeEach(func() {
 				allowUserUpdateParameters = true
 			})
@@ -1659,8 +1725,8 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
-		Context("when getting resource tags errors", func () {
-			BeforeEach(func () {
+		Context("when getting resource tags errors", func() {
+			BeforeEach(func() {
 				rdsInstance.GetResourceTagsReturns(nil, errors.New("operation failed"))
 			})
 
@@ -2511,8 +2577,8 @@ var _ = Describe("RDS Broker", func() {
 					_, err := rdsBroker.LastOperation(ctx, instanceID, "")
 					Expect(err).ToNot(HaveOccurred())
 					Expect(rdsInstance.RebootCallCount()).To(Equal(1))
-					id := rdsInstance.RebootArgsForCall(0)
-					Expect(id).To(Equal(dbInstanceIdentifier))
+					input := rdsInstance.RebootArgsForCall(0)
+					Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
 				})
 			})
 

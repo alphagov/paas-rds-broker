@@ -82,7 +82,6 @@ func CreateSecurityGroup(prefix string, session *session.Session) (*string, erro
 		}
 	}
 
-
 	return securityGroup.GroupId, nil
 }
 
