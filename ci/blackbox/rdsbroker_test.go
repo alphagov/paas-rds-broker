@@ -219,15 +219,11 @@ var _ = Describe("RDS Broker Daemon", func() {
 			var (
 				instanceID      string
 				finalSnapshotID string
-				appGUID         string
-				bindingID       string
 			)
 
 			BeforeEach(func() {
 				instanceID = uuid.NewV4().String()
 				finalSnapshotID = rdsClient.DBInstanceFinalSnapshotIdentifier(instanceID)
-				appGUID = uuid.NewV4().String()
-				bindingID = uuid.NewV4().String()
 				brokerAPIClient.AcceptsIncomplete = true
 			})
 

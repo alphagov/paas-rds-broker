@@ -101,27 +101,29 @@ var _ = Describe("RDS Broker", func() {
 		sqlProvider.GetSQLEngineSQLEngine = sqlEngine
 
 		rdsProperties1 = RDSProperties{
-			DBInstanceClass:   stringPointer("db.m1.test"),
-			Engine:            stringPointer("test-engine-1"),
-			EngineVersion:     stringPointer("1.2.3"),
-			AllocatedStorage:  int64Pointer(100),
-			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
+			DBInstanceClass:    stringPointer("db.m1.test"),
+			Engine:             stringPointer("test-engine-one"),
+			EngineVersion:      stringPointer("1.2.3"),
+			AllocatedStorage:   int64Pointer(100),
+			SkipFinalSnapshot:  boolPointer(skipFinalSnapshot),
+			PostgresExtensions: []*string{stringPointer("postgis"), stringPointer("pg-stat-statements")},
 		}
 
 		rdsProperties2 = RDSProperties{
 			DBInstanceClass:   stringPointer("db.m2.test"),
-			Engine:            stringPointer("test-engine-2"),
+			Engine:            stringPointer("test-engine-two"),
 			EngineVersion:     stringPointer("4.5.6"),
 			AllocatedStorage:  int64Pointer(200),
 			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
 		}
 
 		rdsProperties3 = RDSProperties{
-			DBInstanceClass:   stringPointer("db.m3.test"),
-			Engine:            stringPointer("postgres"),
-			EngineVersion:     stringPointer("4.5.6"),
-			AllocatedStorage:  int64Pointer(300),
-			SkipFinalSnapshot: boolPointer(false),
+			DBInstanceClass:    stringPointer("db.m3.test"),
+			Engine:             stringPointer("postgres"),
+			EngineVersion:      stringPointer("4.5.6"),
+			AllocatedStorage:   int64Pointer(300),
+			SkipFinalSnapshot:  boolPointer(false),
+			PostgresExtensions: []*string{stringPointer("postgis"), stringPointer("pg-stat-statements")},
 		}
 	})
 
@@ -180,6 +182,11 @@ var _ = Describe("RDS Broker", func() {
 			AllowUserUpdateParameters:    allowUserUpdateParameters,
 			AllowUserBindParameters:      allowUserBindParameters,
 			Catalog:                      catalog,
+			ParameterGroups: []string{
+				"rdsbroker-testengineone123-envname",
+				"rdsbroker-testenginetwo456-envname",
+				"rdsbroker-postgres456-envname",
+			},
 		}
 
 		logger = lager.NewLogger("rdsbroker_test")
@@ -541,7 +548,7 @@ var _ = Describe("RDS Broker", func() {
 
 				Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
 				Expect(aws.StringValue(input.DBInstanceClass)).To(Equal("db.m1.test"))
-				Expect(aws.StringValue(input.Engine)).To(Equal("test-engine-1"))
+				Expect(aws.StringValue(input.Engine)).To(Equal("test-engine-one"))
 				Expect(aws.StringValue(input.DBName)).To(Equal(dbName))
 				Expect(aws.StringValue(input.MasterUsername)).ToNot(BeEmpty())
 				Expect(aws.StringValue(input.MasterUserPassword)).To(Equal(masterUserPassword))
@@ -549,6 +556,13 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			It("sets the right tags", func() {
+				jsondata := []byte(`{"enabled_extensions": ["postgis", "pg-stat-statements"]}`)
+				rawparams := (*json.RawMessage)(&jsondata)
+				provisionDetails.RawParameters = *rawparams
+
+				provisionDetails.ServiceID = "Service-3"
+				provisionDetails.PlanID = "Plan-3"
+
 				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -561,10 +575,11 @@ var _ = Describe("RDS Broker", func() {
 				Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
 				Expect(tagsByName["Created by"]).To(Equal("AWS RDS Service Broker"))
 				Expect(tagsByName).To(HaveKey("Created at"))
-				Expect(tagsByName["Service ID"]).To(Equal("Service-1"))
-				Expect(tagsByName["Plan ID"]).To(Equal("Plan-1"))
+				Expect(tagsByName["Service ID"]).To(Equal("Service-3"))
+				Expect(tagsByName["Plan ID"]).To(Equal("Plan-3"))
 				Expect(tagsByName["Organization ID"]).To(Equal("organization-id"))
 				Expect(tagsByName["Space ID"]).To(Equal("space-id"))
+				Expect(tagsByName["Extensions"]).To(Equal("postgis:pg-stat-statements"))
 			})
 
 			It("does not set a 'Restored From Snapshot' tag", func() {
@@ -792,7 +807,7 @@ var _ = Describe("RDS Broker", func() {
 					Expect(err).ToNot(HaveOccurred())
 					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
 					input := rdsInstance.CreateArgsForCall(0)
-					Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal("test-db-parameter-group-name"))
+					Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal("rdsbroker-testengineone123-envname"))
 				})
 			})
 
@@ -1087,6 +1102,31 @@ var _ = Describe("RDS Broker", func() {
 					Expect(err).To(HaveOccurred())
 					Expect(err.Error()).To(Equal("operation failed"))
 				})
+			})
+
+			Context("when using a postgres plan and adding an extension", func() {
+				BeforeEach(func() {
+					provisionDetails.PlanID = "Plan-3"
+					provisionDetails.ServiceID = "Service-3"
+				})
+
+				It("returns an error when an extension isn't supported", func() {
+					jsondata := []byte(`{"enabled_extensions": ["foo"]}`)
+					rawparams := (*json.RawMessage)(&jsondata)
+					provisionDetails.RawParameters = *rawparams
+
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+				})
+
+				It("doesn't return an error when an extension isn't provided", func() {
+					jsondata := []byte(`{}`)
+					rawparams := (*json.RawMessage)(&jsondata)
+					provisionDetails.RawParameters = *rawparams
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).NotTo(HaveOccurred())
+				})
+
 			})
 		})
 
@@ -1884,7 +1924,7 @@ var _ = Describe("RDS Broker", func() {
 			Expect(id).To(Equal(dbInstanceIdentifier))
 
 			Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
-			Expect(sqlProvider.GetSQLEngineEngine).To(Equal("test-engine-1"))
+			Expect(sqlProvider.GetSQLEngineEngine).To(Equal("test-engine-one"))
 			Expect(sqlEngine.OpenCalled).To(BeTrue())
 			Expect(sqlEngine.OpenAddress).To(Equal("endpoint-address"))
 			Expect(sqlEngine.OpenPort).To(Equal(int64(3306)))
@@ -2117,7 +2157,7 @@ var _ = Describe("RDS Broker", func() {
 				},
 				DBName:         aws.String("test-db"),
 				MasterUsername: aws.String("master-username"),
-				Engine:         aws.String("test-engine-1"),
+				Engine:         aws.String("test-engine-one"),
 			}, nil)
 		})
 
@@ -2130,7 +2170,7 @@ var _ = Describe("RDS Broker", func() {
 			Expect(id).To(Equal(dbInstanceIdentifier))
 
 			Expect(sqlProvider.GetSQLEngineCalled).To(BeTrue())
-			Expect(sqlProvider.GetSQLEngineEngine).To(Equal("test-engine-1"))
+			Expect(sqlProvider.GetSQLEngineEngine).To(Equal("test-engine-one"))
 			Expect(sqlEngine.OpenCalled).To(BeTrue())
 			Expect(sqlEngine.OpenAddress).To(Equal("endpoint-address"))
 			Expect(sqlEngine.OpenPort).To(Equal(int64(3306)))
@@ -2240,6 +2280,7 @@ var _ = Describe("RDS Broker", func() {
 				{Key: aws.String("Created by"), Value: aws.String("AWS RDS Service Broker")},
 				{Key: aws.String("Service ID"), Value: aws.String("Service-1")},
 				{Key: aws.String("Plan ID"), Value: aws.String("Plan-1")},
+				{Key: aws.String("Extensions"), Value: aws.String("postgis:pg-stat-statements")},
 			}
 		)
 		JustBeforeEach(func() {

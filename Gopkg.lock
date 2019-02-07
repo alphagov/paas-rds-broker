@@ -2,16 +2,19 @@
 
 
 [[projects]]
+  digest = "1:3634f744a1562db223595409dbe6bfc9ab88841938445bc092a0d851cb9db006"
   name = "code.cloudfoundry.org/lager"
   packages = [
     ".",
     "lagerctx",
-    "lagertest"
+    "lagertest",
   ]
+  pruneopts = "UT"
   revision = "b60e04e119450552243196105bae0d42179ee0ca"
   version = "v1.1.0"
 
 [[projects]]
+  digest = "1:b740061211382473555a02e24e0da0edd8424a43b9351cf715c8fa7e3892b381"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -42,50 +45,65 @@
     "private/protocol/xml/xmlutil",
     "service/ec2",
     "service/rds",
-    "service/sts"
+    "service/sts",
   ]
+  pruneopts = "UT"
   revision = "d2d4fca90395039f60821c231da759cab8f318c7"
   version = "v1.14.4"
 
 [[projects]]
+  digest = "1:fb46255681497314debedde38b64be32a75bae50bad107586c22f1662bf2d352"
   name = "github.com/go-ini/ini"
   packages = ["."]
+  pruneopts = "UT"
   revision = "06f5f3d67269ccec1fe5fe4134ba6e982984f7f5"
   version = "v1.37.0"
 
 [[projects]]
+  digest = "1:32aa2925b00f43b3455b46fca49fde5541749896358addb2ddb077359e17bfba"
   name = "github.com/go-sql-driver/mysql"
   packages = ["."]
+  pruneopts = "UT"
   revision = "527bcd55aab2e53314f1a150922560174b493034"
 
 [[projects]]
+  digest = "1:874ca00e54068a78ce555979489511ec62cd4682bf068134dc4355753827895c"
   name = "github.com/gorilla/context"
   packages = ["."]
+  pruneopts = "UT"
   revision = "215affda49addc4c8ef7e2534915df2c8c35c6cd"
 
 [[projects]]
+  digest = "1:a6283ced592faaeedc9f622fc7ec96bdcd3e97372457d2bc81b7307bf873ce4c"
   name = "github.com/gorilla/mux"
   packages = ["."]
+  pruneopts = "UT"
   revision = "8a875a034c69b940914d83ea03d3f1299b4d094b"
 
 [[projects]]
+  digest = "1:e22af8c7518e1eab6f2eab2b7d7558927f816262586cd6ed9f349c97a6c285c4"
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
+  pruneopts = "UT"
   revision = "0b12d6b5"
 
 [[projects]]
+  digest = "1:b51af1902cc32eefc0d1dadfcc555b0543cceb3e23eb6dd6db32482c5165a3b0"
   name = "github.com/lib/pq"
   packages = [
     ".",
-    "oid"
+    "oid",
   ]
+  pruneopts = "UT"
   revision = "ffe986aba3e6cfcded8b06615965941408891ef0"
 
 [[projects]]
+  digest = "1:324f0ad8831c588426b03a3b29f7724a69c4b465309f599344ef1340a5ec5f75"
   name = "github.com/onsi/ginkgo"
   packages = [
     ".",
     "config",
+    "extensions/table",
     "internal/codelocation",
     "internal/containernode",
     "internal/failer",
@@ -100,11 +118,13 @@
     "reporters/stenographer",
     "reporters/stenographer/support/go-colorable",
     "reporters/stenographer/support/go-isatty",
-    "types"
+    "types",
   ]
+  pruneopts = "UT"
   revision = "a23f924ce96d61f963fb6219b8ff069d8d768cc2"
 
 [[projects]]
+  digest = "1:9ef588228e1d43de9e02988a02af9f4099f3e98b0ede46b8f1a8ce4486a9f17c"
   name = "github.com/onsi/gomega"
   packages = [
     ".",
@@ -120,47 +140,81 @@
     "matchers/support/goraph/edge",
     "matchers/support/goraph/node",
     "matchers/support/goraph/util",
-    "types"
+    "types",
   ]
+  pruneopts = "UT"
   revision = "e85f63af4302dc0e4277c6008ecf803f1d80e4f0"
 
 [[projects]]
+  digest = "1:8845cf1e26c684dc871891ce953d802403dd97285d0e1a3b06dc87b08eb7b237"
   name = "github.com/phayes/freeport"
   packages = ["."]
+  pruneopts = "UT"
   revision = "e7681b37614941bf73b404e0caa37f19e33b5fed"
 
 [[projects]]
+  digest = "1:3d01977b0bc0ef11e81d670dbfa5e09185a033863e89b364e26b0f6a6f167798"
   name = "github.com/pivotal-cf/brokerapi"
   packages = [
     ".",
-    "auth"
+    "auth",
   ]
+  pruneopts = "UT"
   revision = "b90ba3f93800e6618e6f06280fba6466726f1e9a"
 
 [[projects]]
   branch = "master"
+  digest = "1:bffc9efe1d7783f54cb0003b57cb3c8fe49f56beb9859cf122be97504e854666"
   name = "github.com/robfig/cron"
   packages = ["."]
+  pruneopts = "UT"
   revision = "2315d5715e36303a941d907f038da7f7c44c773b"
 
 [[projects]]
+  digest = "1:34bf609f0bc576cd648a993bd711fb9b25f13dcd4ec1d1f5b4137b9d3ed0ff2f"
   name = "github.com/satori/go.uuid"
   packages = ["."]
+  pruneopts = "UT"
   revision = "b061729afc07e77a8aa4fad0a2fd840958f1942a"
 
 [[projects]]
+  digest = "1:36e8440c31079d74414fd18f6b4ec10282f60c4abf3678ae3de48ab73010f532"
   name = "golang.org/x/sys"
   packages = ["unix"]
+  pruneopts = "UT"
   revision = "d75a52659825e75fff6158388dddc6a5b04f9ba5"
 
 [[projects]]
+  digest = "1:cacb98d52c60c337c2ce95a7af83ba0313a93ce5e73fa9e99a96aff70776b9d3"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
+  pruneopts = "UT"
   revision = "a5b47d31c556af34a302ce5d659e6fea44d90de0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bf8a019765c4308f4b33601da49c4abedf8bd1173ebe45ac4a67a8815a38775a"
+  input-imports = [
+    "code.cloudfoundry.org/lager",
+    "code.cloudfoundry.org/lager/lagertest",
+    "github.com/aws/aws-sdk-go/aws",
+    "github.com/aws/aws-sdk-go/aws/awserr",
+    "github.com/aws/aws-sdk-go/aws/ec2metadata",
+    "github.com/aws/aws-sdk-go/aws/request",
+    "github.com/aws/aws-sdk-go/aws/session",
+    "github.com/aws/aws-sdk-go/service/ec2",
+    "github.com/aws/aws-sdk-go/service/rds",
+    "github.com/go-sql-driver/mysql",
+    "github.com/lib/pq",
+    "github.com/onsi/ginkgo",
+    "github.com/onsi/ginkgo/extensions/table",
+    "github.com/onsi/gomega",
+    "github.com/onsi/gomega/gbytes",
+    "github.com/onsi/gomega/gexec",
+    "github.com/phayes/freeport",
+    "github.com/pivotal-cf/brokerapi",
+    "github.com/robfig/cron",
+    "github.com/satori/go.uuid",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1

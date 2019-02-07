@@ -9,6 +9,11 @@
         "allow_user_provision_parameters": true,
         "allow_user_update_parameters": true,
         "broker_name": "rdsbroker-integration-test",
+        "parameter_groups": [
+            "rdsbroker-postgres10-envname",
+            "rdsbroker-postgres95-envname",
+            "rdsbroker-mysql57-envname"
+        ],
         "catalog": {
             "services": [
                 {
@@ -34,7 +39,8 @@
                                 ],
                                 "postgres_extensions": [
                                     "uuid-ossp",
-                                    "postgis"
+                                    "postgis",
+                                    "pg_stat_statements"
                                 ]
                             }
                         },
@@ -57,7 +63,8 @@
                                 ],
                                 "postgres_extensions": [
                                     "uuid-ossp",
-                                    "postgis"
+                                    "postgis",
+                                    "pg_stat_statements"
                                 ]
                             }
                         },
@@ -79,7 +86,8 @@
                                 "postgres_extensions": [
                                     "uuid-ossp",
                                     "postgis",
-                                    "citext"
+                                    "citext",
+                                    "pg_stat_statements"
                                 ]
                             }
                         },
@@ -103,7 +111,8 @@
                                 "postgres_extensions": [
                                     "uuid-ossp",
                                     "postgis",
-                                    "citext"
+                                    "citext",
+                                    "pg_stat_statements"
                                 ]
                             }
                         }

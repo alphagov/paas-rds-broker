@@ -163,7 +163,7 @@ func (rp RDSProperties) Validate(c Catalog) error {
 	case "mysql":
 	case "postgres":
 	default:
-		return fmt.Errorf("This broker does not support RDS engine '%s'", *rp.Engine, rp)
+		return fmt.Errorf("This broker does not support RDS engine '%s'", *rp.Engine)
 	}
 
 	for _, engine := range c.ExcludeEngines {
