@@ -1203,6 +1203,7 @@ var _ = Describe("RDS Broker", func() {
 			updateDetails           brokerapi.UpdateDetails
 			acceptsIncomplete       bool
 			properUpdateServiceSpec brokerapi.UpdateServiceSpec
+			existingDbInstance      *rds.DBInstance
 		)
 
 		BeforeEach(func() {
@@ -1221,6 +1222,15 @@ var _ = Describe("RDS Broker", func() {
 			properUpdateServiceSpec = brokerapi.UpdateServiceSpec{
 				IsAsync: true,
 			}
+
+			existingDbInstance = &rds.DBInstance{
+				DBParameterGroups: []*rds.DBParameterGroupStatus{
+					&rds.DBParameterGroupStatus{
+						DBParameterGroupName: aws.String("rdsbroker-postgres10-envname"),
+					},
+				},
+			}
+			rdsInstance.DescribeReturns(existingDbInstance, nil)
 
 			rdsInstance.ModifyReturns(
 				&rds.DBInstance{
@@ -1399,12 +1409,13 @@ var _ = Describe("RDS Broker", func() {
 				rdsProperties2.DBParameterGroupName = stringPointer("test-db-parameter-group-name")
 			})
 
-			It("makes the proper calls", func() {
+			It("maintains the same name as the existing instance", func() {
+				expected := existingDbInstance.DBParameterGroups[0].DBParameterGroupName
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
 				input := rdsInstance.ModifyArgsForCall(0)
-				Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal("test-db-parameter-group-name"))
+				Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal(aws.StringValue(expected)))
 			})
 		})
 
@@ -2272,6 +2283,11 @@ var _ = Describe("RDS Broker", func() {
 				},
 				DBName:         aws.String("test-db"),
 				MasterUsername: aws.String("master-username"),
+				DBParameterGroups: []*rds.DBParameterGroupStatus{
+					&rds.DBParameterGroupStatus{
+						DBParameterGroupName: aws.String("rdsbroker-testengine10"),
+					},
+				},
 			}
 
 			defaultDBInstanceTags = []*rds.Tag{

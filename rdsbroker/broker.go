@@ -320,7 +320,19 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
 	}
 
-	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan)
+	existingInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
+
+	if err != nil {
+		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("cannot find instance %s", b.dbInstanceIdentifier(instanceID))
+	}
+
+	// The db parameter group should not change
+	// when updating a database, because it controls
+	// the function of certain extensions which
+	// could have been enabled at creation time
+	previousDbParamGroup := existingInstance.DBParameterGroups[0].DBParameterGroupName
+
+	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, previousDbParamGroup)
 	modifyDBInstanceInput.ApplyImmediately = aws.Bool(!updateParameters.ApplyAtMaintenanceWindow)
 
 	var skipFinalSnapshot string
@@ -619,7 +631,9 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 		return false, fmt.Errorf("Service Plan '%s' not found", tagsByName[awsrds.TagPlanID])
 	}
 
-	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan)
+	existingParameterGroup := dbInstance.DBParameterGroups[0].DBParameterGroupName
+
+	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, existingParameterGroup)
 	modifyDBInstanceInput.MasterUserPassword = aws.String(b.generateMasterPassword(instanceID))
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)
 	if err != nil {
@@ -871,13 +885,13 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 	}
 }
 
-func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan) *rds.ModifyDBInstanceInput {
+func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan, parameterGroupName *string) *rds.ModifyDBInstanceInput {
 	modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
 		DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBInstanceClass:            servicePlan.RDSProperties.DBInstanceClass,
 		AutoMinorVersionUpgrade:    servicePlan.RDSProperties.AutoMinorVersionUpgrade,
 		CopyTagsToSnapshot:         servicePlan.RDSProperties.CopyTagsToSnapshot,
-		DBParameterGroupName:       servicePlan.RDSProperties.DBParameterGroupName,
+		DBParameterGroupName:       parameterGroupName,
 		DBSubnetGroupName:          servicePlan.RDSProperties.DBSubnetGroupName,
 		EngineVersion:              servicePlan.RDSProperties.EngineVersion,
 		OptionGroupName:            servicePlan.RDSProperties.OptionGroupName,
