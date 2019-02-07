@@ -19,6 +19,7 @@ const (
 	TagSkipFinalSnapshot    = "SkipFinalSnapshot"
 	TagRestoredFromSnapshot = "Restored From Snapshot"
 	TagBrokerName           = "Broker Name"
+	TagExtensions           = "Extensions"
 )
 
 type RDSDBInstance struct {
