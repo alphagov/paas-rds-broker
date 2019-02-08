@@ -48,7 +48,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 					VpcSecurityGroupIds:        nil,
 					CopyTagsToSnapshot:         nil,
 					SkipFinalSnapshot:          nil,
-					PostgresExtensions:         nil,
+					DefaultExtensions:          nil,
 				},
 			}
 		})

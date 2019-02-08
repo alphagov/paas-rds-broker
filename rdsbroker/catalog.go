@@ -72,7 +72,8 @@ type RDSProperties struct {
 	VpcSecurityGroupIds        []*string `json:"vpc_security_group_ids,omitempty"`
 	CopyTagsToSnapshot         *bool     `json:"copy_tags_to_snapshot,omitempty"`
 	SkipFinalSnapshot          *bool     `json:"skip_final_snapshot,omitempty"`
-	PostgresExtensions         []*string `json:"postgres_extensions,omitempty"`
+	DefaultExtensions          []*string `json:"default_extensions,omitempty"`
+	AllowedExtensions          []*string `json:"allowed_extensions"`
 }
 
 func (c Catalog) Validate() error {

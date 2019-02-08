@@ -211,7 +211,7 @@ func tryMatchExpressionWithNamedGroups(expr *regexp.Regexp, str string) (bool, m
 func findExtensions(paramGroupExtensions string, supportedExtensions []DBExtension) []string {
 	var extensions = []string{}
 
-	// Extension names cannot contain underscores in property group names,
+	// Property group names cannot contain underscores,
 	// but postgres extension names use underscores by convention.
 	// To work around this, underscores and substituted for hyphens in
 	// those names.

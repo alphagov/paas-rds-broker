@@ -166,6 +166,7 @@ func (b *RDSBroker) Provision(
 	}
 
 	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
+		ensureDefaultExtensionsAreSet(&provisionParameters, servicePlan)
 		ok, unsupportedExtensions := extensionsAreSupported(servicePlan, provisionParameters)
 		if !ok {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("%s is not supported", unsupportedExtensions)
@@ -217,31 +218,6 @@ func (b *RDSBroker) Provision(
 	}
 
 	return brokerapi.ProvisionedServiceSpec{IsAsync: true}, nil
-}
-
-func extensionsAreSupported(plan ServicePlan, parameters ProvisionParameters) (bool, string) {
-	extensions := parameters.Extensions
-
-	supported := plan.RDSProperties.PostgresExtensions
-	supportedSlice := []string{}
-	for _, s := range supported {
-		supportedSlice = append(supportedSlice, *s)
-	}
-	for _, e := range extensions {
-		if !extensionIsSupported(supported, e) {
-			return false, e
-		}
-	}
-	return true, ""
-}
-
-func extensionIsSupported(extensions []*string, s string) bool {
-	for _, e := range extensions {
-		if s == *e {
-			return true
-		}
-	}
-	return false
 }
 
 func (b *RDSBroker) Update(
@@ -593,6 +569,45 @@ func (b *RDSBroker) LastOperation(
 	})
 
 	return lastOperationResponse, nil
+}
+
+func ensureDefaultExtensionsAreSet(parameters *ProvisionParameters, plan ServicePlan) {
+	inSlice := func(slice []string, element string) bool {
+		for _, e := range slice {
+			if e == element {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	for _, e := range plan.RDSProperties.DefaultExtensions {
+		if !inSlice(parameters.Extensions, aws.StringValue(e)) {
+			parameters.Extensions = append(parameters.Extensions, aws.StringValue(e))
+		}
+	}
+}
+
+func extensionsAreSupported(plan ServicePlan, parameters ProvisionParameters) (bool, string) {
+	extensions := parameters.Extensions
+
+	supported := plan.RDSProperties.AllowedExtensions
+	for _, e := range extensions {
+		if !extensionIsSupported(supported, e) {
+			return false, e
+		}
+	}
+	return true, ""
+}
+
+func extensionIsSupported(extensions []*string, s string) bool {
+	for _, e := range extensions {
+		if s == *e {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) error {

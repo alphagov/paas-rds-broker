@@ -101,12 +101,20 @@ var _ = Describe("RDS Broker", func() {
 		sqlProvider.GetSQLEngineSQLEngine = sqlEngine
 
 		rdsProperties1 = RDSProperties{
-			DBInstanceClass:    stringPointer("db.m1.test"),
-			Engine:             stringPointer("test-engine-one"),
-			EngineVersion:      stringPointer("1.2.3"),
-			AllocatedStorage:   int64Pointer(100),
-			SkipFinalSnapshot:  boolPointer(skipFinalSnapshot),
-			PostgresExtensions: []*string{stringPointer("postgis"), stringPointer("pg-stat-statements")},
+			DBInstanceClass:   stringPointer("db.m1.test"),
+			Engine:            stringPointer("test-engine-one"),
+			EngineVersion:     stringPointer("1.2.3"),
+			AllocatedStorage:  int64Pointer(100),
+			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
+			DefaultExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+			},
+			AllowedExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+				stringPointer("postgres_super_extension"),
+			},
 		}
 
 		rdsProperties2 = RDSProperties{
@@ -115,15 +123,32 @@ var _ = Describe("RDS Broker", func() {
 			EngineVersion:     stringPointer("4.5.6"),
 			AllocatedStorage:  int64Pointer(200),
 			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
+			DefaultExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+			},
+			AllowedExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+				stringPointer("postgres_super_extension"),
+			},
 		}
 
 		rdsProperties3 = RDSProperties{
-			DBInstanceClass:    stringPointer("db.m3.test"),
-			Engine:             stringPointer("postgres"),
-			EngineVersion:      stringPointer("4.5.6"),
-			AllocatedStorage:   int64Pointer(300),
-			SkipFinalSnapshot:  boolPointer(false),
-			PostgresExtensions: []*string{stringPointer("postgis"), stringPointer("pg-stat-statements")},
+			DBInstanceClass:   stringPointer("db.m3.test"),
+			Engine:            stringPointer("postgres"),
+			EngineVersion:     stringPointer("4.5.6"),
+			AllocatedStorage:  int64Pointer(300),
+			SkipFinalSnapshot: boolPointer(false),
+			DefaultExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+			},
+			AllowedExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+				stringPointer("postgres_super_extension"),
+			},
 		}
 	})
 
@@ -556,8 +581,8 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			It("sets the right tags", func() {
-				jsondata := []byte(`{"enabled_extensions": ["postgis", "pg-stat-statements"]}`)
-				rawparams := (*json.RawMessage)(&jsondata)
+				jsonData := []byte(`{"enabled_extensions": ["postgis", "pg_stat_statements"]}`)
+				rawparams := (*json.RawMessage)(&jsonData)
 				provisionDetails.RawParameters = *rawparams
 
 				provisionDetails.ServiceID = "Service-3"
@@ -579,7 +604,7 @@ var _ = Describe("RDS Broker", func() {
 				Expect(tagsByName["Plan ID"]).To(Equal("Plan-3"))
 				Expect(tagsByName["Organization ID"]).To(Equal("organization-id"))
 				Expect(tagsByName["Space ID"]).To(Equal("space-id"))
-				Expect(tagsByName["Extensions"]).To(Equal("postgis:pg-stat-statements"))
+				Expect(tagsByName["Extensions"]).To(Equal("postgis:pg_stat_statements"))
 			})
 
 			It("does not set a 'Restored From Snapshot' tag", func() {
@@ -1066,6 +1091,7 @@ var _ = Describe("RDS Broker", func() {
 					Expect(err).To(Equal(brokerapi.ErrAsyncRequired))
 				})
 			})
+
 			Context("when Parameters are not valid", func() {
 
 				Context("and user provision parameters are not allowed", func() {
@@ -1104,15 +1130,56 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 
-			Context("when using a postgres plan and adding an extension", func() {
+			Context("when using a postgres plan", func() {
 				BeforeEach(func() {
 					provisionDetails.PlanID = "Plan-3"
 					provisionDetails.ServiceID = "Service-3"
 				})
 
+				It("will enable the plan's default extensions when no other extensions have been requested", func() {
+					payload := []byte(`{"enabled_extensions": []}`)
+					payloadMessage := (*json.RawMessage)(&payload)
+					provisionDetails.RawParameters = *payloadMessage
+
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+
+					input := rdsInstance.CreateArgsForCall(0)
+					tags := awsrds.RDSTagsValues(input.Tags)
+					extensionsTag, exists := tags["Extensions"]
+					Expect(exists).To(BeTrue())
+					Expect(extensionsTag).ToNot(BeEmpty())
+
+					for _, ext := range plan1.RDSProperties.DefaultExtensions {
+						Expect(extensionsTag).To(ContainSubstring(aws.StringValue(ext)))
+					}
+				})
+
+				It("will enable the plan's default extensions in addition to any extensions requested", func() {
+					payload := []byte(`{"enabled_extensions": ["postgres_super_extension"]}`)
+					payloadMessage := (*json.RawMessage)(&payload)
+					provisionDetails.RawParameters = *payloadMessage
+
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+
+					input := rdsInstance.CreateArgsForCall(0)
+					tags := awsrds.RDSTagsValues(input.Tags)
+					extensionsTag, exists := tags["Extensions"]
+					Expect(exists).To(BeTrue())
+					Expect(extensionsTag).ToNot(BeEmpty())
+
+					Expect(extensionsTag).To(ContainSubstring("postgres_super_extension"))
+					for _, ext := range plan1.RDSProperties.DefaultExtensions {
+						Expect(extensionsTag).To(ContainSubstring(aws.StringValue(ext)))
+					}
+				})
+
 				It("returns an error when an extension isn't supported", func() {
-					jsondata := []byte(`{"enabled_extensions": ["foo"]}`)
-					rawparams := (*json.RawMessage)(&jsondata)
+					jsonData := []byte(`{"enabled_extensions": ["foo"]}`)
+					rawparams := (*json.RawMessage)(&jsonData)
 					provisionDetails.RawParameters = *rawparams
 
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
@@ -1120,8 +1187,8 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("doesn't return an error when an extension isn't provided", func() {
-					jsondata := []byte(`{}`)
-					rawparams := (*json.RawMessage)(&jsondata)
+					jsonData := []byte(`{}`)
+					rawparams := (*json.RawMessage)(&jsonData)
 					provisionDetails.RawParameters = *rawparams
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 					Expect(err).NotTo(HaveOccurred())
