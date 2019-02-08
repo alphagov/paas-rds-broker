@@ -53,16 +53,28 @@ var _ = Describe("ParameterGroupsSource", func() {
 			}
 		})
 
+		DescribeTable("decoding names takes in to account the configurable database prefix",
+			func(prefix string, groupName string) {
+				selected, err := decodeName(groupName, servicePlan, prefix)
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(selected.Name).To(Equal(groupName))
+				Expect(selected.Name).To(ContainSubstring(prefix))
+			},
+			Entry("standard rdsbroker prefix", "rdsbroker", "rdsbroker-postgres95-envname"),
+			Entry("integration test prefix", "build-test", "build-test-postgres95-envname"),
+		)
+
 		It("returns an error when a name contains too few fields", func() {
 			groupName := "malformed-name"
-			_, err := decodeName(groupName, servicePlan)
+			_, err := decodeName(groupName, servicePlan, "rdsbroker")
 
 			Expect(err).Should(HaveOccurred())
 		})
 
 		It("can decode a group with name zero extensions", func() {
 			groupName := "rdsbroker-postgres95-envname"
-			pg, _ := decodeName(groupName, servicePlan)
+			pg, _ := decodeName(groupName, servicePlan, "rdsbroker")
 
 			Expect(pg.Engine).To(Equal("postgres"))
 			Expect(pg.EngineVersion).To(Equal("95"))
@@ -71,7 +83,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 
 		It("feeds back the name of the parameter group in the name property", func() {
 			groupName := "rdsbroker-postgres95-envname"
-			pg, _ := decodeName(groupName, servicePlan)
+			pg, _ := decodeName(groupName, servicePlan, "rdsbroker")
 
 			Expect(pg.Name).To(Equal(groupName))
 		})
@@ -79,7 +91,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 		DescribeTable("can decode the name and version of the engine",
 			func(engineString string, expectedEngine string, expectedVersion string) {
 				groupName := fmt.Sprintf("rdsbroker-%s-envname", engineString)
-				pg, _ := decodeName(groupName, servicePlan)
+				pg, _ := decodeName(groupName, servicePlan, "rdsbroker")
 
 				Expect(pg.EngineVersion).To(Equal(expectedVersion))
 				Expect(pg.Engine).To(Equal(expectedEngine))
@@ -98,7 +110,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 			DescribeTable("matching supported extensions which require preload libraries for postgres 10",
 				func(inputExtName string, expectedExtName string) {
 					groupName := fmt.Sprintf("rdsbroker-postgres95-envname-%s", inputExtName)
-					pg, _ := decodeName(groupName, servicePlan)
+					pg, _ := decodeName(groupName, servicePlan, "rdsbroker")
 
 					Expect(pg.EngineVersion).To(Equal("95"))
 					Expect(pg.Engine).To(Equal("postgres"))
@@ -118,7 +130,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 		BeforeEach(func() {
 			config = Config{
 				Region:                       "",
-				DBPrefix:                     "",
+				DBPrefix:                     "rdsbroker",
 				BrokerName:                   "",
 				AWSPartition:                 "",
 				MasterPasswordSeed:           "",

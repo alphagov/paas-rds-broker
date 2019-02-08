@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -85,6 +86,39 @@ func CreateSecurityGroup(prefix string, session *session.Session) (*string, erro
 	return securityGroup.GroupId, nil
 }
 
+func CreateParameterGroup(groupName string, family string, session *session.Session) (*string, error) {
+	rdsService := rds.New(session)
+
+	existing, err := rdsService.DescribeDBParameterGroups(&rds.DescribeDBParameterGroupsInput{
+		DBParameterGroupName: aws.String(groupName),
+	})
+
+	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok {
+			if awsErr.Code() != rds.ErrCodeDBParameterGroupNotFoundFault {
+				return nil, awsErr
+			}
+		}
+	}
+
+	if len(existing.DBParameterGroups) > 0 {
+		return existing.DBParameterGroups[0].DBParameterGroupName, nil
+	}
+
+	paramGroup, err := rdsService.CreateDBParameterGroup(&rds.CreateDBParameterGroupInput{
+		DBParameterGroupFamily: aws.String(family),
+		DBParameterGroupName:   aws.String(groupName),
+		Description:            aws.String(groupName),
+		Tags:                   []*rds.Tag{},
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return paramGroup.DBParameterGroup.DBParameterGroupName, nil
+}
+
 func DestroySubnetGroup(name *string, session *session.Session) error {
 	rdsService := rds.New(session)
 	_, err := rdsService.DeleteDBSubnetGroup(&rds.DeleteDBSubnetGroupInput{
@@ -98,6 +132,15 @@ func DestroySecurityGroup(id *string, session *session.Session) error {
 	ec2Service := ec2.New(session)
 	_, err := ec2Service.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
 		GroupId: id,
+	})
+
+	return err
+}
+
+func DestroyParameterGroup(name *string, session *session.Session) error {
+	rdsService := rds.New(session)
+	_, err := rdsService.DeleteDBParameterGroup(&rds.DeleteDBParameterGroupInput{
+		DBParameterGroupName: name,
 	})
 
 	return err

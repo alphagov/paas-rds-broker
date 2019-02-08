@@ -29,6 +29,7 @@ var (
 
 	rdsSubnetGroupName *string
 	ec2SecurityGroupID *string
+	rdsParamGroupNames []*string
 )
 
 func TestSuite(t *testing.T) {
@@ -59,6 +60,20 @@ func TestSuite(t *testing.T) {
 			Expect(err).ToNot(HaveOccurred())
 			ec2SecurityGroupID, err = CreateSecurityGroup(rdsBrokerConfig.RDSConfig.DBPrefix, awsSession)
 			Expect(err).ToNot(HaveOccurred())
+
+			rdsParamGroupNames = []*string{}
+			parameterGroups := map[string]string{
+				"build-test-postgres10-envname-pg-stat-statements": "postgres10",
+				"build-test-postgres10-envname":                    "postgres10",
+				"build-test-postgres95-envname-pg-stat-statements": "postgres9.5",
+				"build-test-postgres95-envname":                    "postgres9.5",
+				"build-test-mysql57-envname":                       "mysql5.7",
+			}
+			for pg, family := range parameterGroups {
+				name, err := CreateParameterGroup(pg, family, awsSession)
+				Expect(err).ToNot(HaveOccurred())
+				rdsParamGroupNames = append(rdsParamGroupNames, name)
+			}
 
 			for serviceIndex := range rdsBrokerConfig.RDSConfig.Catalog.Services {
 				for planIndex := range rdsBrokerConfig.RDSConfig.Catalog.Services[serviceIndex].Plans {
@@ -95,6 +110,12 @@ func TestSuite(t *testing.T) {
 			}
 			if rdsSubnetGroupName != nil {
 				Expect(DestroySubnetGroup(rdsSubnetGroupName, awsSession)).To(Succeed())
+			}
+
+			if rdsParamGroupNames != nil {
+				for _, pg := range rdsParamGroupNames {
+					Expect(DestroyParameterGroup(pg, awsSession)).To(Succeed())
+				}
 			}
 		},
 	)

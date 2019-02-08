@@ -40,7 +40,7 @@ func NewParameterGroupSource(config Config) ParameterGroupSource {
 }
 
 func (groups *ParameterGroupSource) SelectParameterGroup(servicePlan ServicePlan, parameters ProvisionParameters) (ParameterGroup, error) {
-	paramGroups, err := buildParameterGroupsFromNames(groups.config.ParameterGroups, servicePlan)
+	paramGroups, err := buildParameterGroupsFromNames(groups.config.ParameterGroups, servicePlan, groups.config.DBPrefix)
 	if err != nil {
 		return ParameterGroup{}, err
 	}
@@ -67,7 +67,6 @@ func (groups *ParameterGroupSource) SelectParameterGroup(servicePlan ServicePlan
 		BestCandidate:          ParameterGroup{},
 		NumExtensionsSatisfied: 0,
 	}
-
 	for _, pg := range paramGroups {
 		// Only parameter groups with the right engine and version are relevant
 		if criteria.Engine == pg.Engine && criteria.EngineVersion == pg.EngineVersion {
@@ -135,10 +134,10 @@ func filterExtensionsNeedingPreloads(supportedExtensions []DBExtension, requeste
 	return relevantExtensions
 }
 
-func buildParameterGroupsFromNames(groupNames []string, servicePlan ServicePlan) ([]ParameterGroup, error) {
+func buildParameterGroupsFromNames(groupNames []string, servicePlan ServicePlan, dbPrefix string) ([]ParameterGroup, error) {
 	var paramGroups []ParameterGroup
 	for _, g := range groupNames {
-		pg, err := decodeName(g, servicePlan)
+		pg, err := decodeName(g, servicePlan, dbPrefix)
 
 		if err != nil {
 			return []ParameterGroup{}, err
@@ -166,8 +165,15 @@ func countSatisfiedExtensions(criteria searchCriteria, group ParameterGroup) int
 
 // decodes names in the format:
 // rdsbroker-engine_version-envname-ext-ensions-list
-func decodeName(name string, servicePlan ServicePlan) (ParameterGroup, error) {
-	expr := regexp.MustCompile("(?P<app>rdsbroker)-(?P<engine_name>[A-Za-z]+)(?P<engine_version>[0-9]+)-(?P<env>[A-Za-z0-9]{1,8})(-(?P<extensions>[A-Za-z0-9-]*))?")
+func decodeName(name string, servicePlan ServicePlan, dbPrefix string) (ParameterGroup, error) {
+	// Include the db prefix in the parameter group name decoding
+	expr := regexp.MustCompile(
+		fmt.Sprintf(
+			"(?P<app>%s)-(?P<engine_name>[A-Za-z]+)(?P<engine_version>[0-9]+)-(?P<env>[A-Za-z0-9]{1,8})(-(?P<extensions>[A-Za-z0-9-]*))?",
+			dbPrefix,
+		),
+	)
+
 	success, matches := tryMatchExpressionWithNamedGroups(expr, name)
 
 	if !success {

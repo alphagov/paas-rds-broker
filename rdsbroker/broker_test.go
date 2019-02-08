@@ -208,9 +208,9 @@ var _ = Describe("RDS Broker", func() {
 			AllowUserBindParameters:      allowUserBindParameters,
 			Catalog:                      catalog,
 			ParameterGroups: []string{
-				"rdsbroker-testengineone123-envname",
-				"rdsbroker-testenginetwo456-envname",
-				"rdsbroker-postgres456-envname",
+				dbPrefix + "-testengineone123-envname",
+				dbPrefix + "-testenginetwo456-envname",
+				dbPrefix + "-postgres456-envname",
 			},
 		}
 
@@ -832,7 +832,7 @@ var _ = Describe("RDS Broker", func() {
 					Expect(err).ToNot(HaveOccurred())
 					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
 					input := rdsInstance.CreateArgsForCall(0)
-					Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal("rdsbroker-testengineone123-envname"))
+					Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal(dbPrefix + "-testengineone123-envname"))
 				})
 			})
 

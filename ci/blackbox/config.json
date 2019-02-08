@@ -10,9 +10,11 @@
         "allow_user_update_parameters": true,
         "broker_name": "rdsbroker-integration-test",
         "parameter_groups": [
-            "rdsbroker-postgres10-envname",
-            "rdsbroker-postgres95-envname",
-            "rdsbroker-mysql57-envname"
+            "build-test-postgres10-envname",
+            "build-test-postgres10-envname-pg-stat-statements",
+            "build-test-postgres95-envname",
+            "build-test-postgres95-envname-pg-stat-statements",
+            "build-test-mysql57-envname"
         ],
         "catalog": {
             "services": [
@@ -37,7 +39,12 @@
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
                                 ],
-                                "postgres_extensions": [
+                                "default_extensions": [
+                                    "uuid-ossp",
+                                    "postgis",
+                                    "pg_stat_statements"
+                                ],
+                                "allowed_extensions": [
                                     "uuid-ossp",
                                     "postgis",
                                     "pg_stat_statements"
@@ -61,7 +68,12 @@
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
                                 ],
-                                "postgres_extensions": [
+                                "default_extensions": [
+                                    "uuid-ossp",
+                                    "postgis",
+                                    "pg_stat_statements"
+                                ],
+                                "allowed_extensions": [
                                     "uuid-ossp",
                                     "postgis",
                                     "pg_stat_statements"
@@ -78,12 +90,18 @@
                                 "db_instance_class": "db.t2.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "postgres",
-                                "engine_version": "10.5",
+                                "engine_version": "10",
                                 "copy_tags_to_snapshot":true,
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
                                 ],
-                                "postgres_extensions": [
+                                "default_extensions": [
+                                    "uuid-ossp",
+                                    "postgis",
+                                    "citext",
+                                    "pg_stat_statements"
+                                ],
+                                "allowed_extensions": [
                                     "uuid-ossp",
                                     "postgis",
                                     "citext",
@@ -102,13 +120,19 @@
                                 "db_instance_class": "db.t2.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "postgres",
-                                "engine_version": "10.5",
+                                "engine_version": "10",
                                 "skip_final_snapshot": true,
                                 "copy_tags_to_snapshot":true,
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
                                 ],
-                                "postgres_extensions": [
+                                "default_extensions": [
+                                    "uuid-ossp",
+                                    "postgis",
+                                    "citext",
+                                    "pg_stat_statements"
+                                ],
+                                "allowed_extensions": [
                                     "uuid-ossp",
                                     "postgis",
                                     "citext",
