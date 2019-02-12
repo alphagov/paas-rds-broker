@@ -6,16 +6,15 @@ import (
 )
 
 type Config struct {
-	Region                       string   `json:"region"`
-	DBPrefix                     string   `json:"db_prefix"`
-	BrokerName                   string   `json:"broker_name"`
-	AWSPartition                 string   `json:"aws_partition"`
-	MasterPasswordSeed           string   `json:"master_password_seed"`
-	AllowUserProvisionParameters bool     `json:"allow_user_provision_parameters"`
-	AllowUserUpdateParameters    bool     `json:"allow_user_update_parameters"`
-	AllowUserBindParameters      bool     `json:"allow_user_bind_parameters"`
-	Catalog                      Catalog  `json:"catalog"`
-	ParameterGroups              []string `json:"parameter_groups"`
+	Region                       string  `json:"region"`
+	DBPrefix                     string  `json:"db_prefix"`
+	BrokerName                   string  `json:"broker_name"`
+	AWSPartition                 string  `json:"aws_partition"`
+	MasterPasswordSeed           string  `json:"master_password_seed"`
+	AllowUserProvisionParameters bool    `json:"allow_user_provision_parameters"`
+	AllowUserUpdateParameters    bool    `json:"allow_user_update_parameters"`
+	AllowUserBindParameters      bool    `json:"allow_user_bind_parameters"`
+	Catalog                      Catalog `json:"catalog"`
 }
 
 func (c *Config) FillDefaults() {

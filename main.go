@@ -34,7 +34,8 @@ func main() {
 	logger := buildLogger(cfg.LogLevel)
 	dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
 	sqlProvider := sqlengine.NewProviderService(logger)
-	broker := rdsbroker.New(*cfg.RDSConfig, dbInstance, sqlProvider, logger)
+	parameterGroupSource := rdsbroker.NewParameterGroupSource(*cfg.RDSConfig, dbInstance, logger.Session("parameter_group_source"))
+	broker := rdsbroker.New(*cfg.RDSConfig, dbInstance, sqlProvider, parameterGroupSource, logger)
 
 	if cfg.RunHousekeeping {
 		go broker.CheckAndRotateCredentials()

@@ -8,7 +8,7 @@
         "allow_user_bind_parameters": true,
         "allow_user_provision_parameters": true,
         "allow_user_update_parameters": true,
-        "broker_name": "rdsbroker-integration-test",
+        "broker_name": "POPULATED_BY_TEST_SUITE",
         "parameter_groups": [
             "build-test-postgres10-envname",
             "build-test-postgres10-envname-pg-stat-statements",
@@ -188,7 +188,7 @@
                 }
             ]
         },
-        "db_prefix": "build-test",
+        "db_prefix": "POPULATED_BY_TEST_SUITE",
         "master_password_seed": "something-secret",
         "region": "eu-west-1"
     },

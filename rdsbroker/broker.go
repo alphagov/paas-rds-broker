@@ -31,6 +31,7 @@ const updateParametersLogKey = "updateParameters"
 const servicePlanLogKey = "servicePlan"
 const dbInstanceLogKey = "dbInstance"
 const lastOperationResponseLogKey = "lastOperationResponse"
+const extensionsLogKey = "requestedExtensions"
 
 var (
 	ErrEncryptionNotUpdateable = errors.New("instance can not be updated to a plan with different encryption settings")
@@ -80,7 +81,7 @@ type RDSBroker struct {
 	sqlProvider                  sqlengine.Provider
 	logger                       lager.Logger
 	brokerName                   string
-	parameterGroupsSource        ParameterGroupSource
+	parameterGroupsSelector      ParameterGroupSelector
 }
 
 type Credentials struct {
@@ -97,6 +98,7 @@ func New(
 	config Config,
 	dbInstance awsrds.RDSInstance,
 	sqlProvider sqlengine.Provider,
+	parameterGroupSelector ParameterGroupSelector,
 	logger lager.Logger,
 ) *RDSBroker {
 	return &RDSBroker{
@@ -110,7 +112,7 @@ func New(
 		dbInstance:                   dbInstance,
 		sqlProvider:                  sqlProvider,
 		logger:                       logger.Session("broker"),
-		parameterGroupsSource:        NewParameterGroupSource(config),
+		parameterGroupsSelector:      parameterGroupSelector,
 	}
 }
 
@@ -832,8 +834,7 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 	}
 	skipFinalSnapshotStr := strconv.FormatBool(skipFinalSnapshot)
 
-	parameterGroupName, err := b.parameterGroupsSource.SelectParameterGroup(servicePlan, provisionParameters)
-	b.logger.Debug(fmt.Sprintf("choosing parameter group %s", parameterGroupName.Name))
+	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters)
 	if err != nil {
 		return nil, err
 	}
@@ -848,7 +849,7 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		AutoMinorVersionUpgrade:    servicePlan.RDSProperties.AutoMinorVersionUpgrade,
 		AvailabilityZone:           servicePlan.RDSProperties.AvailabilityZone,
 		CopyTagsToSnapshot:         servicePlan.RDSProperties.CopyTagsToSnapshot,
-		DBParameterGroupName:       aws.String(parameterGroupName.Name),
+		DBParameterGroupName:       aws.String(parameterGroupName),
 		DBSubnetGroupName:          servicePlan.RDSProperties.DBSubnetGroupName,
 		EngineVersion:              servicePlan.RDSProperties.EngineVersion,
 		OptionGroupName:            servicePlan.RDSProperties.OptionGroupName,

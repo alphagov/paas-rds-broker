@@ -1,126 +1,139 @@
 package rdsbroker
 
 import (
+	"code.cloudfoundry.org/lager"
 	"fmt"
+	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/aws/aws-sdk-go/aws"
-	"regexp"
+	"github.com/aws/aws-sdk-go/service/rds"
+	"sort"
 	"strings"
 )
 
+//go:generate counterfeiter -o fakes/fake_parameter_group_selector.go . ParameterGroupSelector
+type ParameterGroupSelector interface {
+	SelectParameterGroup(servicePlan ServicePlan, parameters ProvisionParameters) (string, error)
+}
+
 type ParameterGroupSource struct {
-	config Config
+	config      Config
+	rdsInstance awsrds.RDSInstance
+	logger      lager.Logger
 }
 
-type ParameterGroup struct {
-	Name          string   `json:"name"`
-	Engine        string   `json:"engine"`
-	EngineVersion string   `json:"json_version"`
-	Extensions    []string `json:"extensions"`
+func NewParameterGroupSource(config Config, rdsInstance awsrds.RDSInstance, logger lager.Logger) *ParameterGroupSource {
+	return &ParameterGroupSource{config, rdsInstance, logger}
 }
 
-// Represents the criteria to used in
-// finding a matching parameter group
-type searchCriteria struct {
-	Engine                string
-	EngineVersion         string
-	RequireExtensions     bool
-	Extensions            []string
-	NumExtensionsRequired int
-}
+func (pgs *ParameterGroupSource) SelectParameterGroup(servicePlan ServicePlan, parameters ProvisionParameters) (string, error) {
+	pgs.logger.Debug("selecting a parameter group", lager.Data{
+		servicePlanLogKey: servicePlan,
+		extensionsLogKey:  parameters.Extensions,
+	})
 
-// Holds the state of a search for a
-// parameter group
-type searchState struct {
-	BestCandidate          ParameterGroup
-	NumExtensionsSatisfied int
-}
+	groupName := composeGroupName(pgs.config, servicePlan, parameters)
+	pgs.logger.Info(fmt.Sprintf("database should be created with parameter group '%s'", groupName))
+	_, err := pgs.rdsInstance.GetParameterGroup(groupName)
 
-func NewParameterGroupSource(config Config) ParameterGroupSource {
-	return ParameterGroupSource{config}
-}
-
-func (groups *ParameterGroupSource) SelectParameterGroup(servicePlan ServicePlan, parameters ProvisionParameters) (ParameterGroup, error) {
-	paramGroups, err := buildParameterGroupsFromNames(groups.config.ParameterGroups, servicePlan, groups.config.DBPrefix)
 	if err != nil {
-		return ParameterGroup{}, err
-	}
-
-	// The version numbers used in service plans contains dots
-	// whilst those used in the parameter group names do not
-	planEngineVersion := normaliseEngineVersion(aws.StringValue(servicePlan.RDSProperties.EngineVersion))
-	planEngine := normaliseEngineName(aws.StringValue(servicePlan.RDSProperties.Engine))
-	planEngineString := fmt.Sprintf("%s%s", planEngine, planEngineVersion)
-
-	supportedExtensions := SupportedPreloadExtensions[planEngineString]
-
-	relevantExtensions := filterExtensionsNeedingPreloads(supportedExtensions, parameters.Extensions)
-
-	criteria := searchCriteria{
-		Engine:                planEngine,
-		EngineVersion:         planEngineVersion,
-		RequireExtensions:     len(relevantExtensions) > 0,
-		Extensions:            relevantExtensions,
-		NumExtensionsRequired: len(relevantExtensions),
-	}
-
-	state := searchState{
-		BestCandidate:          ParameterGroup{},
-		NumExtensionsSatisfied: 0,
-	}
-	for _, pg := range paramGroups {
-		// Only parameter groups with the right engine and version are relevant
-		if criteria.Engine == pg.Engine && criteria.EngineVersion == pg.EngineVersion {
-			// Some extensions require pre-load libraries,
-			// which are set in the parameter group.
-			// If the request specified extensions, we
-			// must attempt to find a parameter group
-			// which satisfies those requirements (at least)
-			if criteria.RequireExtensions {
-				// Proxy for the best candidate having not been set
-				if state.BestCandidate.Name == "" {
-					state.BestCandidate = pg
-					state.NumExtensionsSatisfied = countSatisfiedExtensions(criteria, pg)
-				}
-
-				numSatisfiedExtensions := countSatisfiedExtensions(criteria, pg)
-				if numSatisfiedExtensions > state.NumExtensionsSatisfied {
-					state.BestCandidate = pg
-					state.NumExtensionsSatisfied = numSatisfiedExtensions
-				}
-
-				if state.NumExtensionsSatisfied == criteria.NumExtensionsRequired {
-					return state.BestCandidate, nil
-				}
-			} else {
-				// Otherwise, the parameter group must have explicitly zero
-				// enabled extensions
-				if len(pg.Extensions) == 0 {
-					state.BestCandidate = pg
-				}
+		if !isParameterGroupNotFoundError(err) {
+			return "", err
+		} else {
+			err := pgs.createParameterGroup(groupName, servicePlan)
+			if err != nil {
+				return "", err
 			}
+
+			err = pgs.setParameterGroupProperties(groupName, servicePlan, parameters)
+			if err != nil {
+				return "", err
+			}
+
+			return groupName, nil
 		}
 	}
 
-	if criteria.RequireExtensions && state.NumExtensionsSatisfied < criteria.NumExtensionsRequired {
-		return ParameterGroup{}, fmt.Errorf("cannot find a parameter group with the right extensions enabled. Service plan: %s, extensions: %q", servicePlan.Name, parameters.Extensions)
+	pgs.logger.Info(fmt.Sprintf("parameter group '%s' already existed", groupName))
+	return groupName, nil
+}
+
+func (pgs *ParameterGroupSource) createParameterGroup(name string, servicePlan ServicePlan) error {
+	pgs.logger.Debug("creating a parameter group", lager.Data{
+		"groupName": name,
+	})
+	family := aws.StringValue(servicePlan.RDSProperties.Engine) + aws.StringValue(servicePlan.RDSProperties.EngineVersion)
+
+	return pgs.rdsInstance.CreateParameterGroup(&rds.CreateDBParameterGroupInput{
+		DBParameterGroupFamily: aws.String(family),
+		DBParameterGroupName:   aws.String(name),
+		Description:            aws.String(name),
+		Tags:                   nil,
+	})
+}
+
+func (pgs *ParameterGroupSource) setParameterGroupProperties(name string, servicePlan ServicePlan, provisionParameters ProvisionParameters) error {
+	dbParams := []*rds.Parameter{}
+	dbParams = append(dbParams, rdsParameter("rds.force_ssl", "1", "pending-reboot"))
+	dbParams = append(dbParams, rdsParameter("rds.log_retention_period", "10080", "immediate"))
+
+	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
+		preloadLibs := filterExtensionsNeedingPreloads(servicePlan, provisionParameters.Extensions)
+		libsCSV := strings.Join(preloadLibs, ",")
+		dbParams = append(dbParams, rdsParameter("shared_preload_libraries", libsCSV, "pending-reboot"))
 	}
 
-	if state.BestCandidate.Name == "" {
-		return ParameterGroup{}, fmt.Errorf("unable to find a parameter group with the right engine and no other extensions enabled. Service plan: %s", servicePlan.Name)
+	pgs.logger.Debug("modifying a parameter group", lager.Data{
+		"groupName":  name,
+		"parameters": dbParams,
+	})
+
+	return pgs.rdsInstance.ModifyParameterGroup(&rds.ModifyDBParameterGroupInput{
+		DBParameterGroupName: aws.String(name),
+		Parameters:           dbParams,
+	})
+}
+
+func composeGroupName(config Config, servicePlan ServicePlan, provisionParameters ProvisionParameters) string {
+
+	normalisedExtensions := []string{}
+	normalisedEngine := normaliseIdentifier(aws.StringValue(servicePlan.RDSProperties.Engine))
+	normalisedVersion := normaliseIdentifier(aws.StringValue(servicePlan.RDSProperties.EngineVersion))
+
+	relevantExtensions := filterExtensionsNeedingPreloads(servicePlan, provisionParameters.Extensions)
+	for _, ext := range relevantExtensions {
+		normalisedExtensions = append(normalisedExtensions, normaliseIdentifier(ext))
 	}
 
-	return state.BestCandidate, nil
+	// Sort extensions alphabetically
+	// so that user input doesn't cause
+	// more unique parameter group names
+	// than necessary
+	sort.Strings(normalisedExtensions)
+
+	identifier := fmt.Sprintf(
+		"%s-%s%s-%s",
+		config.DBPrefix,
+		normalisedEngine,
+		normalisedVersion,
+		config.BrokerName,
+	)
+
+	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" && len(normalisedExtensions) > 0 {
+		identifier = fmt.Sprintf("%s-%s", identifier, strings.Join(normalisedExtensions, "-"))
+	}
+
+	return identifier
 }
 
-func normaliseEngineVersion(value string) string {
-	return strings.Replace(value, ".", "", -1)
-}
+func filterExtensionsNeedingPreloads(servicePlan ServicePlan, requestedExtensions []string) []string {
+	normalisedEngine := normaliseIdentifier(aws.StringValue(servicePlan.RDSProperties.Engine))
+	normalisedVersion := normaliseIdentifier(aws.StringValue(servicePlan.RDSProperties.EngineVersion))
 
-func normaliseEngineName(value string) string {
-	return strings.Replace(value, "-", "", -1)
-}
+	supportedExtensions := []DBExtension{}
+	if exts, ok := SupportedPreloadExtensions[normalisedEngine+normalisedVersion]; ok {
+		supportedExtensions = exts
+	}
 
-func filterExtensionsNeedingPreloads(supportedExtensions []DBExtension, requestedExtensions []string) []string {
 	relevantExtensions := []string{}
 	for _, ext := range requestedExtensions {
 		for _, supported := range supportedExtensions {
@@ -134,101 +147,24 @@ func filterExtensionsNeedingPreloads(supportedExtensions []DBExtension, requeste
 	return relevantExtensions
 }
 
-func buildParameterGroupsFromNames(groupNames []string, servicePlan ServicePlan, dbPrefix string) ([]ParameterGroup, error) {
-	var paramGroups []ParameterGroup
-	for _, g := range groupNames {
-		pg, err := decodeName(g, servicePlan, dbPrefix)
-
-		if err != nil {
-			return []ParameterGroup{}, err
-		}
-
-		paramGroups = append(paramGroups, pg)
-	}
-
-	return paramGroups, nil
+func isParameterGroupNotFoundError(err error) bool {
+	return strings.HasPrefix(err.Error(), rds.ErrCodeDBParameterGroupNotFoundFault)
 }
 
-func countSatisfiedExtensions(criteria searchCriteria, group ParameterGroup) int {
-	i := 0
-	for _, required := range criteria.Extensions {
-		for _, ext := range group.Extensions {
-			if required == ext {
-				i++
-				break
-			}
-		}
+func normaliseIdentifier(value string) string {
+	bannedChars := []string{".", "_", "-"}
+	out := value
+	for _, char := range bannedChars {
+		out = strings.Replace(out, char, "", -1)
 	}
 
-	return i
+	return out
 }
 
-// decodes names in the format:
-// rdsbroker-engine_version-envname-ext-ensions-list
-func decodeName(name string, servicePlan ServicePlan, dbPrefix string) (ParameterGroup, error) {
-	// Include the db prefix in the parameter group name decoding
-	expr := regexp.MustCompile(
-		fmt.Sprintf(
-			"(?P<app>%s)-(?P<engine_name>[A-Za-z]+)(?P<engine_version>[0-9]+)-(?P<env>[A-Za-z0-9]{1,8})(-(?P<extensions>[A-Za-z0-9-]*))?",
-			dbPrefix,
-		),
-	)
-
-	success, matches := tryMatchExpressionWithNamedGroups(expr, name)
-
-	if !success {
-		return ParameterGroup{}, fmt.Errorf("parameter group name %s doesn't contain the relevant fields", name)
+func rdsParameter(paramName string, paramValue string, applyMethod string) *rds.Parameter {
+	return &rds.Parameter{
+		ParameterName:  aws.String(paramName),
+		ParameterValue: aws.String(paramValue),
+		ApplyMethod:    aws.String(applyMethod),
 	}
-
-	normalisedEngineName := normaliseEngineName(aws.StringValue(servicePlan.RDSProperties.Engine))
-	normalisedEngineVersion := normaliseEngineVersion(aws.StringValue(servicePlan.RDSProperties.EngineVersion))
-	engineExtensionVersion := fmt.Sprintf("%s%s", normalisedEngineName, normalisedEngineVersion)
-	supportedExtensions := SupportedPreloadExtensions[engineExtensionVersion]
-
-	engine := matches["engine_name"]
-	engineVersion := matches["engine_version"]
-	extensions := findExtensions(matches["extensions"], supportedExtensions)
-
-	return ParameterGroup{
-		Name:          name,
-		Engine:        engine,
-		EngineVersion: engineVersion,
-		Extensions:    extensions,
-	}, nil
-}
-
-func tryMatchExpressionWithNamedGroups(expr *regexp.Regexp, str string) (bool, map[string]string) {
-	// https://stackoverflow.com/a/20751656
-	result := make(map[string]string)
-	matches := expr.FindStringSubmatch(str)
-	if matches == nil {
-		return false, result
-	}
-
-	for i, name := range expr.SubexpNames() {
-		if i != 0 && name != "" {
-			result[name] = matches[i]
-		}
-	}
-
-	return true, result
-}
-
-func findExtensions(paramGroupExtensions string, supportedExtensions []DBExtension) []string {
-	var extensions = []string{}
-
-	// Property group names cannot contain underscores,
-	// but postgres extension names use underscores by convention.
-	// To work around this, underscores and substituted for hyphens in
-	// those names.
-	// Normalisation undoes that
-	var normalisedParamGroupExtensions = strings.Replace(paramGroupExtensions, "-", "_", -1)
-
-	for _, ext := range supportedExtensions {
-		if strings.Contains(normalisedParamGroupExtensions, ext.Name) {
-			extensions = append(extensions, ext.Name)
-		}
-	}
-
-	return extensions
 }

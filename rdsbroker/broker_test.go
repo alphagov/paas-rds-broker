@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/alphagov/paas-rds-broker/rdsbroker/fakes"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -51,8 +52,9 @@ var _ = Describe("RDS Broker", func() {
 		sqlProvider *sqlfake.FakeProvider
 		sqlEngine   *sqlfake.FakeSQLEngine
 
-		testSink *lagertest.TestSink
-		logger   lager.Logger
+		testSink           *lagertest.TestSink
+		logger             lager.Logger
+		paramGroupSelector fakes.FakeParameterGroupSelector
 
 		rdsBroker *RDSBroker
 
@@ -207,11 +209,6 @@ var _ = Describe("RDS Broker", func() {
 			AllowUserUpdateParameters:    allowUserUpdateParameters,
 			AllowUserBindParameters:      allowUserBindParameters,
 			Catalog:                      catalog,
-			ParameterGroups: []string{
-				dbPrefix + "-testengineone123-envname",
-				dbPrefix + "-testenginetwo456-envname",
-				dbPrefix + "-postgres456-envname",
-			},
 		}
 
 		logger = lager.NewLogger("rdsbroker_test")
@@ -220,7 +217,10 @@ var _ = Describe("RDS Broker", func() {
 		testSink = lagertest.NewTestSink()
 		logger.RegisterSink(testSink)
 
-		rdsBroker = New(config, rdsInstance, sqlProvider, logger)
+		paramGroupSelector = fakes.FakeParameterGroupSelector{}
+		paramGroupSelector.SelectParameterGroupReturns(dbPrefix+"-postgres10-"+brokerName, nil)
+
+		rdsBroker = New(config, rdsInstance, sqlProvider, &paramGroupSelector, logger)
 
 		brokeruser = "brokeruser"
 		brokerpass = "brokerpass"
@@ -619,6 +619,17 @@ var _ = Describe("RDS Broker", func() {
 				Expect(tagsByName).ToNot(HaveKey("Restored From Snapshot"))
 			})
 
+			It("sets the parameter group from the parameter groups selector", func() {
+				paramGroupSelector.SelectParameterGroupReturns("expected", nil)
+				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+				input := rdsInstance.CreateArgsForCall(0)
+
+				Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal("expected"))
+			})
+
 			Context("creates a SkipFinalSnapshot tag", func() {
 
 				Context("given there are no provision parameters set", func() {
@@ -819,20 +830,6 @@ var _ = Describe("RDS Broker", func() {
 					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
 					input := rdsInstance.CreateArgsForCall(0)
 					Expect(aws.StringValue(input.DBName)).To(Equal("test-dbname"))
-				})
-			})
-
-			Context("when has DBParameterGroupName", func() {
-				BeforeEach(func() {
-					rdsProperties1.DBParameterGroupName = stringPointer("test-db-parameter-group-name")
-				})
-
-				It("makes the proper calls", func() {
-					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
-					input := rdsInstance.CreateArgsForCall(0)
-					Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal(dbPrefix + "-testengineone123-envname"))
 				})
 			})
 
@@ -1468,21 +1465,6 @@ var _ = Describe("RDS Broker", func() {
 				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
 				input := rdsInstance.ModifyArgsForCall(0)
 				Expect(aws.BoolValue(input.CopyTagsToSnapshot)).To(BeTrue())
-			})
-		})
-
-		Context("when has DBParameterGroupName", func() {
-			BeforeEach(func() {
-				rdsProperties2.DBParameterGroupName = stringPointer("test-db-parameter-group-name")
-			})
-
-			It("maintains the same name as the existing instance", func() {
-				expected := existingDbInstance.DBParameterGroups[0].DBParameterGroupName
-				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
-				input := rdsInstance.ModifyArgsForCall(0)
-				Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal(aws.StringValue(expected)))
 			})
 		})
 

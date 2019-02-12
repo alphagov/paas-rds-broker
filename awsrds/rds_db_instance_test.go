@@ -140,7 +140,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 		Context("when describing the DB returns 404", func() {
 			BeforeEach(func() {
-				awsError := awserr.New("code", "message", errors.New("operation failed"))
+				awsError := awserr.New(rds.ErrCodeDBInstanceNotFoundFault, "message", errors.New("operation failed"))
 				describeDBInstanceError = awserr.NewRequestFailure(awsError, 404, "request-id")
 			})
 
@@ -863,7 +863,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 			Context("and it is a 404 error", func() {
 				BeforeEach(func() {
-					awsError := awserr.New("code", "message", errors.New("operation failed"))
+					awsError := awserr.New(rds.ErrCodeDBInstanceNotFoundFault, "message", errors.New("operation failed"))
 					rebootDBInstanceError = awserr.NewRequestFailure(awsError, 404, "request-id")
 				})
 
@@ -953,7 +953,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 			Context("and it is a 404 error", func() {
 				BeforeEach(func() {
-					awsError := awserr.New("code", "message", errors.New("operation failed"))
+					awsError := awserr.New(rds.ErrCodeDBInstanceNotFoundFault, "message", errors.New("operation failed"))
 					deleteDBInstanceError = awserr.NewRequestFailure(awsError, 404, "request-id")
 				})
 

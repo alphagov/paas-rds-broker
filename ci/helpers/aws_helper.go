@@ -2,7 +2,6 @@ package helpers
 
 import (
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -10,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/rds"
-	uuid "github.com/satori/go.uuid"
+	"github.com/satori/go.uuid"
 )
 
 func CreateSubnetGroup(prefix string, session *session.Session) (*string, error) {
@@ -86,39 +85,6 @@ func CreateSecurityGroup(prefix string, session *session.Session) (*string, erro
 	return securityGroup.GroupId, nil
 }
 
-func CreateParameterGroup(groupName string, family string, session *session.Session) (*string, error) {
-	rdsService := rds.New(session)
-
-	existing, err := rdsService.DescribeDBParameterGroups(&rds.DescribeDBParameterGroupsInput{
-		DBParameterGroupName: aws.String(groupName),
-	})
-
-	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok {
-			if awsErr.Code() != rds.ErrCodeDBParameterGroupNotFoundFault {
-				return nil, awsErr
-			}
-		}
-	}
-
-	if len(existing.DBParameterGroups) > 0 {
-		return existing.DBParameterGroups[0].DBParameterGroupName, nil
-	}
-
-	paramGroup, err := rdsService.CreateDBParameterGroup(&rds.CreateDBParameterGroupInput{
-		DBParameterGroupFamily: aws.String(family),
-		DBParameterGroupName:   aws.String(groupName),
-		Description:            aws.String(groupName),
-		Tags:                   []*rds.Tag{},
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return paramGroup.DBParameterGroup.DBParameterGroupName, nil
-}
-
 func DestroySubnetGroup(name *string, session *session.Session) error {
 	rdsService := rds.New(session)
 	_, err := rdsService.DeleteDBSubnetGroup(&rds.DeleteDBSubnetGroupInput{
@@ -137,13 +103,43 @@ func DestroySecurityGroup(id *string, session *session.Session) error {
 	return err
 }
 
-func DestroyParameterGroup(name *string, session *session.Session) error {
-	rdsService := rds.New(session)
-	_, err := rdsService.DeleteDBParameterGroup(&rds.DeleteDBParameterGroupInput{
-		DBParameterGroupName: name,
-	})
+func CleanUpParameterGroups(prefix string, session *session.Session) error {
+	if !strings.HasPrefix(prefix, "build-test-") {
+		panic("Trying to clean up parameter groups without the 'build-test-' prefix will fail")
+	}
 
-	return err
+	rdsService := rds.New(session)
+	parameterGroups := []string{}
+
+	// Fetch all parameter group names
+	err := rdsService.DescribeDBParameterGroupsPages(
+		&rds.DescribeDBParameterGroupsInput{},
+		func(page *rds.DescribeDBParameterGroupsOutput, lastPage bool) bool {
+			for _, group := range page.DBParameterGroups {
+				parameterGroups = append(parameterGroups, aws.StringValue(group.DBParameterGroupName))
+			}
+			return true
+		},
+	)
+
+	if err != nil {
+		return err
+	}
+
+	// Delete any with a matching prefix
+	for _, group := range parameterGroups {
+		if strings.HasPrefix(group, prefix) {
+			_, err := rdsService.DeleteDBParameterGroup(&rds.DeleteDBParameterGroupInput{
+				DBParameterGroupName: aws.String(group),
+			})
+
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func getNetworkMetadata(name string, session *session.Session) (string, error) {

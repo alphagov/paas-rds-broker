@@ -55,7 +55,6 @@ type RDSProperties struct {
 	AvailabilityZone           *string   `json:"availability_zone,omitempty"`
 	BackupRetentionPeriod      *int64    `json:"backup_retention_period,omitempty"`
 	CharacterSetName           *string   `json:"character_set_name,omitempty"`
-	DBParameterGroupName       *string   `json:"db_parameter_group_name,omitempty"`
 	DBSecurityGroups           []*string `json:"db_security_groups,omitempty"`
 	DBSubnetGroupName          *string   `json:"db_subnet_group_name,omitempty"`
 	LicenseModel               *string   `json:"license_model,omitempty"`
