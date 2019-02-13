@@ -1,6 +1,9 @@
 package helpers
 
-import "sync"
+import (
+	"github.com/onsi/ginkgo"
+	"sync"
+)
 
 type WaitFunc func()
 type CleanFunc func()
@@ -27,6 +30,7 @@ func (p *ProvisionManager) Provision() {
 		p.cleaner = cleaner
 		p.wg.Add(1)
 		go func() {
+			defer ginkgo.GinkgoRecover()
 			defer p.wg.Done()
 			waitFunc()
 		}()
