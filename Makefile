@@ -3,7 +3,7 @@
 POSTGRESQL_PASSWORD=abc123
 
 integration:
-	ginkgo -p --nodes=9 -r ci/blackbox -slowSpecThreshold 900
+	ginkgo -p --nodes=9 -r ci/blackbox --slowSpecThreshold=900 -stream
 
 unit: start_postgres_9 start_mysql run_unit stop_postgres_9 start_postgres_10 run_sql_tests stop_postgres_10 stop_mysql
 
