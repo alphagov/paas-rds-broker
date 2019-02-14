@@ -65,7 +65,9 @@
                 "skip_final_snapshot": false,
                 "db_security_groups": [
                   "default"
-                ]
+                ],
+                "allowed_extensions": [],
+                "default_extensions": []
               }
             },
             {
@@ -100,7 +102,9 @@
                 "skip_final_snapshot": false,
                 "db_security_groups": [
                   "default"
-                ]
+                ],
+                "allowed_extensions": [],
+                "default_extensions": []
               }
             },
             {
@@ -135,7 +139,9 @@
                 "skip_final_snapshot": false,
                 "db_security_groups": [
                   "default"
-                ]
+                ],
+                "allowed_extensions": [],
+                "default_extensions": []
               }
             },
             {
@@ -170,7 +176,9 @@
                 "skip_final_snapshot": false,
                 "db_security_groups": [
                   "default"
-                ]
+                ],
+                "allowed_extensions": [],
+                "default_extensions": []
               }
             },
             {
@@ -205,7 +213,9 @@
                 "skip_final_snapshot": false,
                 "db_security_groups": [
                   "default"
-                ]
+                ],
+                "allowed_extensions": [],
+                "default_extensions": []
               }
             },
             {
@@ -240,7 +250,9 @@
                 "skip_final_snapshot": false,
                 "db_security_groups": [
                   "default"
-                ]
+                ],
+                "allowed_extensions": [],
+                "default_extensions": []
               }
             }
           ]
@@ -296,7 +308,9 @@
                 "skip_final_snapshot": false,
                 "db_security_groups": [
                   "default"
-                ]
+                ],
+                "allowed_extensions": ["postgis", "pg_stat_statements"],
+                "default_extensions": ["postgis"]
               }
             },
            {
@@ -331,7 +345,9 @@
                 "skip_final_snapshot": false,
                 "db_security_groups": [
                   "default"
-                ]
+                ],
+                "allowed_extensions": ["postgis", "pg_stat_statements"],
+                "default_extensions": ["postgis"]
               }
             },
            {
@@ -366,7 +382,9 @@
                 "skip_final_snapshot": false,
                 "db_security_groups": [
                   "default"
-                ]
+                ],
+                "allowed_extensions": ["postgis", "pg_stat_statements"],
+                "default_extensions": ["postgis"]
               }
             },
             {
@@ -401,7 +419,9 @@
                 "skip_final_snapshot": false,
                 "db_security_groups": [
                   "default"
-                ]
+                ],
+                "allowed_extensions": ["postgis", "pg_stat_statements"],
+                "default_extensions": ["postgis"]
               }
             },
            {
@@ -436,10 +456,12 @@
                 "skip_final_snapshot": false,
                 "db_security_groups": [
                   "default"
-                ]
+                ],
+                "allowed_extensions": ["postgis", "pg_stat_statements"],
+                "default_extensions": ["postgis"]
               }
-            },
-           {
+           },
+            {
               "id": "8f8d8ed7-ddd3-4b1f-befa-976cf7fc4116",
               "name": "9.5-xlarge",
               "description": "RDS PostgreSQL 9.5 (db.m3.xlarge, 100Gb)",
@@ -471,7 +493,9 @@
                 "skip_final_snapshot": false,
                 "db_security_groups": [
                   "default"
-                ]
+                ],
+                "allowed_extensions": ["postgis", "pg_stat_statements"],
+                "default_extensions": ["postgis"]
               }
             }
           ]
