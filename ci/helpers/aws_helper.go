@@ -142,6 +142,48 @@ func CleanUpParameterGroups(prefix string, session *session.Session) error {
 	return nil
 }
 
+func CleanUpTestDatabaseInstances(prefix string, awsSession *session.Session) error {
+	if !strings.HasPrefix(prefix, "build-test-") {
+		panic("Trying to clean up databases without the 'build-test-' prefix will fail")
+	}
+
+	rdsSvc := rds.New(awsSession)
+
+	requiringDeletion := []string{}
+	err := rdsSvc.DescribeDBInstancesPages(
+		&rds.DescribeDBInstancesInput{},
+		func(page *rds.DescribeDBInstancesOutput, lastPage bool) bool {
+			if len(page.DBInstances) > 0 {
+				for _, instance := range page.DBInstances {
+					if strings.HasPrefix(aws.StringValue(instance.DBInstanceIdentifier), prefix) {
+						if aws.StringValue(instance.DBInstanceStatus) != "deleting" {
+							requiringDeletion = append(requiringDeletion, aws.StringValue(instance.DBInstanceIdentifier))
+						}
+					}
+				}
+			}
+
+			return true
+		})
+
+	if err != nil {
+		return err
+	}
+
+	for _, instance := range requiringDeletion {
+		_, err := rdsSvc.DeleteDBInstance(&rds.DeleteDBInstanceInput{
+			DBInstanceIdentifier: aws.String(instance),
+			SkipFinalSnapshot:    aws.Bool(true),
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func getNetworkMetadata(name string, session *session.Session) (string, error) {
 	const prefix = "network/interfaces/macs"
 

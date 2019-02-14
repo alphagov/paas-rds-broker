@@ -92,6 +92,11 @@ func TestSuite(t *testing.T) {
 			awsSession := session.New(&aws.Config{
 				Region: aws.String(suiteData.RdsBrokerConfig.RDSConfig.Region)},
 			)
+
+			err := CleanUpTestDatabaseInstances(suiteData.RdsBrokerConfig.RDSConfig.DBPrefix, awsSession)
+
+			Expect(err).ToNot(HaveOccurred())
+
 			if ec2SecurityGroupID != nil {
 				Expect(DestroySecurityGroup(ec2SecurityGroupID, awsSession)).To(Succeed())
 			}
@@ -99,7 +104,7 @@ func TestSuite(t *testing.T) {
 				Expect(DestroySubnetGroup(rdsSubnetGroupName, awsSession)).To(Succeed())
 			}
 
-			err := CleanUpParameterGroups(suiteData.RdsBrokerConfig.RDSConfig.DBPrefix, awsSession)
+			err = CleanUpParameterGroups(suiteData.RdsBrokerConfig.RDSConfig.DBPrefix, awsSession)
 			Expect(err).ToNot(HaveOccurred())
 		},
 	)
