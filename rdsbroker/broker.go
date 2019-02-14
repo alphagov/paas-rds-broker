@@ -213,7 +213,12 @@ func (b *RDSBroker) Provision(
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
 		}
 		snapshotIdentifier := aws.StringValue(snapshot.DBSnapshotIdentifier)
-		restoreDBInstanceInput := b.restoreDBInstanceInput(instanceID, snapshotIdentifier, servicePlan, provisionParameters, details)
+		restoreDBInstanceInput, err := b.restoreDBInstanceInput(instanceID, snapshotIdentifier, servicePlan, provisionParameters, details)
+
+		if err != nil {
+			return brokerapi.ProvisionedServiceSpec{}, err
+		}
+
 		if err := b.dbInstance.Restore(restoreDBInstanceInput); err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
@@ -872,7 +877,7 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 	}, nil
 }
 
-func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) *rds.RestoreDBInstanceFromDBSnapshotInput {
+func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.RestoreDBInstanceFromDBSnapshotInput, error) {
 	skipFinalSnapshot := false
 	if provisionParameters.SkipFinalSnapshot != nil {
 		skipFinalSnapshot = *provisionParameters.SkipFinalSnapshot
@@ -880,6 +885,11 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		skipFinalSnapshot = *servicePlan.RDSProperties.SkipFinalSnapshot
 	}
 	skipFinalSnapshotStr := strconv.FormatBool(skipFinalSnapshot)
+
+	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters)
+	if err != nil {
+		return nil, err
+	}
 
 	return &rds.RestoreDBInstanceFromDBSnapshotInput{
 		DBSnapshotIdentifier:    aws.String(snapshotIdentifier),
@@ -889,6 +899,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		AutoMinorVersionUpgrade: servicePlan.RDSProperties.AutoMinorVersionUpgrade,
 		AvailabilityZone:        servicePlan.RDSProperties.AvailabilityZone,
 		CopyTagsToSnapshot:      servicePlan.RDSProperties.CopyTagsToSnapshot,
+		DBParameterGroupName:    aws.String(parameterGroupName),
 		DBSubnetGroupName:       servicePlan.RDSProperties.DBSubnetGroupName,
 		OptionGroupName:         servicePlan.RDSProperties.OptionGroupName,
 		PubliclyAccessible:      servicePlan.RDSProperties.PubliclyAccessible,
@@ -898,7 +909,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		Port:                    servicePlan.RDSProperties.Port,
 		StorageType:             servicePlan.RDSProperties.StorageType,
 		Tags:                    awsrds.BuilRDSTags(b.dbTags("Restored", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, snapshotIdentifier, provisionParameters.Extensions)),
-	}
+	}, nil
 }
 
 func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan, parameterGroupName *string) *rds.ModifyDBInstanceInput {
