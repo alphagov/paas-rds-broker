@@ -94,6 +94,17 @@ type Credentials struct {
 	JDBCURI  string `json:"jdbcuri"`
 }
 
+type RDSInstanceTags struct {
+	Action                   string
+	ServiceID                string
+	PlanID                   string
+	OrganizationID           string
+	SpaceID                  string
+	SkipFinalSnapshot        string
+	OriginSnapshotIdentifier string
+	Extensions               []string
+}
+
 func New(
 	config Config,
 	dbInstance awsrds.RDSInstance,
@@ -333,7 +344,12 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, err
 	}
 
-	tags := awsrds.BuilRDSTags(b.dbTags("Updated", details.ServiceID, details.PlanID, "", "", skipFinalSnapshot, "", []string{}))
+	tags := awsrds.BuilRDSTags(b.dbTags(RDSInstanceTags{
+		Action:            "Updated",
+		ServiceID:         details.ServiceID,
+		PlanID:            details.PlanID,
+		SkipFinalSnapshot: skipFinalSnapshot,
+	}))
 
 	b.dbInstance.AddTagsToResource(aws.StringValue(updatedDBInstance.DBInstanceArn), tags)
 
@@ -670,7 +686,15 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 		extensions = strings.Split(exts, ":")
 	}
 
-	tags := b.dbTags("Restored", serviceID, planID, organizationID, spaceID, "", "", extensions)
+	tags := b.dbTags(RDSInstanceTags{
+		Action:         "Restored",
+		ServiceID:      serviceID,
+		PlanID:         planID,
+		OrganizationID: organizationID,
+		SpaceID:        spaceID,
+		Extensions:     extensions,
+	})
+
 	rdsTags := awsrds.BuilRDSTags(tags)
 	b.dbInstance.AddTagsToResource(aws.StringValue(updatedDBInstance.DBInstanceArn), rdsTags)
 	// AddTagsToResource error intentionally ignored - it's logged inside the method
@@ -844,6 +868,16 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		return nil, err
 	}
 
+	tags := RDSInstanceTags{
+		Action:            "Created",
+		ServiceID:         details.ServiceID,
+		PlanID:            details.PlanID,
+		OrganizationID:    details.OrganizationGUID,
+		SpaceID:           details.SpaceGUID,
+		SkipFinalSnapshot: skipFinalSnapshotStr,
+		Extensions:        provisionParameters.Extensions,
+	}
+
 	return &rds.CreateDBInstanceInput{
 		DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBName:                     aws.String(b.dbName(instanceID)),
@@ -873,7 +907,7 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		StorageEncrypted:           servicePlan.RDSProperties.StorageEncrypted,
 		StorageType:                servicePlan.RDSProperties.StorageType,
 		VpcSecurityGroupIds:        servicePlan.RDSProperties.VpcSecurityGroupIds,
-		Tags:                       awsrds.BuilRDSTags(b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, "", provisionParameters.Extensions)),
+		Tags:                       awsrds.BuilRDSTags(b.dbTags(tags)),
 	}, nil
 }
 
@@ -889,6 +923,18 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters)
 	if err != nil {
 		return nil, err
+	}
+
+	//"Restored", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, snapshotIdentifier, provisionParameters.Extensions
+	tags := RDSInstanceTags{
+		Action:                   "Restored",
+		ServiceID:                details.ServiceID,
+		PlanID:                   details.PlanID,
+		OrganizationID:           details.OrganizationGUID,
+		SpaceID:                  details.SpaceGUID,
+		SkipFinalSnapshot:        skipFinalSnapshotStr,
+		OriginSnapshotIdentifier: snapshotIdentifier,
+		Extensions:               provisionParameters.Extensions,
 	}
 
 	return &rds.RestoreDBInstanceFromDBSnapshotInput{
@@ -908,7 +954,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		MultiAZ:                 servicePlan.RDSProperties.MultiAZ,
 		Port:                    servicePlan.RDSProperties.Port,
 		StorageType:             servicePlan.RDSProperties.StorageType,
-		Tags:                    awsrds.BuilRDSTags(b.dbTags("Restored", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, snapshotIdentifier, provisionParameters.Extensions)),
+		Tags:                    awsrds.BuilRDSTags(b.dbTags(tags)),
 	}, nil
 }
 
@@ -945,46 +991,47 @@ func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan Serv
 
 }
 
-func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID, skipFinalSnapshot, originSnapshotIdentifier string, extensions []string) map[string]string {
+func (b *RDSBroker) dbTags(instanceTags RDSInstanceTags) map[string]string {
 	tags := make(map[string]string)
 
 	tags["Owner"] = "Cloud Foundry"
 
 	tags[awsrds.TagBrokerName] = b.brokerName
 
-	tags[action+" by"] = "AWS RDS Service Broker"
+	tags[instanceTags.Action+" by"] = "AWS RDS Service Broker"
 
-	tags[action+" at"] = time.Now().Format(time.RFC822Z)
+	tags[instanceTags.Action+" at"] = time.Now().Format(time.RFC822Z)
 
-	if serviceID != "" {
-		tags[awsrds.TagServiceID] = serviceID
+	if instanceTags.ServiceID != "" {
+		tags[awsrds.TagServiceID] = instanceTags.ServiceID
 	}
 
-	if planID != "" {
-		tags[awsrds.TagPlanID] = planID
+	if instanceTags.PlanID != "" {
+		tags[awsrds.TagPlanID] = instanceTags.PlanID
 	}
 
-	if organizationID != "" {
-		tags[awsrds.TagOrganizationID] = organizationID
+	if instanceTags.OrganizationID != "" {
+		tags[awsrds.TagOrganizationID] = instanceTags.OrganizationID
 	}
 
-	if spaceID != "" {
-		tags[awsrds.TagSpaceID] = spaceID
+	if instanceTags.SpaceID != "" {
+		tags[awsrds.TagSpaceID] = instanceTags.SpaceID
 	}
 
-	if skipFinalSnapshot != "" {
-		tags[awsrds.TagSkipFinalSnapshot] = skipFinalSnapshot
+	if instanceTags.SkipFinalSnapshot != "" {
+		tags[awsrds.TagSkipFinalSnapshot] = instanceTags.SkipFinalSnapshot
 	}
 
-	if originSnapshotIdentifier != "" {
-		tags[awsrds.TagRestoredFromSnapshot] = originSnapshotIdentifier
+	if instanceTags.OriginSnapshotIdentifier != "" {
+		tags[awsrds.TagRestoredFromSnapshot] = instanceTags.OriginSnapshotIdentifier
 		for _, state := range restoreStateSequence {
 			tags[state] = "true"
 		}
 	}
 
-	if len(extensions) > 0 {
-		tags[awsrds.TagExtensions] = strings.Join(extensions, ":")
+	if len(instanceTags.Extensions) > 0 {
+		tags[awsrds.TagExtensions] = strings.Join(instanceTags.Extensions, ":")
 	}
+
 	return tags
 }
