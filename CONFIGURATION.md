@@ -92,6 +92,7 @@ Please refer to the [Amazon Relational Database Service Documentation](https://a
 | db_subnet_group_name            | N        | String    | The DB subnet group name that defines which subnets and IP ranges the DB instance can use in the VPC
 | engine                          | Y        | String    | The name of the Database Engine (only `mariadb`, `mysql` and `postgres` are supported)
 | engine_version                  | Y        | String    | The version number of the Database Engine
+| engine_family                   | Y        | String    | The family name for the engine and version, as reported by RDS
 | iops                            | N        | Integer   | The amount of Provisioned IOPS to be initially allocated for DB instances when using `io1` storage type
 | kms_key_id                      | N        | String    | The KMS key identifier for encrypted DB instances
 | license_model                   | N        | String    | License model information for DB instances (`license-included`, `bring-your-own-license`, `general-public-license`)

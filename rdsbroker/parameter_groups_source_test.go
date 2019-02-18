@@ -51,16 +51,10 @@ var _ = Describe("ParameterGroupsSource", func() {
 			Expect(name).To(HavePrefix(config.DBPrefix))
 		})
 
-		It("contains the normalised db engine name", func() {
-			servicePlan.RDSProperties.Engine = aws.String("test-db-engine")
+		It("contains the normalised engine family", func() {
+			servicePlan.RDSProperties.EngineFamily = aws.String("test-db-engine-family")
 			name := composeGroupName(config, servicePlan, provisionParameters, map[string][]DBExtension{})
-			Expect(name).To(ContainSubstring("testdbengine"))
-		})
-
-		It("contains the normalised engine version", func() {
-			servicePlan.RDSProperties.EngineVersion = aws.String("10.11.12")
-			name := composeGroupName(config, servicePlan, provisionParameters, map[string][]DBExtension{})
-			Expect(name).To(ContainSubstring("101112"))
+			Expect(name).To(ContainSubstring("testdbenginefamily"))
 		})
 
 		It("contains the broker name", func() {
@@ -144,6 +138,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 				RDSProperties: RDSProperties{
 					Engine:        aws.String("postgres"),
 					EngineVersion: aws.String("10"),
+					EngineFamily:  aws.String("postgres10"),
 				},
 			}
 
@@ -210,6 +205,17 @@ var _ = Describe("ParameterGroupsSource", func() {
 				Expect(rdsFake.CreateParameterGroupCallCount()).To(Equal(1))
 				createDBParameterGroupInput := rdsFake.CreateParameterGroupArgsForCall(0)
 				Expect(aws.StringValue(createDBParameterGroupInput.DBParameterGroupName)).To(Equal("rdsbroker-postgres10-envname"))
+			})
+
+			It("sets the group family from the configured plan", func() {
+				rdsFake.CreateParameterGroupReturns(nil)
+				servicePlan.RDSProperties.EngineFamily = aws.String("postgres10-cfg")
+
+				parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+
+				Expect(rdsFake.CreateParameterGroupCallCount()).To(Equal(1))
+				createDBParameterGroupInput := rdsFake.CreateParameterGroupArgsForCall(0)
+				Expect(aws.StringValue(createDBParameterGroupInput.DBParameterGroupFamily)).To(Equal(aws.StringValue(servicePlan.RDSProperties.EngineFamily)))
 			})
 
 			It("returns an error if creating the parameter group fails", func() {

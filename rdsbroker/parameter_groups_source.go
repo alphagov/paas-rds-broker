@@ -62,13 +62,11 @@ func (pgs *ParameterGroupSource) createParameterGroup(name string, servicePlan S
 	pgs.logger.Debug("creating a parameter group", lager.Data{
 		"groupName": name,
 	})
-	family := aws.StringValue(servicePlan.RDSProperties.Engine) + aws.StringValue(servicePlan.RDSProperties.EngineVersion)
 
 	return pgs.rdsInstance.CreateParameterGroup(&rds.CreateDBParameterGroupInput{
-		DBParameterGroupFamily: aws.String(family),
+		DBParameterGroupFamily: servicePlan.RDSProperties.EngineFamily,
 		DBParameterGroupName:   aws.String(name),
 		Description:            aws.String(name),
-		Tags:                   nil,
 	})
 }
 
@@ -99,10 +97,8 @@ func (pgs *ParameterGroupSource) setParameterGroupProperties(name string, servic
 
 func composeGroupName(config Config, servicePlan ServicePlan, provisionParameters ProvisionParameters, supportedPreloadExtensions map[string][]DBExtension) string {
 
+	normalisedFamily := normaliseIdentifier(aws.StringValue(servicePlan.RDSProperties.EngineFamily))
 	normalisedExtensions := []string{}
-	normalisedEngine := normaliseIdentifier(aws.StringValue(servicePlan.RDSProperties.Engine))
-	normalisedVersion := normaliseIdentifier(aws.StringValue(servicePlan.RDSProperties.EngineVersion))
-
 	relevantExtensions := filterExtensionsNeedingPreloads(servicePlan, provisionParameters.Extensions, supportedPreloadExtensions)
 	for _, ext := range relevantExtensions {
 		normalisedExtensions = append(normalisedExtensions, normaliseIdentifier(ext))
@@ -115,10 +111,9 @@ func composeGroupName(config Config, servicePlan ServicePlan, provisionParameter
 	sort.Strings(normalisedExtensions)
 
 	identifier := fmt.Sprintf(
-		"%s-%s%s-%s",
+		"%s-%s-%s",
 		config.DBPrefix,
-		normalisedEngine,
-		normalisedVersion,
+		normalisedFamily,
 		config.BrokerName,
 	)
 

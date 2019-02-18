@@ -9,13 +9,6 @@
         "allow_user_provision_parameters": true,
         "allow_user_update_parameters": true,
         "broker_name": "POPULATED_BY_TEST_SUITE",
-        "parameter_groups": [
-            "build-test-postgres10-envname",
-            "build-test-postgres10-envname-pg-stat-statements",
-            "build-test-postgres95-envname",
-            "build-test-postgres95-envname-pg-stat-statements",
-            "build-test-mysql57-envname"
-        ],
         "catalog": {
             "services": [
                 {
@@ -35,6 +28,7 @@
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "postgres",
                                 "engine_version": "9.5",
+                                "engine_family": "postgres9.5",
                                 "copy_tags_to_snapshot":true,
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
@@ -63,6 +57,7 @@
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "postgres",
                                 "engine_version": "9.5",
+                                "engine_family": "postgres9.5",
                                 "skip_final_snapshot": true,
                                 "copy_tags_to_snapshot":true,
                                 "vpc_security_group_ids": [
@@ -91,6 +86,7 @@
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "postgres",
                                 "engine_version": "10",
+                                "engine_family": "postgres10",
                                 "copy_tags_to_snapshot":true,
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
@@ -121,6 +117,7 @@
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "postgres",
                                 "engine_version": "10",
+                                "engine_family": "postgres10",
                                 "skip_final_snapshot": true,
                                 "copy_tags_to_snapshot":true,
                                 "vpc_security_group_ids": [
@@ -159,6 +156,7 @@
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "mysql",
                                 "engine_version": "5.7",
+                                "engine_family": "mysql5.7",
                                 "copy_tags_to_snapshot":true,
                                 "vpc_security_group_ids": [
                                     "POPULATED_BY_TEST_SUITE"
@@ -177,6 +175,7 @@
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "mysql",
                                 "engine_version": "5.7",
+                                "engine_family": "mysql5.7",
                                 "skip_final_snapshot": true,
                                 "copy_tags_to_snapshot":true,
                                 "vpc_security_group_ids": [

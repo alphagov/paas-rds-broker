@@ -50,6 +50,7 @@ type RDSProperties struct {
 	DBInstanceClass            *string   `json:"db_instance_class"`
 	Engine                     *string   `json:"engine"`
 	EngineVersion              *string   `json:"engine_version"`
+	EngineFamily               *string   `json:"engine_family"`
 	AllocatedStorage           *int64    `json:"allocated_storage"`
 	AutoMinorVersionUpgrade    *bool     `json:"auto_minor_version_upgrade,omitempty"`
 	AvailabilityZone           *string   `json:"availability_zone,omitempty"`
