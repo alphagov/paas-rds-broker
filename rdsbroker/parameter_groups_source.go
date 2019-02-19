@@ -78,8 +78,11 @@ func (pgs *ParameterGroupSource) setParameterGroupProperties(name string, servic
 
 	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
 		preloadLibs := filterExtensionsNeedingPreloads(servicePlan, provisionParameters.Extensions)
-		libsCSV := strings.Join(preloadLibs, ",")
-		dbParams = append(dbParams, rdsParameter("shared_preload_libraries", libsCSV, "pending-reboot"))
+
+		if len(preloadLibs) > 0 {
+			libsCSV := strings.Join(preloadLibs, ",")
+			dbParams = append(dbParams, rdsParameter("shared_preload_libraries", libsCSV, "pending-reboot"))
+		}
 	}
 
 	pgs.logger.Debug("modifying a parameter group", lager.Data{

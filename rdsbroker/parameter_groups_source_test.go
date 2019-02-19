@@ -277,6 +277,27 @@ var _ = Describe("ParameterGroupsSource", func() {
 				Expect(aws.StringValue(relevantParam.ApplyMethod)).To(Equal("pending-reboot"))
 			})
 
+			It("when no preload libraries are needed, it does not set the shared_preload_libraries parameter, because it's value cannot be empty", func() {
+				provisionDetails.Extensions = []string{"postgis"}
+				servicePlan.RDSProperties.AllowedExtensions = []*string{aws.String("postgis")}
+
+				rdsFake.ModifyParameterGroupReturns(nil)
+
+				parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+				Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
+
+				modifyInput := rdsFake.ModifyParameterGroupArgsForCall(0)
+				discovered := false
+				for _, param := range modifyInput.Parameters {
+					if aws.StringValue(param.ParameterName) == "shared_preload_libraries" {
+						discovered = true
+						break
+					}
+				}
+
+				Expect(discovered).To(BeFalse(), "The shared_preload_libraries property was set when it shouldn't have been")
+			})
+
 		})
 
 	})
