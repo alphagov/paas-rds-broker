@@ -16,13 +16,14 @@ type ParameterGroupSelector interface {
 }
 
 type ParameterGroupSource struct {
-	config      Config
-	rdsInstance awsrds.RDSInstance
-	logger      lager.Logger
+	config                     Config
+	rdsInstance                awsrds.RDSInstance
+	logger                     lager.Logger
+	supportedPreloadExtensions map[string][]DBExtension
 }
 
-func NewParameterGroupSource(config Config, rdsInstance awsrds.RDSInstance, logger lager.Logger) *ParameterGroupSource {
-	return &ParameterGroupSource{config, rdsInstance, logger}
+func NewParameterGroupSource(config Config, rdsInstance awsrds.RDSInstance, supportedPreloadExtensions map[string][]DBExtension, logger lager.Logger) *ParameterGroupSource {
+	return &ParameterGroupSource{config, rdsInstance, logger, supportedPreloadExtensions}
 }
 
 func (pgs *ParameterGroupSource) SelectParameterGroup(servicePlan ServicePlan, parameters ProvisionParameters) (string, error) {
@@ -31,7 +32,7 @@ func (pgs *ParameterGroupSource) SelectParameterGroup(servicePlan ServicePlan, p
 		extensionsLogKey:  parameters.Extensions,
 	})
 
-	groupName := composeGroupName(pgs.config, servicePlan, parameters)
+	groupName := composeGroupName(pgs.config, servicePlan, parameters, pgs.supportedPreloadExtensions)
 	pgs.logger.Info(fmt.Sprintf("database should be created with parameter group '%s'", groupName))
 	_, err := pgs.rdsInstance.GetParameterGroup(groupName)
 
@@ -77,7 +78,7 @@ func (pgs *ParameterGroupSource) setParameterGroupProperties(name string, servic
 	dbParams = append(dbParams, rdsParameter("rds.log_retention_period", "10080", "immediate"))
 
 	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
-		preloadLibs := filterExtensionsNeedingPreloads(servicePlan, provisionParameters.Extensions)
+		preloadLibs := filterExtensionsNeedingPreloads(servicePlan, provisionParameters.Extensions, pgs.supportedPreloadExtensions)
 
 		if len(preloadLibs) > 0 {
 			libsCSV := strings.Join(preloadLibs, ",")
@@ -96,13 +97,13 @@ func (pgs *ParameterGroupSource) setParameterGroupProperties(name string, servic
 	})
 }
 
-func composeGroupName(config Config, servicePlan ServicePlan, provisionParameters ProvisionParameters) string {
+func composeGroupName(config Config, servicePlan ServicePlan, provisionParameters ProvisionParameters, supportedPreloadExtensions map[string][]DBExtension) string {
 
 	normalisedExtensions := []string{}
 	normalisedEngine := normaliseIdentifier(aws.StringValue(servicePlan.RDSProperties.Engine))
 	normalisedVersion := normaliseIdentifier(aws.StringValue(servicePlan.RDSProperties.EngineVersion))
 
-	relevantExtensions := filterExtensionsNeedingPreloads(servicePlan, provisionParameters.Extensions)
+	relevantExtensions := filterExtensionsNeedingPreloads(servicePlan, provisionParameters.Extensions, supportedPreloadExtensions)
 	for _, ext := range relevantExtensions {
 		normalisedExtensions = append(normalisedExtensions, normaliseIdentifier(ext))
 	}
@@ -128,12 +129,9 @@ func composeGroupName(config Config, servicePlan ServicePlan, provisionParameter
 	return identifier
 }
 
-func filterExtensionsNeedingPreloads(servicePlan ServicePlan, requestedExtensions []string) []string {
-	normalisedEngine := normaliseIdentifier(aws.StringValue(servicePlan.RDSProperties.Engine))
-	normalisedVersion := normaliseIdentifier(aws.StringValue(servicePlan.RDSProperties.EngineVersion))
-
+func filterExtensionsNeedingPreloads(servicePlan ServicePlan, requestedExtensions []string, supportedPreloadExtensions map[string][]DBExtension) []string {
 	supportedExtensions := []DBExtension{}
-	if exts, ok := SupportedPreloadExtensions[normalisedEngine+normalisedVersion]; ok {
+	if exts, ok := supportedPreloadExtensions[aws.StringValue(servicePlan.RDSProperties.EngineFamily)]; ok {
 		supportedExtensions = exts
 	}
 

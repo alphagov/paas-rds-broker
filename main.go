@@ -34,7 +34,7 @@ func main() {
 	logger := buildLogger(cfg.LogLevel)
 	dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
 	sqlProvider := sqlengine.NewProviderService(logger)
-	parameterGroupSource := rdsbroker.NewParameterGroupSource(*cfg.RDSConfig, dbInstance, logger.Session("parameter_group_source"))
+	parameterGroupSource := rdsbroker.NewParameterGroupSource(*cfg.RDSConfig, dbInstance, rdsbroker.SupportedPreloadExtensions, logger.Session("parameter_group_source"))
 	broker := rdsbroker.New(*cfg.RDSConfig, dbInstance, sqlProvider, parameterGroupSource, logger)
 
 	if cfg.RunHousekeeping {

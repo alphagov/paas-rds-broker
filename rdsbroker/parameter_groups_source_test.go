@@ -18,6 +18,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 		var config Config
 		var servicePlan ServicePlan
 		var provisionParameters ProvisionParameters
+		var supportedPreloads map[string][]DBExtension
 
 		BeforeEach(func() {
 			config = Config{
@@ -29,31 +30,41 @@ var _ = Describe("ParameterGroupsSource", func() {
 				RDSProperties: RDSProperties{
 					Engine:        aws.String("postgres"),
 					EngineVersion: aws.String("10"),
+					EngineFamily:  aws.String("postgres10"),
 				},
 			}
 
 			provisionParameters = ProvisionParameters{}
+
+			supportedPreloads = map[string][]DBExtension{
+				"postgres10": {
+					DBExtension{
+						Name:                   "pg_stat_statements",
+						RequiresPreloadLibrary: true,
+					},
+				},
+			}
 		})
 
 		It("prepends the configured dbprefix", func() {
-			name := composeGroupName(config, servicePlan, provisionParameters)
+			name := composeGroupName(config, servicePlan, provisionParameters, map[string][]DBExtension{})
 			Expect(name).To(HavePrefix(config.DBPrefix))
 		})
 
 		It("contains the normalised db engine name", func() {
 			servicePlan.RDSProperties.Engine = aws.String("test-db-engine")
-			name := composeGroupName(config, servicePlan, provisionParameters)
+			name := composeGroupName(config, servicePlan, provisionParameters, map[string][]DBExtension{})
 			Expect(name).To(ContainSubstring("testdbengine"))
 		})
 
 		It("contains the normalised engine version", func() {
 			servicePlan.RDSProperties.EngineVersion = aws.String("10.11.12")
-			name := composeGroupName(config, servicePlan, provisionParameters)
+			name := composeGroupName(config, servicePlan, provisionParameters, map[string][]DBExtension{})
 			Expect(name).To(ContainSubstring("101112"))
 		})
 
 		It("contains the broker name", func() {
-			name := composeGroupName(config, servicePlan, provisionParameters)
+			name := composeGroupName(config, servicePlan, provisionParameters, map[string][]DBExtension{})
 			Expect(name).To(ContainSubstring("envname"))
 		})
 
@@ -61,19 +72,19 @@ var _ = Describe("ParameterGroupsSource", func() {
 			It("only if the db engine is postgres", func() {
 				provisionParameters.Extensions = []string{"pg_stat_statements"}
 				servicePlan.RDSProperties.Engine = aws.String("database")
-				name := composeGroupName(config, servicePlan, provisionParameters)
+				name := composeGroupName(config, servicePlan, provisionParameters, map[string][]DBExtension{})
 				Expect(name).ToNot(HaveSuffix("pgstatstatements"))
 			})
 
 			It("which have been normalised", func() {
 				provisionParameters.Extensions = []string{"pg_stat_statements"}
-				name := composeGroupName(config, servicePlan, provisionParameters)
+				name := composeGroupName(config, servicePlan, provisionParameters, supportedPreloads)
 				Expect(name).To(HaveSuffix("pgstatstatements"))
 			})
 
 			It("which require a pre-load library for that engine version", func() {
 				provisionParameters.Extensions = []string{"pg_stat_statements", "notanext"}
-				name := composeGroupName(config, servicePlan, provisionParameters)
+				name := composeGroupName(config, servicePlan, provisionParameters, supportedPreloads)
 				Expect(name).To(HaveSuffix("pgstatstatements"))
 				Expect(name).ToNot(ContainSubstring("notanext"))
 			})
@@ -81,14 +92,12 @@ var _ = Describe("ParameterGroupsSource", func() {
 			It("dash-separates extension names", func() {
 				provisionParameters.Extensions = []string{"pg_stat_statements", "pg_z"}
 
-				backup := SupportedPreloadExtensions["postgres10"]
-				SupportedPreloadExtensions["postgres10"] = append(SupportedPreloadExtensions["postgres10"], DBExtension{
+				supportedPreloads["postgres10"] = append(supportedPreloads["postgres10"], DBExtension{
 					Name:                   "pg_z",
 					RequiresPreloadLibrary: true,
 				})
 
-				name := composeGroupName(config, servicePlan, provisionParameters)
-				SupportedPreloadExtensions["postgres10"] = backup
+				name := composeGroupName(config, servicePlan, provisionParameters, supportedPreloads)
 
 				Expect(name).To(HaveSuffix("pgstatstatements-pgz"))
 			})
@@ -96,19 +105,17 @@ var _ = Describe("ParameterGroupsSource", func() {
 			It("orders the extensions alphabetically", func() {
 				provisionParameters.Extensions = []string{"pg_stat_statements", "pg_a", "pg_z"}
 
-				backup := SupportedPreloadExtensions["postgres10"]
-				SupportedPreloadExtensions["postgres10"] = append(SupportedPreloadExtensions["postgres10"], DBExtension{
+				supportedPreloads["postgres10"] = append(supportedPreloads["postgres10"], DBExtension{
 					Name:                   "pg_a",
 					RequiresPreloadLibrary: true,
 				})
 
-				SupportedPreloadExtensions["postgres10"] = append(SupportedPreloadExtensions["postgres10"], DBExtension{
+				supportedPreloads["postgres10"] = append(supportedPreloads["postgres10"], DBExtension{
 					Name:                   "pg_z",
 					RequiresPreloadLibrary: true,
 				})
 
-				name := composeGroupName(config, servicePlan, provisionParameters)
-				SupportedPreloadExtensions["postgres10"] = backup
+				name := composeGroupName(config, servicePlan, provisionParameters, supportedPreloads)
 
 				Expect(name).To(HaveSuffix("pga-pgstatstatements-pgz"))
 			})
@@ -120,6 +127,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 		var servicePlan ServicePlan
 		var provisionDetails ProvisionParameters
 		var rdsFake *fakes.FakeRDSInstance
+		var supportedPreloads map[string][]DBExtension
 
 		var parameterGroupSource *ParameterGroupSource
 
@@ -147,8 +155,17 @@ var _ = Describe("ParameterGroupsSource", func() {
 			testSink := lagertest.NewTestSink()
 			logger.RegisterSink(testSink)
 
+			supportedPreloads = map[string][]DBExtension{
+				"postgres10": {
+					DBExtension{
+						Name:                   "pg_stat_statements",
+						RequiresPreloadLibrary: true,
+					},
+				},
+			}
+
 			rdsFake = &fakes.FakeRDSInstance{}
-			parameterGroupSource = NewParameterGroupSource(config, rdsFake, logger)
+			parameterGroupSource = NewParameterGroupSource(config, rdsFake, supportedPreloads, logger)
 		})
 
 		It("returns an error when the RDS api returns an error other than not found", func() {
@@ -249,9 +266,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 			It("when an extension requires a preload library, it modifies the parameter group to add it", func() {
 				provisionDetails.Extensions = []string{"pg_stat_statements", "pg_super_ext"}
 
-				// Add a fake extension in order to test the format of the string supplied
-				backup := SupportedPreloadExtensions["postgres10"]
-				SupportedPreloadExtensions["postgres10"] = append(SupportedPreloadExtensions["postgres10"], DBExtension{
+				supportedPreloads["postgres10"] = append(supportedPreloads["postgres10"], DBExtension{
 					Name:                   "pg_super_ext",
 					RequiresPreloadLibrary: true,
 				})
@@ -259,7 +274,6 @@ var _ = Describe("ParameterGroupsSource", func() {
 				rdsFake.ModifyParameterGroupReturns(nil)
 
 				parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
-				SupportedPreloadExtensions["postgres10"] = backup
 
 				Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
 

@@ -7,7 +7,7 @@ type DBExtension struct {
 
 // Lists the supported database extensions
 // that require libraries to be loaded on startup,
-// keyed on database engine and version
+// keyed on database engine family
 var SupportedPreloadExtensions = map[string][]DBExtension{
 	"postgres10": {
 		DBExtension{
@@ -16,12 +16,12 @@ var SupportedPreloadExtensions = map[string][]DBExtension{
 		},
 	},
 
-	"postgres95": {
+	"postgres9.5": {
 		DBExtension{
 			Name:                   "pg_stat_statements",
 			RequiresPreloadLibrary: true,
 		},
 	},
 
-	"mysql57": []DBExtension{},
+	"mysql5.7": []DBExtension{},
 }
