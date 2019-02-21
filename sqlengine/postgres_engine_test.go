@@ -215,7 +215,7 @@ var _ = Describe("PostgresEngine", func() {
 
 					err = postgresEngine.DropUser(bindingID)
 					Expect(err).ToNot(HaveOccurred())
-				}(fmt.Sprintf("binding-id-%s", i))
+				}(fmt.Sprintf("binding-id-%d", i))
 			}
 
 			wg.Wait()
