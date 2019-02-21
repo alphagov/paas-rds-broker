@@ -44,7 +44,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 		// Give a different Broker Name in each execution, to avoid conflicts
 		brokerName = fmt.Sprintf(
 			"%s-%s",
-			suiteData.RdsBrokerConfig.RDSConfig.BrokerName,
+			"rdsbroker-integration-test",
 			uuid.NewV4().String(),
 		)
 
@@ -219,15 +219,11 @@ var _ = Describe("RDS Broker Daemon", func() {
 			var (
 				instanceID      string
 				finalSnapshotID string
-				appGUID         string
-				bindingID       string
 			)
 
 			BeforeEach(func() {
 				instanceID = uuid.NewV4().String()
 				finalSnapshotID = rdsClient.DBInstanceFinalSnapshotIdentifier(instanceID)
-				appGUID = uuid.NewV4().String()
-				bindingID = uuid.NewV4().String()
 				brokerAPIClient.AcceptsIncomplete = true
 			})
 

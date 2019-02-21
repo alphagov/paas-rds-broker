@@ -29,6 +29,9 @@ type RDSInstance interface {
 	RemoveTag(ID, tagKey string) error
 	Delete(ID string, skipFinalSnapshot bool) error
 	GetTag(ID, tagKey string) (string, error)
+	GetParameterGroup(groupId string) (*rds.DBParameterGroup, error)
+	CreateParameterGroup(input *rds.CreateDBParameterGroupInput) error
+	ModifyParameterGroup(input *rds.ModifyDBParameterGroupInput) error
 }
 
 type ByCreateTime []*rds.DBSnapshot

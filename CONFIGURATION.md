@@ -88,11 +88,11 @@ Please refer to the [Amazon Relational Database Service Documentation](https://a
 | character_set_name              | N        | String    | For supported engines, indicates that DB instances should be associated with the specified CharacterSet
 | copy_tags_to_snapshot           | N        | Boolean   | Enable or disable copying all tags from DB instances to snapshots
 | db_instance_class               | Y        | String    | The name of the DB Instance Class
-| db_parameter_group_name         | N        | String    | The DB parameter group name that defines the configuration settings you want applied to DB instances
 | db_security_groups              | N        | []String  | The security group(s) names that have rules authorizing connections from applications that need to access the data stored in the DB instance
 | db_subnet_group_name            | N        | String    | The DB subnet group name that defines which subnets and IP ranges the DB instance can use in the VPC
 | engine                          | Y        | String    | The name of the Database Engine (only `mariadb`, `mysql` and `postgres` are supported)
 | engine_version                  | Y        | String    | The version number of the Database Engine
+| engine_family                   | Y        | String    | The family name for the engine and version, as reported by RDS
 | iops                            | N        | Integer   | The amount of Provisioned IOPS to be initially allocated for DB instances when using `io1` storage type
 | kms_key_id                      | N        | String    | The KMS key identifier for encrypted DB instances
 | license_model                   | N        | String    | License model information for DB instances (`license-included`, `bring-your-own-license`, `general-public-license`)
@@ -106,3 +106,5 @@ Please refer to the [Amazon Relational Database Service Documentation](https://a
 | storage_encrypted               | N        | Boolean   | Specifies whether DB instances are encrypted
 | storage_type                    | N        | String    | The storage type to be associated with DB instances (`standard`, `gp2`, `io1`)
 | vpc_security_group_ids          | N        | []String  | VPC security group(s) IDs that have rules authorizing connections from applications that need to access the data stored in DB instances
+| allowed_extensions              | Y        | []String  | The set of Postgres extensions which can be enabled  
+| default_extensions              | Y        | []String  | The set of Postgres extensions which are enabled by default. Each of these must also be in the `allowed_extensions` list.

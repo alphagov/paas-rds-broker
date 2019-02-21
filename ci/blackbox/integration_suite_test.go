@@ -5,16 +5,15 @@ import (
 	"encoding/gob"
 	"fmt"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
 
+	"github.com/alphagov/paas-rds-broker/config"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
-	uuid "github.com/satori/go.uuid"
-
-	"github.com/alphagov/paas-rds-broker/config"
 
 	. "github.com/alphagov/paas-rds-broker/ci/helpers"
 )
@@ -46,9 +45,12 @@ func TestSuite(t *testing.T) {
 			err = rdsBrokerConfig.Validate()
 			Expect(err).ToNot(HaveOccurred())
 
-			rdsBrokerConfig.RDSConfig.BrokerName = fmt.Sprintf("%s-%s",
-				rdsBrokerConfig.RDSConfig.BrokerName,
-				uuid.NewV4().String(),
+			// DB instance identifiers can be a maximum
+			// of 63 characters. This leaves a budget of 27 characers
+			// for the prefix.
+			rdsBrokerConfig.RDSConfig.DBPrefix = fmt.Sprintf("%s-%d",
+				"build-test",      // 10 characters
+				time.Now().Unix(), // 10 characters
 			)
 
 			awsSession := session.New(&aws.Config{
@@ -90,12 +92,20 @@ func TestSuite(t *testing.T) {
 			awsSession := session.New(&aws.Config{
 				Region: aws.String(suiteData.RdsBrokerConfig.RDSConfig.Region)},
 			)
+
+			err := CleanUpTestDatabaseInstances(suiteData.RdsBrokerConfig.RDSConfig.DBPrefix, awsSession)
+
+			Expect(err).ToNot(HaveOccurred())
+
 			if ec2SecurityGroupID != nil {
 				Expect(DestroySecurityGroup(ec2SecurityGroupID, awsSession)).To(Succeed())
 			}
 			if rdsSubnetGroupName != nil {
 				Expect(DestroySubnetGroup(rdsSubnetGroupName, awsSession)).To(Succeed())
 			}
+
+			err = CleanUpParameterGroups(suiteData.RdsBrokerConfig.RDSConfig.DBPrefix, awsSession)
+			Expect(err).ToNot(HaveOccurred())
 		},
 	)
 

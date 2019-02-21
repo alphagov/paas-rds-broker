@@ -31,6 +31,7 @@ const updateParametersLogKey = "updateParameters"
 const servicePlanLogKey = "servicePlan"
 const dbInstanceLogKey = "dbInstance"
 const lastOperationResponseLogKey = "lastOperationResponse"
+const extensionsLogKey = "requestedExtensions"
 
 var (
 	ErrEncryptionNotUpdateable = errors.New("instance can not be updated to a plan with different encryption settings")
@@ -80,6 +81,7 @@ type RDSBroker struct {
 	sqlProvider                  sqlengine.Provider
 	logger                       lager.Logger
 	brokerName                   string
+	parameterGroupsSelector      ParameterGroupSelector
 }
 
 type Credentials struct {
@@ -92,10 +94,22 @@ type Credentials struct {
 	JDBCURI  string `json:"jdbcuri"`
 }
 
+type RDSInstanceTags struct {
+	Action                   string
+	ServiceID                string
+	PlanID                   string
+	OrganizationID           string
+	SpaceID                  string
+	SkipFinalSnapshot        string
+	OriginSnapshotIdentifier string
+	Extensions               []string
+}
+
 func New(
 	config Config,
 	dbInstance awsrds.RDSInstance,
 	sqlProvider sqlengine.Provider,
+	parameterGroupSelector ParameterGroupSelector,
 	logger lager.Logger,
 ) *RDSBroker {
 	return &RDSBroker{
@@ -109,6 +123,7 @@ func New(
 		dbInstance:                   dbInstance,
 		sqlProvider:                  sqlProvider,
 		logger:                       logger.Session("broker"),
+		parameterGroupsSelector:      parameterGroupSelector,
 	}
 }
 
@@ -163,8 +178,19 @@ func (b *RDSBroker) Provision(
 		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
+	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
+		ensureDefaultExtensionsAreSet(&provisionParameters, servicePlan)
+		ok, unsupportedExtensions := extensionsAreSupported(servicePlan, provisionParameters)
+		if !ok {
+			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("%s is not supported", unsupportedExtensions)
+		}
+	}
+
 	if provisionParameters.RestoreFromLatestSnapshotOf == nil {
-		createDBInstance := b.createDBInstance(instanceID, servicePlan, provisionParameters, details)
+		createDBInstance, err := b.createDBInstance(instanceID, servicePlan, provisionParameters, details)
+		if err != nil {
+			return brokerapi.ProvisionedServiceSpec{}, err
+		}
 		if err := b.dbInstance.Create(createDBInstance); err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
@@ -198,7 +224,20 @@ func (b *RDSBroker) Provision(
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
 		}
 		snapshotIdentifier := aws.StringValue(snapshot.DBSnapshotIdentifier)
-		restoreDBInstanceInput := b.restoreDBInstanceInput(instanceID, snapshotIdentifier, servicePlan, provisionParameters, details)
+
+		if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
+			if extensionsTag != "" {
+				snapshotExts := strings.Split(extensionsTag, ":")
+				ensureExtensionsAreSet(&provisionParameters, snapshotExts)
+			}
+		}
+
+		restoreDBInstanceInput, err := b.restoreDBInstanceInput(instanceID, snapshotIdentifier, servicePlan, provisionParameters, details)
+
+		if err != nil {
+			return brokerapi.ProvisionedServiceSpec{}, err
+		}
+
 		if err := b.dbInstance.Restore(restoreDBInstanceInput); err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
@@ -283,7 +322,19 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
 	}
 
-	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan)
+	existingInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
+
+	if err != nil {
+		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("cannot find instance %s", b.dbInstanceIdentifier(instanceID))
+	}
+
+	// The db parameter group should not change
+	// when updating a database, because it controls
+	// the function of certain extensions which
+	// could have been enabled at creation time
+	previousDbParamGroup := existingInstance.DBParameterGroups[0].DBParameterGroupName
+
+	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, previousDbParamGroup)
 	modifyDBInstanceInput.ApplyImmediately = aws.Bool(!updateParameters.ApplyAtMaintenanceWindow)
 
 	var skipFinalSnapshot string
@@ -301,7 +352,12 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, err
 	}
 
-	tags := awsrds.BuilRDSTags(b.dbTags("Updated", details.ServiceID, details.PlanID, "", "", skipFinalSnapshot, ""))
+	tags := awsrds.BuilRDSTags(b.dbTags(RDSInstanceTags{
+		Action:            "Updated",
+		ServiceID:         details.ServiceID,
+		PlanID:            details.PlanID,
+		SkipFinalSnapshot: skipFinalSnapshot,
+	}))
 
 	b.dbInstance.AddTagsToResource(aws.StringValue(updatedDBInstance.DBInstanceArn), tags)
 
@@ -546,16 +602,58 @@ func (b *RDSBroker) LastOperation(
 	return lastOperationResponse, nil
 }
 
+func ensureDefaultExtensionsAreSet(parameters *ProvisionParameters, plan ServicePlan) {
+	extensions := []string{}
+	for _, e := range plan.RDSProperties.DefaultExtensions {
+		extensions = append(extensions, aws.StringValue(e))
+	}
+
+	ensureExtensionsAreSet(parameters, extensions)
+}
+
+func ensureExtensionsAreSet(parameters *ProvisionParameters, extensions []string) {
+	inSlice := func(slice []string, element string) bool {
+		for _, e := range slice {
+			if e == element {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	for _, e := range extensions {
+		if !inSlice(parameters.Extensions, e) {
+			parameters.Extensions = append(parameters.Extensions, e)
+		}
+	}
+}
+
+func extensionsAreSupported(plan ServicePlan, parameters ProvisionParameters) (bool, string) {
+	extensions := parameters.Extensions
+
+	supported := plan.RDSProperties.AllowedExtensions
+	for _, e := range extensions {
+		if !extensionIsSupported(supported, e) {
+			return false, e
+		}
+	}
+	return true, ""
+}
+
+func extensionIsSupported(extensions []*string, s string) bool {
+	for _, e := range extensions {
+		if s == *e {
+			return true
+		}
+	}
+	return false
+}
+
 func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) error {
 	b.logger.Debug("ensure-create-extensions", lager.Data{
 		instanceIDLogKey: instanceID,
 	})
-
-	planID := tagsByName[awsrds.TagPlanID]
-	servicePlan, ok := b.catalog.FindServicePlan(planID)
-	if !ok {
-		return fmt.Errorf("Service Plan '%s' not found while ensuring extensions are created", planID)
-	}
 
 	if aws.StringValue(dbInstance.Engine) == "postgres" {
 		dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
@@ -565,15 +663,12 @@ func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstance *rds.DB
 		}
 		defer sqlEngine.Close()
 
-		postgresExtensionsString := []string{}
-		for _, extension := range servicePlan.RDSProperties.PostgresExtensions {
-			if extension != nil {
-				postgresExtensionsString = append(postgresExtensionsString, *extension)
-			}
-		}
+		if extensions, exists := tagsByName[awsrds.TagExtensions]; exists {
+			postgresExtensionsString := strings.Split(extensions, ":")
 
-		if err = sqlEngine.CreateExtensions(postgresExtensionsString); err != nil {
-			return err
+			if err = sqlEngine.CreateExtensions(postgresExtensionsString); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -591,7 +686,9 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 		return false, fmt.Errorf("Service Plan '%s' not found", tagsByName[awsrds.TagPlanID])
 	}
 
-	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan)
+	existingParameterGroup := dbInstance.DBParameterGroups[0].DBParameterGroupName
+
+	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, existingParameterGroup)
 	modifyDBInstanceInput.MasterUserPassword = aws.String(b.generateMasterPassword(instanceID))
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)
 	if err != nil {
@@ -601,7 +698,20 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 		return false, err
 	}
 
-	tags := b.dbTags("Restored", serviceID, planID, organizationID, spaceID, "", "")
+	extensions := []string{}
+	if exts, exists := tagsByName[awsrds.TagExtensions]; exists {
+		extensions = strings.Split(exts, ":")
+	}
+
+	tags := b.dbTags(RDSInstanceTags{
+		Action:         "Restored",
+		ServiceID:      serviceID,
+		PlanID:         planID,
+		OrganizationID: organizationID,
+		SpaceID:        spaceID,
+		Extensions:     extensions,
+	})
+
 	rdsTags := awsrds.BuilRDSTags(tags)
 	b.dbInstance.AddTagsToResource(aws.StringValue(updatedDBInstance.DBInstanceArn), rdsTags)
 	// AddTagsToResource error intentionally ignored - it's logged inside the method
@@ -761,7 +871,7 @@ func (b *RDSBroker) dbNameFromDBInstance(instanceID string, dbInstance *rds.DBIn
 	return dbName
 }
 
-func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) *rds.CreateDBInstanceInput {
+func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.CreateDBInstanceInput, error) {
 	skipFinalSnapshot := false
 	if provisionParameters.SkipFinalSnapshot != nil {
 		skipFinalSnapshot = *provisionParameters.SkipFinalSnapshot
@@ -769,6 +879,21 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		skipFinalSnapshot = *servicePlan.RDSProperties.SkipFinalSnapshot
 	}
 	skipFinalSnapshotStr := strconv.FormatBool(skipFinalSnapshot)
+
+	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters)
+	if err != nil {
+		return nil, err
+	}
+
+	tags := RDSInstanceTags{
+		Action:            "Created",
+		ServiceID:         details.ServiceID,
+		PlanID:            details.PlanID,
+		OrganizationID:    details.OrganizationGUID,
+		SpaceID:           details.SpaceGUID,
+		SkipFinalSnapshot: skipFinalSnapshotStr,
+		Extensions:        provisionParameters.Extensions,
+	}
 
 	return &rds.CreateDBInstanceInput{
 		DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
@@ -780,7 +905,7 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		AutoMinorVersionUpgrade:    servicePlan.RDSProperties.AutoMinorVersionUpgrade,
 		AvailabilityZone:           servicePlan.RDSProperties.AvailabilityZone,
 		CopyTagsToSnapshot:         servicePlan.RDSProperties.CopyTagsToSnapshot,
-		DBParameterGroupName:       servicePlan.RDSProperties.DBParameterGroupName,
+		DBParameterGroupName:       aws.String(parameterGroupName),
 		DBSubnetGroupName:          servicePlan.RDSProperties.DBSubnetGroupName,
 		EngineVersion:              servicePlan.RDSProperties.EngineVersion,
 		OptionGroupName:            servicePlan.RDSProperties.OptionGroupName,
@@ -799,11 +924,11 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		StorageEncrypted:           servicePlan.RDSProperties.StorageEncrypted,
 		StorageType:                servicePlan.RDSProperties.StorageType,
 		VpcSecurityGroupIds:        servicePlan.RDSProperties.VpcSecurityGroupIds,
-		Tags:                       awsrds.BuilRDSTags(b.dbTags("Created", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, "")),
-	}
+		Tags:                       awsrds.BuilRDSTags(b.dbTags(tags)),
+	}, nil
 }
 
-func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) *rds.RestoreDBInstanceFromDBSnapshotInput {
+func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.RestoreDBInstanceFromDBSnapshotInput, error) {
 	skipFinalSnapshot := false
 	if provisionParameters.SkipFinalSnapshot != nil {
 		skipFinalSnapshot = *provisionParameters.SkipFinalSnapshot
@@ -811,6 +936,23 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		skipFinalSnapshot = *servicePlan.RDSProperties.SkipFinalSnapshot
 	}
 	skipFinalSnapshotStr := strconv.FormatBool(skipFinalSnapshot)
+
+	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters)
+	if err != nil {
+		return nil, err
+	}
+
+	//"Restored", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, snapshotIdentifier, provisionParameters.Extensions
+	tags := RDSInstanceTags{
+		Action:                   "Restored",
+		ServiceID:                details.ServiceID,
+		PlanID:                   details.PlanID,
+		OrganizationID:           details.OrganizationGUID,
+		SpaceID:                  details.SpaceGUID,
+		SkipFinalSnapshot:        skipFinalSnapshotStr,
+		OriginSnapshotIdentifier: snapshotIdentifier,
+		Extensions:               provisionParameters.Extensions,
+	}
 
 	return &rds.RestoreDBInstanceFromDBSnapshotInput{
 		DBSnapshotIdentifier:    aws.String(snapshotIdentifier),
@@ -820,6 +962,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		AutoMinorVersionUpgrade: servicePlan.RDSProperties.AutoMinorVersionUpgrade,
 		AvailabilityZone:        servicePlan.RDSProperties.AvailabilityZone,
 		CopyTagsToSnapshot:      servicePlan.RDSProperties.CopyTagsToSnapshot,
+		DBParameterGroupName:    aws.String(parameterGroupName),
 		DBSubnetGroupName:       servicePlan.RDSProperties.DBSubnetGroupName,
 		OptionGroupName:         servicePlan.RDSProperties.OptionGroupName,
 		PubliclyAccessible:      servicePlan.RDSProperties.PubliclyAccessible,
@@ -828,17 +971,17 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		MultiAZ:                 servicePlan.RDSProperties.MultiAZ,
 		Port:                    servicePlan.RDSProperties.Port,
 		StorageType:             servicePlan.RDSProperties.StorageType,
-		Tags:                    awsrds.BuilRDSTags(b.dbTags("Restored", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, snapshotIdentifier)),
-	}
+		Tags:                    awsrds.BuilRDSTags(b.dbTags(tags)),
+	}, nil
 }
 
-func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan) *rds.ModifyDBInstanceInput {
+func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan, parameterGroupName *string) *rds.ModifyDBInstanceInput {
 	modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
 		DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBInstanceClass:            servicePlan.RDSProperties.DBInstanceClass,
 		AutoMinorVersionUpgrade:    servicePlan.RDSProperties.AutoMinorVersionUpgrade,
 		CopyTagsToSnapshot:         servicePlan.RDSProperties.CopyTagsToSnapshot,
-		DBParameterGroupName:       servicePlan.RDSProperties.DBParameterGroupName,
+		DBParameterGroupName:       parameterGroupName,
 		DBSubnetGroupName:          servicePlan.RDSProperties.DBSubnetGroupName,
 		EngineVersion:              servicePlan.RDSProperties.EngineVersion,
 		OptionGroupName:            servicePlan.RDSProperties.OptionGroupName,
@@ -865,42 +1008,47 @@ func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan Serv
 
 }
 
-func (b *RDSBroker) dbTags(action, serviceID, planID, organizationID, spaceID, skipFinalSnapshot, originSnapshotIdentifier string) map[string]string {
+func (b *RDSBroker) dbTags(instanceTags RDSInstanceTags) map[string]string {
 	tags := make(map[string]string)
 
 	tags["Owner"] = "Cloud Foundry"
 
 	tags[awsrds.TagBrokerName] = b.brokerName
 
-	tags[action+" by"] = "AWS RDS Service Broker"
+	tags[instanceTags.Action+" by"] = "AWS RDS Service Broker"
 
-	tags[action+" at"] = time.Now().Format(time.RFC822Z)
+	tags[instanceTags.Action+" at"] = time.Now().Format(time.RFC822Z)
 
-	if serviceID != "" {
-		tags[awsrds.TagServiceID] = serviceID
+	if instanceTags.ServiceID != "" {
+		tags[awsrds.TagServiceID] = instanceTags.ServiceID
 	}
 
-	if planID != "" {
-		tags[awsrds.TagPlanID] = planID
+	if instanceTags.PlanID != "" {
+		tags[awsrds.TagPlanID] = instanceTags.PlanID
 	}
 
-	if organizationID != "" {
-		tags[awsrds.TagOrganizationID] = organizationID
+	if instanceTags.OrganizationID != "" {
+		tags[awsrds.TagOrganizationID] = instanceTags.OrganizationID
 	}
 
-	if spaceID != "" {
-		tags[awsrds.TagSpaceID] = spaceID
+	if instanceTags.SpaceID != "" {
+		tags[awsrds.TagSpaceID] = instanceTags.SpaceID
 	}
 
-	if skipFinalSnapshot != "" {
-		tags[awsrds.TagSkipFinalSnapshot] = skipFinalSnapshot
+	if instanceTags.SkipFinalSnapshot != "" {
+		tags[awsrds.TagSkipFinalSnapshot] = instanceTags.SkipFinalSnapshot
 	}
 
-	if originSnapshotIdentifier != "" {
-		tags[awsrds.TagRestoredFromSnapshot] = originSnapshotIdentifier
+	if instanceTags.OriginSnapshotIdentifier != "" {
+		tags[awsrds.TagRestoredFromSnapshot] = instanceTags.OriginSnapshotIdentifier
 		for _, state := range restoreStateSequence {
 			tags[state] = "true"
 		}
 	}
+
+	if len(instanceTags.Extensions) > 0 {
+		tags[awsrds.TagExtensions] = strings.Join(instanceTags.Extensions, ":")
+	}
+
 	return tags
 }

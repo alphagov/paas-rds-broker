@@ -19,6 +19,7 @@ const (
 	TagSkipFinalSnapshot    = "SkipFinalSnapshot"
 	TagRestoredFromSnapshot = "Restored From Snapshot"
 	TagBrokerName           = "Broker Name"
+	TagExtensions           = "Extensions"
 )
 
 type RDSDBInstance struct {
@@ -343,6 +344,52 @@ func (r *RDSDBInstance) Delete(ID string, skipFinalSnapshot bool) error {
 
 	r.logger.Debug("delete-db-instance", lager.Data{"output": deleteDBInstanceOutput})
 
+	return nil
+}
+
+func (r *RDSDBInstance) GetParameterGroup(groupId string) (*rds.DBParameterGroup, error) {
+	describeDBParameterGroupsInput := &rds.DescribeDBParameterGroupsInput{
+		DBParameterGroupName: aws.String(groupId),
+		Filters:              nil,
+		Marker:               nil,
+		MaxRecords:           nil,
+	}
+	r.logger.Debug("get-parameter-group", lager.Data{"input": describeDBParameterGroupsInput})
+
+	describeDBParameterGroupsOutput, err := r.rdssvc.DescribeDBParameterGroups(describeDBParameterGroupsInput)
+
+	if err != nil {
+		return nil, HandleAWSError(err, r.logger)
+	}
+
+	r.logger.Debug("get-parameter-group", lager.Data{"output": describeDBParameterGroupsOutput})
+
+	return describeDBParameterGroupsOutput.DBParameterGroups[0], nil
+}
+
+func (r *RDSDBInstance) CreateParameterGroup(input *rds.CreateDBParameterGroupInput) error {
+	r.logger.Debug("create-parameter-group", lager.Data{"input": input})
+
+	createDBParameterGroupOutput, err := r.rdssvc.CreateDBParameterGroup(input)
+
+	if err != nil {
+		return HandleAWSError(err, r.logger)
+	}
+
+	r.logger.Debug("create-parameter-group", lager.Data{"output": createDBParameterGroupOutput})
+	return nil
+}
+
+func (r *RDSDBInstance) ModifyParameterGroup(input *rds.ModifyDBParameterGroupInput) error {
+	r.logger.Debug("modify-parameter-group", lager.Data{"input": input})
+
+	modifyParameterGroupOutput, err := r.rdssvc.ModifyDBParameterGroup(input)
+
+	if err != nil {
+		return HandleAWSError(err, r.logger)
+	}
+
+	r.logger.Debug("modify-parameter-group", lager.Data{"output": modifyParameterGroupOutput})
 	return nil
 }
 

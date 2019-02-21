@@ -50,12 +50,12 @@ type RDSProperties struct {
 	DBInstanceClass            *string   `json:"db_instance_class"`
 	Engine                     *string   `json:"engine"`
 	EngineVersion              *string   `json:"engine_version"`
+	EngineFamily               *string   `json:"engine_family"`
 	AllocatedStorage           *int64    `json:"allocated_storage"`
 	AutoMinorVersionUpgrade    *bool     `json:"auto_minor_version_upgrade,omitempty"`
 	AvailabilityZone           *string   `json:"availability_zone,omitempty"`
 	BackupRetentionPeriod      *int64    `json:"backup_retention_period,omitempty"`
 	CharacterSetName           *string   `json:"character_set_name,omitempty"`
-	DBParameterGroupName       *string   `json:"db_parameter_group_name,omitempty"`
 	DBSecurityGroups           []*string `json:"db_security_groups,omitempty"`
 	DBSubnetGroupName          *string   `json:"db_subnet_group_name,omitempty"`
 	LicenseModel               *string   `json:"license_model,omitempty"`
@@ -72,7 +72,8 @@ type RDSProperties struct {
 	VpcSecurityGroupIds        []*string `json:"vpc_security_group_ids,omitempty"`
 	CopyTagsToSnapshot         *bool     `json:"copy_tags_to_snapshot,omitempty"`
 	SkipFinalSnapshot          *bool     `json:"skip_final_snapshot,omitempty"`
-	PostgresExtensions         []*string `json:"postgres_extensions,omitempty"`
+	DefaultExtensions          []*string `json:"default_extensions,omitempty"`
+	AllowedExtensions          []*string `json:"allowed_extensions"`
 }
 
 func (c Catalog) Validate() error {
@@ -163,7 +164,7 @@ func (rp RDSProperties) Validate(c Catalog) error {
 	case "mysql":
 	case "postgres":
 	default:
-		return fmt.Errorf("This broker does not support RDS engine '%s'", *rp.Engine, rp)
+		return fmt.Errorf("This broker does not support RDS engine '%s'", *rp.Engine)
 	}
 
 	for _, engine := range c.ExcludeEngines {

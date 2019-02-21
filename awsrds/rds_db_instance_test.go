@@ -140,7 +140,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 		Context("when describing the DB returns 404", func() {
 			BeforeEach(func() {
-				awsError := awserr.New("code", "message", errors.New("operation failed"))
+				awsError := awserr.New(rds.ErrCodeDBInstanceNotFoundFault, "message", errors.New("operation failed"))
 				describeDBInstanceError = awserr.NewRequestFailure(awsError, 404, "request-id")
 			})
 
@@ -617,13 +617,11 @@ var _ = Describe("RDS DB Instance", func() {
 			describeDBInstances []*rds.DBInstance
 			describeDBInstance  *rds.DBInstance
 
-			describeDBInstancesInput *rds.DescribeDBInstancesInput
-			describeDBInstanceError  error
+			describeDBInstanceError error
 
 			modifyDBInstanceError error
 
-			receivedDescribeDBInstancesInput *rds.DescribeDBInstancesInput
-			receivedModifyDBInstanceInput    *rds.ModifyDBInstanceInput
+			receivedModifyDBInstanceInput *rds.ModifyDBInstanceInput
 		)
 
 		BeforeEach(func() {
@@ -642,14 +640,10 @@ var _ = Describe("RDS DB Instance", func() {
 			}
 			describeDBInstances = []*rds.DBInstance{describeDBInstance}
 
-			describeDBInstancesInput = &rds.DescribeDBInstancesInput{
-				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
-			}
 			describeDBInstanceError = nil
 
 			modifyDBInstanceError = nil
 
-			receivedDescribeDBInstancesInput = nil
 		})
 
 		JustBeforeEach(func() {
@@ -661,7 +655,6 @@ var _ = Describe("RDS DB Instance", func() {
 				case "DescribeDBInstances":
 					Expect(r.Operation.Name).To(Equal("DescribeDBInstances"))
 					Expect(r.Params).To(BeAssignableToTypeOf(&rds.DescribeDBInstancesInput{}))
-					receivedDescribeDBInstancesInput = r.Params.(*rds.DescribeDBInstancesInput)
 					data := r.Data.(*rds.DescribeDBInstancesOutput)
 					data.DBInstances = describeDBInstances
 					r.Error = describeDBInstanceError
@@ -870,7 +863,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 			Context("and it is a 404 error", func() {
 				BeforeEach(func() {
-					awsError := awserr.New("code", "message", errors.New("operation failed"))
+					awsError := awserr.New(rds.ErrCodeDBInstanceNotFoundFault, "message", errors.New("operation failed"))
 					rebootDBInstanceError = awserr.NewRequestFailure(awsError, 404, "request-id")
 				})
 
@@ -960,7 +953,7 @@ var _ = Describe("RDS DB Instance", func() {
 
 			Context("and it is a 404 error", func() {
 				BeforeEach(func() {
-					awsError := awserr.New("code", "message", errors.New("operation failed"))
+					awsError := awserr.New(rds.ErrCodeDBInstanceNotFoundFault, "message", errors.New("operation failed"))
 					deleteDBInstanceError = awserr.NewRequestFailure(awsError, 404, "request-id")
 				})
 

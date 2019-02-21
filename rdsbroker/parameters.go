@@ -1,13 +1,14 @@
 package rdsbroker
 
 type ProvisionParameters struct {
-	BackupRetentionPeriod       int64   `json:"backup_retention_period"`
-	CharacterSetName            string  `json:"character_set_name"`
-	DBName                      string  `json:"dbname"`
-	PreferredBackupWindow       string  `json:"preferred_backup_window"`
-	PreferredMaintenanceWindow  string  `json:"preferred_maintenance_window"`
-	SkipFinalSnapshot           *bool   `json:"skip_final_snapshot"`
-	RestoreFromLatestSnapshotOf *string `json:"restore_from_latest_snapshot_of"`
+	BackupRetentionPeriod       int64    `json:"backup_retention_period"`
+	CharacterSetName            string   `json:"character_set_name"`
+	DBName                      string   `json:"dbname"`
+	PreferredBackupWindow       string   `json:"preferred_backup_window"`
+	PreferredMaintenanceWindow  string   `json:"preferred_maintenance_window"`
+	SkipFinalSnapshot           *bool    `json:"skip_final_snapshot"`
+	RestoreFromLatestSnapshotOf *string  `json:"restore_from_latest_snapshot_of"`
+	Extensions                  []string `json:"enabled_extensions"`
 }
 
 type UpdateParameters struct {

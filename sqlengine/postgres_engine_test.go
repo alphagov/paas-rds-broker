@@ -122,7 +122,6 @@ var _ = Describe("PostgresEngine", func() {
 		randomTestSuffix string
 
 		template1ConnectionString string
-		masterConnectionString    string
 	)
 
 	BeforeEach(func() {
@@ -148,7 +147,6 @@ var _ = Describe("PostgresEngine", func() {
 		template1ConnectionString = postgresEngine.URI(address, port, "template1", rootUsername, rootPassword)
 
 		masterUsername, masterPassword = createMasterUser(template1ConnectionString)
-		masterConnectionString = postgresEngine.URI(address, port, dbname, masterUsername, masterPassword)
 
 		// Create the test DB
 		createDB(template1ConnectionString, dbname)
@@ -217,7 +215,7 @@ var _ = Describe("PostgresEngine", func() {
 
 					err = postgresEngine.DropUser(bindingID)
 					Expect(err).ToNot(HaveOccurred())
-				}(fmt.Sprintf("binding-id-%s", i))
+				}(fmt.Sprintf("binding-id-%d", i))
 			}
 
 			wg.Wait()

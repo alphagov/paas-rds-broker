@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/rds"
-	uuid "github.com/satori/go.uuid"
+	"github.com/satori/go.uuid"
 )
 
 func CreateSubnetGroup(prefix string, session *session.Session) (*string, error) {
@@ -101,6 +101,87 @@ func DestroySecurityGroup(id *string, session *session.Session) error {
 	})
 
 	return err
+}
+
+func CleanUpParameterGroups(prefix string, session *session.Session) error {
+	if !strings.HasPrefix(prefix, "build-test-") {
+		panic("Trying to clean up parameter groups without the 'build-test-' prefix will fail")
+	}
+
+	rdsService := rds.New(session)
+	parameterGroups := []string{}
+
+	// Fetch all parameter group names
+	err := rdsService.DescribeDBParameterGroupsPages(
+		&rds.DescribeDBParameterGroupsInput{},
+		func(page *rds.DescribeDBParameterGroupsOutput, lastPage bool) bool {
+			for _, group := range page.DBParameterGroups {
+				parameterGroups = append(parameterGroups, aws.StringValue(group.DBParameterGroupName))
+			}
+			return true
+		},
+	)
+
+	if err != nil {
+		return err
+	}
+
+	// Delete any with a matching prefix
+	for _, group := range parameterGroups {
+		if strings.HasPrefix(group, prefix) {
+			_, err := rdsService.DeleteDBParameterGroup(&rds.DeleteDBParameterGroupInput{
+				DBParameterGroupName: aws.String(group),
+			})
+
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func CleanUpTestDatabaseInstances(prefix string, awsSession *session.Session) error {
+	if !strings.HasPrefix(prefix, "build-test-") {
+		panic("Trying to clean up databases without the 'build-test-' prefix will fail")
+	}
+
+	rdsSvc := rds.New(awsSession)
+
+	requiringDeletion := []string{}
+	err := rdsSvc.DescribeDBInstancesPages(
+		&rds.DescribeDBInstancesInput{},
+		func(page *rds.DescribeDBInstancesOutput, lastPage bool) bool {
+			if len(page.DBInstances) > 0 {
+				for _, instance := range page.DBInstances {
+					if strings.HasPrefix(aws.StringValue(instance.DBInstanceIdentifier), prefix) {
+						if aws.StringValue(instance.DBInstanceStatus) != "deleting" {
+							requiringDeletion = append(requiringDeletion, aws.StringValue(instance.DBInstanceIdentifier))
+						}
+					}
+				}
+			}
+
+			return true
+		})
+
+	if err != nil {
+		return err
+	}
+
+	for _, instance := range requiringDeletion {
+		_, err := rdsSvc.DeleteDBInstance(&rds.DeleteDBInstanceInput{
+			DBInstanceIdentifier: aws.String(instance),
+			SkipFinalSnapshot:    aws.Bool(true),
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func getNetworkMetadata(name string, session *session.Session) (string, error) {

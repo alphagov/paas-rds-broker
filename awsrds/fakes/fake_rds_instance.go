@@ -9,10 +9,68 @@ import (
 )
 
 type FakeRDSInstance struct {
-	DescribeStub        func(ID string) (*rds.DBInstance, error)
+	AddTagsToResourceStub        func(string, []*rds.Tag) error
+	addTagsToResourceMutex       sync.RWMutex
+	addTagsToResourceArgsForCall []struct {
+		arg1 string
+		arg2 []*rds.Tag
+	}
+	addTagsToResourceReturns struct {
+		result1 error
+	}
+	addTagsToResourceReturnsOnCall map[int]struct {
+		result1 error
+	}
+	CreateStub        func(*rds.CreateDBInstanceInput) error
+	createMutex       sync.RWMutex
+	createArgsForCall []struct {
+		arg1 *rds.CreateDBInstanceInput
+	}
+	createReturns struct {
+		result1 error
+	}
+	createReturnsOnCall map[int]struct {
+		result1 error
+	}
+	CreateParameterGroupStub        func(*rds.CreateDBParameterGroupInput) error
+	createParameterGroupMutex       sync.RWMutex
+	createParameterGroupArgsForCall []struct {
+		arg1 *rds.CreateDBParameterGroupInput
+	}
+	createParameterGroupReturns struct {
+		result1 error
+	}
+	createParameterGroupReturnsOnCall map[int]struct {
+		result1 error
+	}
+	DeleteStub        func(string, bool) error
+	deleteMutex       sync.RWMutex
+	deleteArgsForCall []struct {
+		arg1 string
+		arg2 bool
+	}
+	deleteReturns struct {
+		result1 error
+	}
+	deleteReturnsOnCall map[int]struct {
+		result1 error
+	}
+	DeleteSnapshotsStub        func(string, int) error
+	deleteSnapshotsMutex       sync.RWMutex
+	deleteSnapshotsArgsForCall []struct {
+		arg1 string
+		arg2 int
+	}
+	deleteSnapshotsReturns struct {
+		result1 error
+	}
+	deleteSnapshotsReturnsOnCall map[int]struct {
+		result1 error
+	}
+	DescribeStub        func(string) (*rds.DBInstance, error)
 	describeMutex       sync.RWMutex
 	describeArgsForCall []struct {
-		ID string
+		arg1 string
 	}
 	describeReturns struct {
 		result1 *rds.DBInstance
@@ -22,26 +80,12 @@ type FakeRDSInstance struct {
 		result1 *rds.DBInstance
 		result2 error
 	}
-	GetResourceTagsStub        func(resourceArn string, opts ...awsrds.DescribeOption) ([]*rds.Tag, error)
-	getResourceTagsMutex       sync.RWMutex
-	getResourceTagsArgsForCall []struct {
-		resourceArn string
-		opts        []awsrds.DescribeOption
-	}
-	getResourceTagsReturns struct {
-		result1 []*rds.Tag
-		result2 error
-	}
-	getResourceTagsReturnsOnCall map[int]struct {
-		result1 []*rds.Tag
-		result2 error
-	}
-	DescribeByTagStub        func(TagName, TagValue string, opts ...awsrds.DescribeOption) ([]*rds.DBInstance, error)
+	DescribeByTagStub        func(string, string, ...awsrds.DescribeOption) ([]*rds.DBInstance, error)
 	describeByTagMutex       sync.RWMutex
 	describeByTagArgsForCall []struct {
-		TagName  string
-		TagValue string
-		opts     []awsrds.DescribeOption
+		arg1 string
+		arg2 string
+		arg3 []awsrds.DescribeOption
 	}
 	describeByTagReturns struct {
 		result1 []*rds.DBInstance
@@ -51,10 +95,10 @@ type FakeRDSInstance struct {
 		result1 []*rds.DBInstance
 		result2 error
 	}
-	DescribeSnapshotsStub        func(DBInstanceID string) ([]*rds.DBSnapshot, error)
+	DescribeSnapshotsStub        func(string) ([]*rds.DBSnapshot, error)
 	describeSnapshotsMutex       sync.RWMutex
 	describeSnapshotsArgsForCall []struct {
-		DBInstanceID string
+		arg1 string
 	}
 	describeSnapshotsReturns struct {
 		result1 []*rds.DBSnapshot
@@ -64,105 +108,38 @@ type FakeRDSInstance struct {
 		result1 []*rds.DBSnapshot
 		result2 error
 	}
-	DeleteSnapshotsStub        func(brokerName string, keepForDays int) error
-	deleteSnapshotsMutex       sync.RWMutex
-	deleteSnapshotsArgsForCall []struct {
-		brokerName  string
-		keepForDays int
+	GetParameterGroupStub        func(string) (*rds.DBParameterGroup, error)
+	getParameterGroupMutex       sync.RWMutex
+	getParameterGroupArgsForCall []struct {
+		arg1 string
 	}
-	deleteSnapshotsReturns struct {
-		result1 error
-	}
-	deleteSnapshotsReturnsOnCall map[int]struct {
-		result1 error
-	}
-	CreateStub        func(createDBInstanceInput *rds.CreateDBInstanceInput) error
-	createMutex       sync.RWMutex
-	createArgsForCall []struct {
-		createDBInstanceInput *rds.CreateDBInstanceInput
-	}
-	createReturns struct {
-		result1 error
-	}
-	createReturnsOnCall map[int]struct {
-		result1 error
-	}
-	RestoreStub        func(restoreRBInstanceInput *rds.RestoreDBInstanceFromDBSnapshotInput) error
-	restoreMutex       sync.RWMutex
-	restoreArgsForCall []struct {
-		restoreRBInstanceInput *rds.RestoreDBInstanceFromDBSnapshotInput
-	}
-	restoreReturns struct {
-		result1 error
-	}
-	restoreReturnsOnCall map[int]struct {
-		result1 error
-	}
-	ModifyStub        func(modifyDBInstanceInput *rds.ModifyDBInstanceInput) (*rds.DBInstance, error)
-	modifyMutex       sync.RWMutex
-	modifyArgsForCall []struct {
-		modifyDBInstanceInput *rds.ModifyDBInstanceInput
-	}
-	modifyReturns struct {
-		result1 *rds.DBInstance
+	getParameterGroupReturns struct {
+		result1 *rds.DBParameterGroup
 		result2 error
 	}
-	modifyReturnsOnCall map[int]struct {
-		result1 *rds.DBInstance
+	getParameterGroupReturnsOnCall map[int]struct {
+		result1 *rds.DBParameterGroup
 		result2 error
 	}
-	AddTagsToResourceStub        func(resourceArn string, tags []*rds.Tag) error
-	addTagsToResourceMutex       sync.RWMutex
-	addTagsToResourceArgsForCall []struct {
-		resourceArn string
-		tags        []*rds.Tag
+	GetResourceTagsStub        func(string, ...awsrds.DescribeOption) ([]*rds.Tag, error)
+	getResourceTagsMutex       sync.RWMutex
+	getResourceTagsArgsForCall []struct {
+		arg1 string
+		arg2 []awsrds.DescribeOption
 	}
-	addTagsToResourceReturns struct {
-		result1 error
+	getResourceTagsReturns struct {
+		result1 []*rds.Tag
+		result2 error
 	}
-	addTagsToResourceReturnsOnCall map[int]struct {
-		result1 error
+	getResourceTagsReturnsOnCall map[int]struct {
+		result1 []*rds.Tag
+		result2 error
 	}
-	RebootStub        func(rebootDBInstanceInput *rds.RebootDBInstanceInput) error
-	rebootMutex       sync.RWMutex
-	rebootArgsForCall []struct {
-		rebootDBInstanceInput *rds.RebootDBInstanceInput
-	}
-	rebootReturns struct {
-		result1 error
-	}
-	rebootReturnsOnCall map[int]struct {
-		result1 error
-	}
-	RemoveTagStub        func(ID, tagKey string) error
-	removeTagMutex       sync.RWMutex
-	removeTagArgsForCall []struct {
-		ID     string
-		tagKey string
-	}
-	removeTagReturns struct {
-		result1 error
-	}
-	removeTagReturnsOnCall map[int]struct {
-		result1 error
-	}
-	DeleteStub        func(ID string, skipFinalSnapshot bool) error
-	deleteMutex       sync.RWMutex
-	deleteArgsForCall []struct {
-		ID                string
-		skipFinalSnapshot bool
-	}
-	deleteReturns struct {
-		result1 error
-	}
-	deleteReturnsOnCall map[int]struct {
-		result1 error
-	}
-	GetTagStub        func(ID, tagKey string) (string, error)
+	GetTagStub        func(string, string) (string, error)
 	getTagMutex       sync.RWMutex
 	getTagArgsForCall []struct {
-		ID     string
-		tagKey string
+		arg1 string
+		arg2 string
 	}
 	getTagReturns struct {
 		result1 string
@@ -172,25 +149,392 @@ type FakeRDSInstance struct {
 		result1 string
 		result2 error
 	}
+	ModifyStub        func(*rds.ModifyDBInstanceInput) (*rds.DBInstance, error)
+	modifyMutex       sync.RWMutex
+	modifyArgsForCall []struct {
+		arg1 *rds.ModifyDBInstanceInput
+	}
+	modifyReturns struct {
+		result1 *rds.DBInstance
+		result2 error
+	}
+	modifyReturnsOnCall map[int]struct {
+		result1 *rds.DBInstance
+		result2 error
+	}
+	ModifyParameterGroupStub        func(*rds.ModifyDBParameterGroupInput) error
+	modifyParameterGroupMutex       sync.RWMutex
+	modifyParameterGroupArgsForCall []struct {
+		arg1 *rds.ModifyDBParameterGroupInput
+	}
+	modifyParameterGroupReturns struct {
+		result1 error
+	}
+	modifyParameterGroupReturnsOnCall map[int]struct {
+		result1 error
+	}
+	RebootStub        func(*rds.RebootDBInstanceInput) error
+	rebootMutex       sync.RWMutex
+	rebootArgsForCall []struct {
+		arg1 *rds.RebootDBInstanceInput
+	}
+	rebootReturns struct {
+		result1 error
+	}
+	rebootReturnsOnCall map[int]struct {
+		result1 error
+	}
+	RemoveTagStub        func(string, string) error
+	removeTagMutex       sync.RWMutex
+	removeTagArgsForCall []struct {
+		arg1 string
+		arg2 string
+	}
+	removeTagReturns struct {
+		result1 error
+	}
+	removeTagReturnsOnCall map[int]struct {
+		result1 error
+	}
+	RestoreStub        func(*rds.RestoreDBInstanceFromDBSnapshotInput) error
+	restoreMutex       sync.RWMutex
+	restoreArgsForCall []struct {
+		arg1 *rds.RestoreDBInstanceFromDBSnapshotInput
+	}
+	restoreReturns struct {
+		result1 error
+	}
+	restoreReturnsOnCall map[int]struct {
+		result1 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeRDSInstance) Describe(ID string) (*rds.DBInstance, error) {
+func (fake *FakeRDSInstance) AddTagsToResource(arg1 string, arg2 []*rds.Tag) error {
+	var arg2Copy []*rds.Tag
+	if arg2 != nil {
+		arg2Copy = make([]*rds.Tag, len(arg2))
+		copy(arg2Copy, arg2)
+	}
+	fake.addTagsToResourceMutex.Lock()
+	ret, specificReturn := fake.addTagsToResourceReturnsOnCall[len(fake.addTagsToResourceArgsForCall)]
+	fake.addTagsToResourceArgsForCall = append(fake.addTagsToResourceArgsForCall, struct {
+		arg1 string
+		arg2 []*rds.Tag
+	}{arg1, arg2Copy})
+	fake.recordInvocation("AddTagsToResource", []interface{}{arg1, arg2Copy})
+	fake.addTagsToResourceMutex.Unlock()
+	if fake.AddTagsToResourceStub != nil {
+		return fake.AddTagsToResourceStub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.addTagsToResourceReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeRDSInstance) AddTagsToResourceCallCount() int {
+	fake.addTagsToResourceMutex.RLock()
+	defer fake.addTagsToResourceMutex.RUnlock()
+	return len(fake.addTagsToResourceArgsForCall)
+}
+
+func (fake *FakeRDSInstance) AddTagsToResourceCalls(stub func(string, []*rds.Tag) error) {
+	fake.addTagsToResourceMutex.Lock()
+	defer fake.addTagsToResourceMutex.Unlock()
+	fake.AddTagsToResourceStub = stub
+}
+
+func (fake *FakeRDSInstance) AddTagsToResourceArgsForCall(i int) (string, []*rds.Tag) {
+	fake.addTagsToResourceMutex.RLock()
+	defer fake.addTagsToResourceMutex.RUnlock()
+	argsForCall := fake.addTagsToResourceArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeRDSInstance) AddTagsToResourceReturns(result1 error) {
+	fake.addTagsToResourceMutex.Lock()
+	defer fake.addTagsToResourceMutex.Unlock()
+	fake.AddTagsToResourceStub = nil
+	fake.addTagsToResourceReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) AddTagsToResourceReturnsOnCall(i int, result1 error) {
+	fake.addTagsToResourceMutex.Lock()
+	defer fake.addTagsToResourceMutex.Unlock()
+	fake.AddTagsToResourceStub = nil
+	if fake.addTagsToResourceReturnsOnCall == nil {
+		fake.addTagsToResourceReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.addTagsToResourceReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) Create(arg1 *rds.CreateDBInstanceInput) error {
+	fake.createMutex.Lock()
+	ret, specificReturn := fake.createReturnsOnCall[len(fake.createArgsForCall)]
+	fake.createArgsForCall = append(fake.createArgsForCall, struct {
+		arg1 *rds.CreateDBInstanceInput
+	}{arg1})
+	fake.recordInvocation("Create", []interface{}{arg1})
+	fake.createMutex.Unlock()
+	if fake.CreateStub != nil {
+		return fake.CreateStub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.createReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeRDSInstance) CreateCallCount() int {
+	fake.createMutex.RLock()
+	defer fake.createMutex.RUnlock()
+	return len(fake.createArgsForCall)
+}
+
+func (fake *FakeRDSInstance) CreateCalls(stub func(*rds.CreateDBInstanceInput) error) {
+	fake.createMutex.Lock()
+	defer fake.createMutex.Unlock()
+	fake.CreateStub = stub
+}
+
+func (fake *FakeRDSInstance) CreateArgsForCall(i int) *rds.CreateDBInstanceInput {
+	fake.createMutex.RLock()
+	defer fake.createMutex.RUnlock()
+	argsForCall := fake.createArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeRDSInstance) CreateReturns(result1 error) {
+	fake.createMutex.Lock()
+	defer fake.createMutex.Unlock()
+	fake.CreateStub = nil
+	fake.createReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) CreateReturnsOnCall(i int, result1 error) {
+	fake.createMutex.Lock()
+	defer fake.createMutex.Unlock()
+	fake.CreateStub = nil
+	if fake.createReturnsOnCall == nil {
+		fake.createReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.createReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) CreateParameterGroup(arg1 *rds.CreateDBParameterGroupInput) error {
+	fake.createParameterGroupMutex.Lock()
+	ret, specificReturn := fake.createParameterGroupReturnsOnCall[len(fake.createParameterGroupArgsForCall)]
+	fake.createParameterGroupArgsForCall = append(fake.createParameterGroupArgsForCall, struct {
+		arg1 *rds.CreateDBParameterGroupInput
+	}{arg1})
+	fake.recordInvocation("CreateParameterGroup", []interface{}{arg1})
+	fake.createParameterGroupMutex.Unlock()
+	if fake.CreateParameterGroupStub != nil {
+		return fake.CreateParameterGroupStub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.createParameterGroupReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeRDSInstance) CreateParameterGroupCallCount() int {
+	fake.createParameterGroupMutex.RLock()
+	defer fake.createParameterGroupMutex.RUnlock()
+	return len(fake.createParameterGroupArgsForCall)
+}
+
+func (fake *FakeRDSInstance) CreateParameterGroupCalls(stub func(*rds.CreateDBParameterGroupInput) error) {
+	fake.createParameterGroupMutex.Lock()
+	defer fake.createParameterGroupMutex.Unlock()
+	fake.CreateParameterGroupStub = stub
+}
+
+func (fake *FakeRDSInstance) CreateParameterGroupArgsForCall(i int) *rds.CreateDBParameterGroupInput {
+	fake.createParameterGroupMutex.RLock()
+	defer fake.createParameterGroupMutex.RUnlock()
+	argsForCall := fake.createParameterGroupArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeRDSInstance) CreateParameterGroupReturns(result1 error) {
+	fake.createParameterGroupMutex.Lock()
+	defer fake.createParameterGroupMutex.Unlock()
+	fake.CreateParameterGroupStub = nil
+	fake.createParameterGroupReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) CreateParameterGroupReturnsOnCall(i int, result1 error) {
+	fake.createParameterGroupMutex.Lock()
+	defer fake.createParameterGroupMutex.Unlock()
+	fake.CreateParameterGroupStub = nil
+	if fake.createParameterGroupReturnsOnCall == nil {
+		fake.createParameterGroupReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.createParameterGroupReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) Delete(arg1 string, arg2 bool) error {
+	fake.deleteMutex.Lock()
+	ret, specificReturn := fake.deleteReturnsOnCall[len(fake.deleteArgsForCall)]
+	fake.deleteArgsForCall = append(fake.deleteArgsForCall, struct {
+		arg1 string
+		arg2 bool
+	}{arg1, arg2})
+	fake.recordInvocation("Delete", []interface{}{arg1, arg2})
+	fake.deleteMutex.Unlock()
+	if fake.DeleteStub != nil {
+		return fake.DeleteStub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.deleteReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeRDSInstance) DeleteCallCount() int {
+	fake.deleteMutex.RLock()
+	defer fake.deleteMutex.RUnlock()
+	return len(fake.deleteArgsForCall)
+}
+
+func (fake *FakeRDSInstance) DeleteCalls(stub func(string, bool) error) {
+	fake.deleteMutex.Lock()
+	defer fake.deleteMutex.Unlock()
+	fake.DeleteStub = stub
+}
+
+func (fake *FakeRDSInstance) DeleteArgsForCall(i int) (string, bool) {
+	fake.deleteMutex.RLock()
+	defer fake.deleteMutex.RUnlock()
+	argsForCall := fake.deleteArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeRDSInstance) DeleteReturns(result1 error) {
+	fake.deleteMutex.Lock()
+	defer fake.deleteMutex.Unlock()
+	fake.DeleteStub = nil
+	fake.deleteReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) DeleteReturnsOnCall(i int, result1 error) {
+	fake.deleteMutex.Lock()
+	defer fake.deleteMutex.Unlock()
+	fake.DeleteStub = nil
+	if fake.deleteReturnsOnCall == nil {
+		fake.deleteReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.deleteReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) DeleteSnapshots(arg1 string, arg2 int) error {
+	fake.deleteSnapshotsMutex.Lock()
+	ret, specificReturn := fake.deleteSnapshotsReturnsOnCall[len(fake.deleteSnapshotsArgsForCall)]
+	fake.deleteSnapshotsArgsForCall = append(fake.deleteSnapshotsArgsForCall, struct {
+		arg1 string
+		arg2 int
+	}{arg1, arg2})
+	fake.recordInvocation("DeleteSnapshots", []interface{}{arg1, arg2})
+	fake.deleteSnapshotsMutex.Unlock()
+	if fake.DeleteSnapshotsStub != nil {
+		return fake.DeleteSnapshotsStub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.deleteSnapshotsReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeRDSInstance) DeleteSnapshotsCallCount() int {
+	fake.deleteSnapshotsMutex.RLock()
+	defer fake.deleteSnapshotsMutex.RUnlock()
+	return len(fake.deleteSnapshotsArgsForCall)
+}
+
+func (fake *FakeRDSInstance) DeleteSnapshotsCalls(stub func(string, int) error) {
+	fake.deleteSnapshotsMutex.Lock()
+	defer fake.deleteSnapshotsMutex.Unlock()
+	fake.DeleteSnapshotsStub = stub
+}
+
+func (fake *FakeRDSInstance) DeleteSnapshotsArgsForCall(i int) (string, int) {
+	fake.deleteSnapshotsMutex.RLock()
+	defer fake.deleteSnapshotsMutex.RUnlock()
+	argsForCall := fake.deleteSnapshotsArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeRDSInstance) DeleteSnapshotsReturns(result1 error) {
+	fake.deleteSnapshotsMutex.Lock()
+	defer fake.deleteSnapshotsMutex.Unlock()
+	fake.DeleteSnapshotsStub = nil
+	fake.deleteSnapshotsReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) DeleteSnapshotsReturnsOnCall(i int, result1 error) {
+	fake.deleteSnapshotsMutex.Lock()
+	defer fake.deleteSnapshotsMutex.Unlock()
+	fake.DeleteSnapshotsStub = nil
+	if fake.deleteSnapshotsReturnsOnCall == nil {
+		fake.deleteSnapshotsReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.deleteSnapshotsReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) Describe(arg1 string) (*rds.DBInstance, error) {
 	fake.describeMutex.Lock()
 	ret, specificReturn := fake.describeReturnsOnCall[len(fake.describeArgsForCall)]
 	fake.describeArgsForCall = append(fake.describeArgsForCall, struct {
-		ID string
-	}{ID})
-	fake.recordInvocation("Describe", []interface{}{ID})
+		arg1 string
+	}{arg1})
+	fake.recordInvocation("Describe", []interface{}{arg1})
 	fake.describeMutex.Unlock()
 	if fake.DescribeStub != nil {
-		return fake.DescribeStub(ID)
+		return fake.DescribeStub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	return fake.describeReturns.result1, fake.describeReturns.result2
+	fakeReturns := fake.describeReturns
+	return fakeReturns.result1, fakeReturns.result2
 }
 
 func (fake *FakeRDSInstance) DescribeCallCount() int {
@@ -199,13 +543,22 @@ func (fake *FakeRDSInstance) DescribeCallCount() int {
 	return len(fake.describeArgsForCall)
 }
 
+func (fake *FakeRDSInstance) DescribeCalls(stub func(string) (*rds.DBInstance, error)) {
+	fake.describeMutex.Lock()
+	defer fake.describeMutex.Unlock()
+	fake.DescribeStub = stub
+}
+
 func (fake *FakeRDSInstance) DescribeArgsForCall(i int) string {
 	fake.describeMutex.RLock()
 	defer fake.describeMutex.RUnlock()
-	return fake.describeArgsForCall[i].ID
+	argsForCall := fake.describeArgsForCall[i]
+	return argsForCall.arg1
 }
 
 func (fake *FakeRDSInstance) DescribeReturns(result1 *rds.DBInstance, result2 error) {
+	fake.describeMutex.Lock()
+	defer fake.describeMutex.Unlock()
 	fake.DescribeStub = nil
 	fake.describeReturns = struct {
 		result1 *rds.DBInstance
@@ -214,6 +567,8 @@ func (fake *FakeRDSInstance) DescribeReturns(result1 *rds.DBInstance, result2 er
 }
 
 func (fake *FakeRDSInstance) DescribeReturnsOnCall(i int, result1 *rds.DBInstance, result2 error) {
+	fake.describeMutex.Lock()
+	defer fake.describeMutex.Unlock()
 	fake.DescribeStub = nil
 	if fake.describeReturnsOnCall == nil {
 		fake.describeReturnsOnCall = make(map[int]struct {
@@ -227,75 +582,24 @@ func (fake *FakeRDSInstance) DescribeReturnsOnCall(i int, result1 *rds.DBInstanc
 	}{result1, result2}
 }
 
-func (fake *FakeRDSInstance) GetResourceTags(resourceArn string, opts ...awsrds.DescribeOption) ([]*rds.Tag, error) {
-	fake.getResourceTagsMutex.Lock()
-	ret, specificReturn := fake.getResourceTagsReturnsOnCall[len(fake.getResourceTagsArgsForCall)]
-	fake.getResourceTagsArgsForCall = append(fake.getResourceTagsArgsForCall, struct {
-		resourceArn string
-		opts        []awsrds.DescribeOption
-	}{resourceArn, opts})
-	fake.recordInvocation("GetResourceTags", []interface{}{resourceArn, opts})
-	fake.getResourceTagsMutex.Unlock()
-	if fake.GetResourceTagsStub != nil {
-		return fake.GetResourceTagsStub(resourceArn, opts...)
-	}
-	if specificReturn {
-		return ret.result1, ret.result2
-	}
-	return fake.getResourceTagsReturns.result1, fake.getResourceTagsReturns.result2
-}
-
-func (fake *FakeRDSInstance) GetResourceTagsCallCount() int {
-	fake.getResourceTagsMutex.RLock()
-	defer fake.getResourceTagsMutex.RUnlock()
-	return len(fake.getResourceTagsArgsForCall)
-}
-
-func (fake *FakeRDSInstance) GetResourceTagsArgsForCall(i int) (string, []awsrds.DescribeOption) {
-	fake.getResourceTagsMutex.RLock()
-	defer fake.getResourceTagsMutex.RUnlock()
-	return fake.getResourceTagsArgsForCall[i].resourceArn, fake.getResourceTagsArgsForCall[i].opts
-}
-
-func (fake *FakeRDSInstance) GetResourceTagsReturns(result1 []*rds.Tag, result2 error) {
-	fake.GetResourceTagsStub = nil
-	fake.getResourceTagsReturns = struct {
-		result1 []*rds.Tag
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeRDSInstance) GetResourceTagsReturnsOnCall(i int, result1 []*rds.Tag, result2 error) {
-	fake.GetResourceTagsStub = nil
-	if fake.getResourceTagsReturnsOnCall == nil {
-		fake.getResourceTagsReturnsOnCall = make(map[int]struct {
-			result1 []*rds.Tag
-			result2 error
-		})
-	}
-	fake.getResourceTagsReturnsOnCall[i] = struct {
-		result1 []*rds.Tag
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeRDSInstance) DescribeByTag(TagName string, TagValue string, opts ...awsrds.DescribeOption) ([]*rds.DBInstance, error) {
+func (fake *FakeRDSInstance) DescribeByTag(arg1 string, arg2 string, arg3 ...awsrds.DescribeOption) ([]*rds.DBInstance, error) {
 	fake.describeByTagMutex.Lock()
 	ret, specificReturn := fake.describeByTagReturnsOnCall[len(fake.describeByTagArgsForCall)]
 	fake.describeByTagArgsForCall = append(fake.describeByTagArgsForCall, struct {
-		TagName  string
-		TagValue string
-		opts     []awsrds.DescribeOption
-	}{TagName, TagValue, opts})
-	fake.recordInvocation("DescribeByTag", []interface{}{TagName, TagValue, opts})
+		arg1 string
+		arg2 string
+		arg3 []awsrds.DescribeOption
+	}{arg1, arg2, arg3})
+	fake.recordInvocation("DescribeByTag", []interface{}{arg1, arg2, arg3})
 	fake.describeByTagMutex.Unlock()
 	if fake.DescribeByTagStub != nil {
-		return fake.DescribeByTagStub(TagName, TagValue, opts...)
+		return fake.DescribeByTagStub(arg1, arg2, arg3...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	return fake.describeByTagReturns.result1, fake.describeByTagReturns.result2
+	fakeReturns := fake.describeByTagReturns
+	return fakeReturns.result1, fakeReturns.result2
 }
 
 func (fake *FakeRDSInstance) DescribeByTagCallCount() int {
@@ -304,13 +608,22 @@ func (fake *FakeRDSInstance) DescribeByTagCallCount() int {
 	return len(fake.describeByTagArgsForCall)
 }
 
+func (fake *FakeRDSInstance) DescribeByTagCalls(stub func(string, string, ...awsrds.DescribeOption) ([]*rds.DBInstance, error)) {
+	fake.describeByTagMutex.Lock()
+	defer fake.describeByTagMutex.Unlock()
+	fake.DescribeByTagStub = stub
+}
+
 func (fake *FakeRDSInstance) DescribeByTagArgsForCall(i int) (string, string, []awsrds.DescribeOption) {
 	fake.describeByTagMutex.RLock()
 	defer fake.describeByTagMutex.RUnlock()
-	return fake.describeByTagArgsForCall[i].TagName, fake.describeByTagArgsForCall[i].TagValue, fake.describeByTagArgsForCall[i].opts
+	argsForCall := fake.describeByTagArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
 func (fake *FakeRDSInstance) DescribeByTagReturns(result1 []*rds.DBInstance, result2 error) {
+	fake.describeByTagMutex.Lock()
+	defer fake.describeByTagMutex.Unlock()
 	fake.DescribeByTagStub = nil
 	fake.describeByTagReturns = struct {
 		result1 []*rds.DBInstance
@@ -319,6 +632,8 @@ func (fake *FakeRDSInstance) DescribeByTagReturns(result1 []*rds.DBInstance, res
 }
 
 func (fake *FakeRDSInstance) DescribeByTagReturnsOnCall(i int, result1 []*rds.DBInstance, result2 error) {
+	fake.describeByTagMutex.Lock()
+	defer fake.describeByTagMutex.Unlock()
 	fake.DescribeByTagStub = nil
 	if fake.describeByTagReturnsOnCall == nil {
 		fake.describeByTagReturnsOnCall = make(map[int]struct {
@@ -332,21 +647,22 @@ func (fake *FakeRDSInstance) DescribeByTagReturnsOnCall(i int, result1 []*rds.DB
 	}{result1, result2}
 }
 
-func (fake *FakeRDSInstance) DescribeSnapshots(DBInstanceID string) ([]*rds.DBSnapshot, error) {
+func (fake *FakeRDSInstance) DescribeSnapshots(arg1 string) ([]*rds.DBSnapshot, error) {
 	fake.describeSnapshotsMutex.Lock()
 	ret, specificReturn := fake.describeSnapshotsReturnsOnCall[len(fake.describeSnapshotsArgsForCall)]
 	fake.describeSnapshotsArgsForCall = append(fake.describeSnapshotsArgsForCall, struct {
-		DBInstanceID string
-	}{DBInstanceID})
-	fake.recordInvocation("DescribeSnapshots", []interface{}{DBInstanceID})
+		arg1 string
+	}{arg1})
+	fake.recordInvocation("DescribeSnapshots", []interface{}{arg1})
 	fake.describeSnapshotsMutex.Unlock()
 	if fake.DescribeSnapshotsStub != nil {
-		return fake.DescribeSnapshotsStub(DBInstanceID)
+		return fake.DescribeSnapshotsStub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	return fake.describeSnapshotsReturns.result1, fake.describeSnapshotsReturns.result2
+	fakeReturns := fake.describeSnapshotsReturns
+	return fakeReturns.result1, fakeReturns.result2
 }
 
 func (fake *FakeRDSInstance) DescribeSnapshotsCallCount() int {
@@ -355,13 +671,22 @@ func (fake *FakeRDSInstance) DescribeSnapshotsCallCount() int {
 	return len(fake.describeSnapshotsArgsForCall)
 }
 
+func (fake *FakeRDSInstance) DescribeSnapshotsCalls(stub func(string) ([]*rds.DBSnapshot, error)) {
+	fake.describeSnapshotsMutex.Lock()
+	defer fake.describeSnapshotsMutex.Unlock()
+	fake.DescribeSnapshotsStub = stub
+}
+
 func (fake *FakeRDSInstance) DescribeSnapshotsArgsForCall(i int) string {
 	fake.describeSnapshotsMutex.RLock()
 	defer fake.describeSnapshotsMutex.RUnlock()
-	return fake.describeSnapshotsArgsForCall[i].DBInstanceID
+	argsForCall := fake.describeSnapshotsArgsForCall[i]
+	return argsForCall.arg1
 }
 
 func (fake *FakeRDSInstance) DescribeSnapshotsReturns(result1 []*rds.DBSnapshot, result2 error) {
+	fake.describeSnapshotsMutex.Lock()
+	defer fake.describeSnapshotsMutex.Unlock()
 	fake.DescribeSnapshotsStub = nil
 	fake.describeSnapshotsReturns = struct {
 		result1 []*rds.DBSnapshot
@@ -370,6 +695,8 @@ func (fake *FakeRDSInstance) DescribeSnapshotsReturns(result1 []*rds.DBSnapshot,
 }
 
 func (fake *FakeRDSInstance) DescribeSnapshotsReturnsOnCall(i int, result1 []*rds.DBSnapshot, result2 error) {
+	fake.describeSnapshotsMutex.Lock()
+	defer fake.describeSnapshotsMutex.Unlock()
 	fake.DescribeSnapshotsStub = nil
 	if fake.describeSnapshotsReturnsOnCall == nil {
 		fake.describeSnapshotsReturnsOnCall = make(map[int]struct {
@@ -383,418 +710,150 @@ func (fake *FakeRDSInstance) DescribeSnapshotsReturnsOnCall(i int, result1 []*rd
 	}{result1, result2}
 }
 
-func (fake *FakeRDSInstance) DeleteSnapshots(brokerName string, keepForDays int) error {
-	fake.deleteSnapshotsMutex.Lock()
-	ret, specificReturn := fake.deleteSnapshotsReturnsOnCall[len(fake.deleteSnapshotsArgsForCall)]
-	fake.deleteSnapshotsArgsForCall = append(fake.deleteSnapshotsArgsForCall, struct {
-		brokerName  string
-		keepForDays int
-	}{brokerName, keepForDays})
-	fake.recordInvocation("DeleteSnapshots", []interface{}{brokerName, keepForDays})
-	fake.deleteSnapshotsMutex.Unlock()
-	if fake.DeleteSnapshotsStub != nil {
-		return fake.DeleteSnapshotsStub(brokerName, keepForDays)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fake.deleteSnapshotsReturns.result1
-}
-
-func (fake *FakeRDSInstance) DeleteSnapshotsCallCount() int {
-	fake.deleteSnapshotsMutex.RLock()
-	defer fake.deleteSnapshotsMutex.RUnlock()
-	return len(fake.deleteSnapshotsArgsForCall)
-}
-
-func (fake *FakeRDSInstance) DeleteSnapshotsArgsForCall(i int) (string, int) {
-	fake.deleteSnapshotsMutex.RLock()
-	defer fake.deleteSnapshotsMutex.RUnlock()
-	return fake.deleteSnapshotsArgsForCall[i].brokerName, fake.deleteSnapshotsArgsForCall[i].keepForDays
-}
-
-func (fake *FakeRDSInstance) DeleteSnapshotsReturns(result1 error) {
-	fake.DeleteSnapshotsStub = nil
-	fake.deleteSnapshotsReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) DeleteSnapshotsReturnsOnCall(i int, result1 error) {
-	fake.DeleteSnapshotsStub = nil
-	if fake.deleteSnapshotsReturnsOnCall == nil {
-		fake.deleteSnapshotsReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.deleteSnapshotsReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) Create(createDBInstanceInput *rds.CreateDBInstanceInput) error {
-	fake.createMutex.Lock()
-	ret, specificReturn := fake.createReturnsOnCall[len(fake.createArgsForCall)]
-	fake.createArgsForCall = append(fake.createArgsForCall, struct {
-		createDBInstanceInput *rds.CreateDBInstanceInput
-	}{createDBInstanceInput})
-	fake.recordInvocation("Create", []interface{}{createDBInstanceInput})
-	fake.createMutex.Unlock()
-	if fake.CreateStub != nil {
-		return fake.CreateStub(createDBInstanceInput)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fake.createReturns.result1
-}
-
-func (fake *FakeRDSInstance) CreateCallCount() int {
-	fake.createMutex.RLock()
-	defer fake.createMutex.RUnlock()
-	return len(fake.createArgsForCall)
-}
-
-func (fake *FakeRDSInstance) CreateArgsForCall(i int) *rds.CreateDBInstanceInput {
-	fake.createMutex.RLock()
-	defer fake.createMutex.RUnlock()
-	return fake.createArgsForCall[i].createDBInstanceInput
-}
-
-func (fake *FakeRDSInstance) CreateReturns(result1 error) {
-	fake.CreateStub = nil
-	fake.createReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) CreateReturnsOnCall(i int, result1 error) {
-	fake.CreateStub = nil
-	if fake.createReturnsOnCall == nil {
-		fake.createReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.createReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) Restore(restoreRBInstanceInput *rds.RestoreDBInstanceFromDBSnapshotInput) error {
-	fake.restoreMutex.Lock()
-	ret, specificReturn := fake.restoreReturnsOnCall[len(fake.restoreArgsForCall)]
-	fake.restoreArgsForCall = append(fake.restoreArgsForCall, struct {
-		restoreRBInstanceInput *rds.RestoreDBInstanceFromDBSnapshotInput
-	}{restoreRBInstanceInput})
-	fake.recordInvocation("Restore", []interface{}{restoreRBInstanceInput})
-	fake.restoreMutex.Unlock()
-	if fake.RestoreStub != nil {
-		return fake.RestoreStub(restoreRBInstanceInput)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fake.restoreReturns.result1
-}
-
-func (fake *FakeRDSInstance) RestoreCallCount() int {
-	fake.restoreMutex.RLock()
-	defer fake.restoreMutex.RUnlock()
-	return len(fake.restoreArgsForCall)
-}
-
-func (fake *FakeRDSInstance) RestoreArgsForCall(i int) *rds.RestoreDBInstanceFromDBSnapshotInput {
-	fake.restoreMutex.RLock()
-	defer fake.restoreMutex.RUnlock()
-	return fake.restoreArgsForCall[i].restoreRBInstanceInput
-}
-
-func (fake *FakeRDSInstance) RestoreReturns(result1 error) {
-	fake.RestoreStub = nil
-	fake.restoreReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) RestoreReturnsOnCall(i int, result1 error) {
-	fake.RestoreStub = nil
-	if fake.restoreReturnsOnCall == nil {
-		fake.restoreReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.restoreReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput) (*rds.DBInstance, error) {
-	fake.modifyMutex.Lock()
-	ret, specificReturn := fake.modifyReturnsOnCall[len(fake.modifyArgsForCall)]
-	fake.modifyArgsForCall = append(fake.modifyArgsForCall, struct {
-		modifyDBInstanceInput *rds.ModifyDBInstanceInput
-	}{modifyDBInstanceInput})
-	fake.recordInvocation("Modify", []interface{}{modifyDBInstanceInput})
-	fake.modifyMutex.Unlock()
-	if fake.ModifyStub != nil {
-		return fake.ModifyStub(modifyDBInstanceInput)
+func (fake *FakeRDSInstance) GetParameterGroup(arg1 string) (*rds.DBParameterGroup, error) {
+	fake.getParameterGroupMutex.Lock()
+	ret, specificReturn := fake.getParameterGroupReturnsOnCall[len(fake.getParameterGroupArgsForCall)]
+	fake.getParameterGroupArgsForCall = append(fake.getParameterGroupArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	fake.recordInvocation("GetParameterGroup", []interface{}{arg1})
+	fake.getParameterGroupMutex.Unlock()
+	if fake.GetParameterGroupStub != nil {
+		return fake.GetParameterGroupStub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	return fake.modifyReturns.result1, fake.modifyReturns.result2
+	fakeReturns := fake.getParameterGroupReturns
+	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeRDSInstance) ModifyCallCount() int {
-	fake.modifyMutex.RLock()
-	defer fake.modifyMutex.RUnlock()
-	return len(fake.modifyArgsForCall)
+func (fake *FakeRDSInstance) GetParameterGroupCallCount() int {
+	fake.getParameterGroupMutex.RLock()
+	defer fake.getParameterGroupMutex.RUnlock()
+	return len(fake.getParameterGroupArgsForCall)
 }
 
-func (fake *FakeRDSInstance) ModifyArgsForCall(i int) *rds.ModifyDBInstanceInput {
-	fake.modifyMutex.RLock()
-	defer fake.modifyMutex.RUnlock()
-	return fake.modifyArgsForCall[i].modifyDBInstanceInput
+func (fake *FakeRDSInstance) GetParameterGroupCalls(stub func(string) (*rds.DBParameterGroup, error)) {
+	fake.getParameterGroupMutex.Lock()
+	defer fake.getParameterGroupMutex.Unlock()
+	fake.GetParameterGroupStub = stub
 }
 
-func (fake *FakeRDSInstance) ModifyReturns(result1 *rds.DBInstance, result2 error) {
-	fake.ModifyStub = nil
-	fake.modifyReturns = struct {
-		result1 *rds.DBInstance
+func (fake *FakeRDSInstance) GetParameterGroupArgsForCall(i int) string {
+	fake.getParameterGroupMutex.RLock()
+	defer fake.getParameterGroupMutex.RUnlock()
+	argsForCall := fake.getParameterGroupArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeRDSInstance) GetParameterGroupReturns(result1 *rds.DBParameterGroup, result2 error) {
+	fake.getParameterGroupMutex.Lock()
+	defer fake.getParameterGroupMutex.Unlock()
+	fake.GetParameterGroupStub = nil
+	fake.getParameterGroupReturns = struct {
+		result1 *rds.DBParameterGroup
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeRDSInstance) ModifyReturnsOnCall(i int, result1 *rds.DBInstance, result2 error) {
-	fake.ModifyStub = nil
-	if fake.modifyReturnsOnCall == nil {
-		fake.modifyReturnsOnCall = make(map[int]struct {
-			result1 *rds.DBInstance
+func (fake *FakeRDSInstance) GetParameterGroupReturnsOnCall(i int, result1 *rds.DBParameterGroup, result2 error) {
+	fake.getParameterGroupMutex.Lock()
+	defer fake.getParameterGroupMutex.Unlock()
+	fake.GetParameterGroupStub = nil
+	if fake.getParameterGroupReturnsOnCall == nil {
+		fake.getParameterGroupReturnsOnCall = make(map[int]struct {
+			result1 *rds.DBParameterGroup
 			result2 error
 		})
 	}
-	fake.modifyReturnsOnCall[i] = struct {
-		result1 *rds.DBInstance
+	fake.getParameterGroupReturnsOnCall[i] = struct {
+		result1 *rds.DBParameterGroup
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeRDSInstance) AddTagsToResource(resourceArn string, tags []*rds.Tag) error {
-	var tagsCopy []*rds.Tag
-	if tags != nil {
-		tagsCopy = make([]*rds.Tag, len(tags))
-		copy(tagsCopy, tags)
-	}
-	fake.addTagsToResourceMutex.Lock()
-	ret, specificReturn := fake.addTagsToResourceReturnsOnCall[len(fake.addTagsToResourceArgsForCall)]
-	fake.addTagsToResourceArgsForCall = append(fake.addTagsToResourceArgsForCall, struct {
-		resourceArn string
-		tags        []*rds.Tag
-	}{resourceArn, tagsCopy})
-	fake.recordInvocation("AddTagsToResource", []interface{}{resourceArn, tagsCopy})
-	fake.addTagsToResourceMutex.Unlock()
-	if fake.AddTagsToResourceStub != nil {
-		return fake.AddTagsToResourceStub(resourceArn, tags)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fake.addTagsToResourceReturns.result1
-}
-
-func (fake *FakeRDSInstance) AddTagsToResourceCallCount() int {
-	fake.addTagsToResourceMutex.RLock()
-	defer fake.addTagsToResourceMutex.RUnlock()
-	return len(fake.addTagsToResourceArgsForCall)
-}
-
-func (fake *FakeRDSInstance) AddTagsToResourceArgsForCall(i int) (string, []*rds.Tag) {
-	fake.addTagsToResourceMutex.RLock()
-	defer fake.addTagsToResourceMutex.RUnlock()
-	return fake.addTagsToResourceArgsForCall[i].resourceArn, fake.addTagsToResourceArgsForCall[i].tags
-}
-
-func (fake *FakeRDSInstance) AddTagsToResourceReturns(result1 error) {
-	fake.AddTagsToResourceStub = nil
-	fake.addTagsToResourceReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) AddTagsToResourceReturnsOnCall(i int, result1 error) {
-	fake.AddTagsToResourceStub = nil
-	if fake.addTagsToResourceReturnsOnCall == nil {
-		fake.addTagsToResourceReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.addTagsToResourceReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) Reboot(rebootDBInstanceInput *rds.RebootDBInstanceInput) error {
-	fake.rebootMutex.Lock()
-	ret, specificReturn := fake.rebootReturnsOnCall[len(fake.rebootArgsForCall)]
-	fake.rebootArgsForCall = append(fake.rebootArgsForCall, struct {
-		rebootDBInstanceInput *rds.RebootDBInstanceInput
-	}{rebootDBInstanceInput})
-	fake.recordInvocation("Reboot", []interface{}{rebootDBInstanceInput})
-	fake.rebootMutex.Unlock()
-	if fake.RebootStub != nil {
-		return fake.RebootStub(rebootDBInstanceInput)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fake.rebootReturns.result1
-}
-
-func (fake *FakeRDSInstance) RebootCallCount() int {
-	fake.rebootMutex.RLock()
-	defer fake.rebootMutex.RUnlock()
-	return len(fake.rebootArgsForCall)
-}
-
-func (fake *FakeRDSInstance) RebootArgsForCall(i int) *rds.RebootDBInstanceInput {
-	fake.rebootMutex.RLock()
-	defer fake.rebootMutex.RUnlock()
-	return fake.rebootArgsForCall[i].rebootDBInstanceInput
-}
-
-func (fake *FakeRDSInstance) RebootReturns(result1 error) {
-	fake.RebootStub = nil
-	fake.rebootReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) RebootReturnsOnCall(i int, result1 error) {
-	fake.RebootStub = nil
-	if fake.rebootReturnsOnCall == nil {
-		fake.rebootReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.rebootReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) RemoveTag(ID string, tagKey string) error {
-	fake.removeTagMutex.Lock()
-	ret, specificReturn := fake.removeTagReturnsOnCall[len(fake.removeTagArgsForCall)]
-	fake.removeTagArgsForCall = append(fake.removeTagArgsForCall, struct {
-		ID     string
-		tagKey string
-	}{ID, tagKey})
-	fake.recordInvocation("RemoveTag", []interface{}{ID, tagKey})
-	fake.removeTagMutex.Unlock()
-	if fake.RemoveTagStub != nil {
-		return fake.RemoveTagStub(ID, tagKey)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fake.removeTagReturns.result1
-}
-
-func (fake *FakeRDSInstance) RemoveTagCallCount() int {
-	fake.removeTagMutex.RLock()
-	defer fake.removeTagMutex.RUnlock()
-	return len(fake.removeTagArgsForCall)
-}
-
-func (fake *FakeRDSInstance) RemoveTagArgsForCall(i int) (string, string) {
-	fake.removeTagMutex.RLock()
-	defer fake.removeTagMutex.RUnlock()
-	return fake.removeTagArgsForCall[i].ID, fake.removeTagArgsForCall[i].tagKey
-}
-
-func (fake *FakeRDSInstance) RemoveTagReturns(result1 error) {
-	fake.RemoveTagStub = nil
-	fake.removeTagReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) RemoveTagReturnsOnCall(i int, result1 error) {
-	fake.RemoveTagStub = nil
-	if fake.removeTagReturnsOnCall == nil {
-		fake.removeTagReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.removeTagReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) Delete(ID string, skipFinalSnapshot bool) error {
-	fake.deleteMutex.Lock()
-	ret, specificReturn := fake.deleteReturnsOnCall[len(fake.deleteArgsForCall)]
-	fake.deleteArgsForCall = append(fake.deleteArgsForCall, struct {
-		ID                string
-		skipFinalSnapshot bool
-	}{ID, skipFinalSnapshot})
-	fake.recordInvocation("Delete", []interface{}{ID, skipFinalSnapshot})
-	fake.deleteMutex.Unlock()
-	if fake.DeleteStub != nil {
-		return fake.DeleteStub(ID, skipFinalSnapshot)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fake.deleteReturns.result1
-}
-
-func (fake *FakeRDSInstance) DeleteCallCount() int {
-	fake.deleteMutex.RLock()
-	defer fake.deleteMutex.RUnlock()
-	return len(fake.deleteArgsForCall)
-}
-
-func (fake *FakeRDSInstance) DeleteArgsForCall(i int) (string, bool) {
-	fake.deleteMutex.RLock()
-	defer fake.deleteMutex.RUnlock()
-	return fake.deleteArgsForCall[i].ID, fake.deleteArgsForCall[i].skipFinalSnapshot
-}
-
-func (fake *FakeRDSInstance) DeleteReturns(result1 error) {
-	fake.DeleteStub = nil
-	fake.deleteReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) DeleteReturnsOnCall(i int, result1 error) {
-	fake.DeleteStub = nil
-	if fake.deleteReturnsOnCall == nil {
-		fake.deleteReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.deleteReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRDSInstance) GetTag(ID string, tagKey string) (string, error) {
-	fake.getTagMutex.Lock()
-	ret, specificReturn := fake.getTagReturnsOnCall[len(fake.getTagArgsForCall)]
-	fake.getTagArgsForCall = append(fake.getTagArgsForCall, struct {
-		ID     string
-		tagKey string
-	}{ID, tagKey})
-	fake.recordInvocation("GetTag", []interface{}{ID, tagKey})
-	fake.getTagMutex.Unlock()
-	if fake.GetTagStub != nil {
-		return fake.GetTagStub(ID, tagKey)
+func (fake *FakeRDSInstance) GetResourceTags(arg1 string, arg2 ...awsrds.DescribeOption) ([]*rds.Tag, error) {
+	fake.getResourceTagsMutex.Lock()
+	ret, specificReturn := fake.getResourceTagsReturnsOnCall[len(fake.getResourceTagsArgsForCall)]
+	fake.getResourceTagsArgsForCall = append(fake.getResourceTagsArgsForCall, struct {
+		arg1 string
+		arg2 []awsrds.DescribeOption
+	}{arg1, arg2})
+	fake.recordInvocation("GetResourceTags", []interface{}{arg1, arg2})
+	fake.getResourceTagsMutex.Unlock()
+	if fake.GetResourceTagsStub != nil {
+		return fake.GetResourceTagsStub(arg1, arg2...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	return fake.getTagReturns.result1, fake.getTagReturns.result2
+	fakeReturns := fake.getResourceTagsReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeRDSInstance) GetResourceTagsCallCount() int {
+	fake.getResourceTagsMutex.RLock()
+	defer fake.getResourceTagsMutex.RUnlock()
+	return len(fake.getResourceTagsArgsForCall)
+}
+
+func (fake *FakeRDSInstance) GetResourceTagsCalls(stub func(string, ...awsrds.DescribeOption) ([]*rds.Tag, error)) {
+	fake.getResourceTagsMutex.Lock()
+	defer fake.getResourceTagsMutex.Unlock()
+	fake.GetResourceTagsStub = stub
+}
+
+func (fake *FakeRDSInstance) GetResourceTagsArgsForCall(i int) (string, []awsrds.DescribeOption) {
+	fake.getResourceTagsMutex.RLock()
+	defer fake.getResourceTagsMutex.RUnlock()
+	argsForCall := fake.getResourceTagsArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeRDSInstance) GetResourceTagsReturns(result1 []*rds.Tag, result2 error) {
+	fake.getResourceTagsMutex.Lock()
+	defer fake.getResourceTagsMutex.Unlock()
+	fake.GetResourceTagsStub = nil
+	fake.getResourceTagsReturns = struct {
+		result1 []*rds.Tag
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRDSInstance) GetResourceTagsReturnsOnCall(i int, result1 []*rds.Tag, result2 error) {
+	fake.getResourceTagsMutex.Lock()
+	defer fake.getResourceTagsMutex.Unlock()
+	fake.GetResourceTagsStub = nil
+	if fake.getResourceTagsReturnsOnCall == nil {
+		fake.getResourceTagsReturnsOnCall = make(map[int]struct {
+			result1 []*rds.Tag
+			result2 error
+		})
+	}
+	fake.getResourceTagsReturnsOnCall[i] = struct {
+		result1 []*rds.Tag
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRDSInstance) GetTag(arg1 string, arg2 string) (string, error) {
+	fake.getTagMutex.Lock()
+	ret, specificReturn := fake.getTagReturnsOnCall[len(fake.getTagArgsForCall)]
+	fake.getTagArgsForCall = append(fake.getTagArgsForCall, struct {
+		arg1 string
+		arg2 string
+	}{arg1, arg2})
+	fake.recordInvocation("GetTag", []interface{}{arg1, arg2})
+	fake.getTagMutex.Unlock()
+	if fake.GetTagStub != nil {
+		return fake.GetTagStub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.getTagReturns
+	return fakeReturns.result1, fakeReturns.result2
 }
 
 func (fake *FakeRDSInstance) GetTagCallCount() int {
@@ -803,13 +862,22 @@ func (fake *FakeRDSInstance) GetTagCallCount() int {
 	return len(fake.getTagArgsForCall)
 }
 
+func (fake *FakeRDSInstance) GetTagCalls(stub func(string, string) (string, error)) {
+	fake.getTagMutex.Lock()
+	defer fake.getTagMutex.Unlock()
+	fake.GetTagStub = stub
+}
+
 func (fake *FakeRDSInstance) GetTagArgsForCall(i int) (string, string) {
 	fake.getTagMutex.RLock()
 	defer fake.getTagMutex.RUnlock()
-	return fake.getTagArgsForCall[i].ID, fake.getTagArgsForCall[i].tagKey
+	argsForCall := fake.getTagArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeRDSInstance) GetTagReturns(result1 string, result2 error) {
+	fake.getTagMutex.Lock()
+	defer fake.getTagMutex.Unlock()
 	fake.GetTagStub = nil
 	fake.getTagReturns = struct {
 		result1 string
@@ -818,6 +886,8 @@ func (fake *FakeRDSInstance) GetTagReturns(result1 string, result2 error) {
 }
 
 func (fake *FakeRDSInstance) GetTagReturnsOnCall(i int, result1 string, result2 error) {
+	fake.getTagMutex.Lock()
+	defer fake.getTagMutex.Unlock()
 	fake.GetTagStub = nil
 	if fake.getTagReturnsOnCall == nil {
 		fake.getTagReturnsOnCall = make(map[int]struct {
@@ -831,35 +901,345 @@ func (fake *FakeRDSInstance) GetTagReturnsOnCall(i int, result1 string, result2 
 	}{result1, result2}
 }
 
+func (fake *FakeRDSInstance) Modify(arg1 *rds.ModifyDBInstanceInput) (*rds.DBInstance, error) {
+	fake.modifyMutex.Lock()
+	ret, specificReturn := fake.modifyReturnsOnCall[len(fake.modifyArgsForCall)]
+	fake.modifyArgsForCall = append(fake.modifyArgsForCall, struct {
+		arg1 *rds.ModifyDBInstanceInput
+	}{arg1})
+	fake.recordInvocation("Modify", []interface{}{arg1})
+	fake.modifyMutex.Unlock()
+	if fake.ModifyStub != nil {
+		return fake.ModifyStub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.modifyReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeRDSInstance) ModifyCallCount() int {
+	fake.modifyMutex.RLock()
+	defer fake.modifyMutex.RUnlock()
+	return len(fake.modifyArgsForCall)
+}
+
+func (fake *FakeRDSInstance) ModifyCalls(stub func(*rds.ModifyDBInstanceInput) (*rds.DBInstance, error)) {
+	fake.modifyMutex.Lock()
+	defer fake.modifyMutex.Unlock()
+	fake.ModifyStub = stub
+}
+
+func (fake *FakeRDSInstance) ModifyArgsForCall(i int) *rds.ModifyDBInstanceInput {
+	fake.modifyMutex.RLock()
+	defer fake.modifyMutex.RUnlock()
+	argsForCall := fake.modifyArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeRDSInstance) ModifyReturns(result1 *rds.DBInstance, result2 error) {
+	fake.modifyMutex.Lock()
+	defer fake.modifyMutex.Unlock()
+	fake.ModifyStub = nil
+	fake.modifyReturns = struct {
+		result1 *rds.DBInstance
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRDSInstance) ModifyReturnsOnCall(i int, result1 *rds.DBInstance, result2 error) {
+	fake.modifyMutex.Lock()
+	defer fake.modifyMutex.Unlock()
+	fake.ModifyStub = nil
+	if fake.modifyReturnsOnCall == nil {
+		fake.modifyReturnsOnCall = make(map[int]struct {
+			result1 *rds.DBInstance
+			result2 error
+		})
+	}
+	fake.modifyReturnsOnCall[i] = struct {
+		result1 *rds.DBInstance
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRDSInstance) ModifyParameterGroup(arg1 *rds.ModifyDBParameterGroupInput) error {
+	fake.modifyParameterGroupMutex.Lock()
+	ret, specificReturn := fake.modifyParameterGroupReturnsOnCall[len(fake.modifyParameterGroupArgsForCall)]
+	fake.modifyParameterGroupArgsForCall = append(fake.modifyParameterGroupArgsForCall, struct {
+		arg1 *rds.ModifyDBParameterGroupInput
+	}{arg1})
+	fake.recordInvocation("ModifyParameterGroup", []interface{}{arg1})
+	fake.modifyParameterGroupMutex.Unlock()
+	if fake.ModifyParameterGroupStub != nil {
+		return fake.ModifyParameterGroupStub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.modifyParameterGroupReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeRDSInstance) ModifyParameterGroupCallCount() int {
+	fake.modifyParameterGroupMutex.RLock()
+	defer fake.modifyParameterGroupMutex.RUnlock()
+	return len(fake.modifyParameterGroupArgsForCall)
+}
+
+func (fake *FakeRDSInstance) ModifyParameterGroupCalls(stub func(*rds.ModifyDBParameterGroupInput) error) {
+	fake.modifyParameterGroupMutex.Lock()
+	defer fake.modifyParameterGroupMutex.Unlock()
+	fake.ModifyParameterGroupStub = stub
+}
+
+func (fake *FakeRDSInstance) ModifyParameterGroupArgsForCall(i int) *rds.ModifyDBParameterGroupInput {
+	fake.modifyParameterGroupMutex.RLock()
+	defer fake.modifyParameterGroupMutex.RUnlock()
+	argsForCall := fake.modifyParameterGroupArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeRDSInstance) ModifyParameterGroupReturns(result1 error) {
+	fake.modifyParameterGroupMutex.Lock()
+	defer fake.modifyParameterGroupMutex.Unlock()
+	fake.ModifyParameterGroupStub = nil
+	fake.modifyParameterGroupReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) ModifyParameterGroupReturnsOnCall(i int, result1 error) {
+	fake.modifyParameterGroupMutex.Lock()
+	defer fake.modifyParameterGroupMutex.Unlock()
+	fake.ModifyParameterGroupStub = nil
+	if fake.modifyParameterGroupReturnsOnCall == nil {
+		fake.modifyParameterGroupReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.modifyParameterGroupReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) Reboot(arg1 *rds.RebootDBInstanceInput) error {
+	fake.rebootMutex.Lock()
+	ret, specificReturn := fake.rebootReturnsOnCall[len(fake.rebootArgsForCall)]
+	fake.rebootArgsForCall = append(fake.rebootArgsForCall, struct {
+		arg1 *rds.RebootDBInstanceInput
+	}{arg1})
+	fake.recordInvocation("Reboot", []interface{}{arg1})
+	fake.rebootMutex.Unlock()
+	if fake.RebootStub != nil {
+		return fake.RebootStub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.rebootReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeRDSInstance) RebootCallCount() int {
+	fake.rebootMutex.RLock()
+	defer fake.rebootMutex.RUnlock()
+	return len(fake.rebootArgsForCall)
+}
+
+func (fake *FakeRDSInstance) RebootCalls(stub func(*rds.RebootDBInstanceInput) error) {
+	fake.rebootMutex.Lock()
+	defer fake.rebootMutex.Unlock()
+	fake.RebootStub = stub
+}
+
+func (fake *FakeRDSInstance) RebootArgsForCall(i int) *rds.RebootDBInstanceInput {
+	fake.rebootMutex.RLock()
+	defer fake.rebootMutex.RUnlock()
+	argsForCall := fake.rebootArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeRDSInstance) RebootReturns(result1 error) {
+	fake.rebootMutex.Lock()
+	defer fake.rebootMutex.Unlock()
+	fake.RebootStub = nil
+	fake.rebootReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) RebootReturnsOnCall(i int, result1 error) {
+	fake.rebootMutex.Lock()
+	defer fake.rebootMutex.Unlock()
+	fake.RebootStub = nil
+	if fake.rebootReturnsOnCall == nil {
+		fake.rebootReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.rebootReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) RemoveTag(arg1 string, arg2 string) error {
+	fake.removeTagMutex.Lock()
+	ret, specificReturn := fake.removeTagReturnsOnCall[len(fake.removeTagArgsForCall)]
+	fake.removeTagArgsForCall = append(fake.removeTagArgsForCall, struct {
+		arg1 string
+		arg2 string
+	}{arg1, arg2})
+	fake.recordInvocation("RemoveTag", []interface{}{arg1, arg2})
+	fake.removeTagMutex.Unlock()
+	if fake.RemoveTagStub != nil {
+		return fake.RemoveTagStub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.removeTagReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeRDSInstance) RemoveTagCallCount() int {
+	fake.removeTagMutex.RLock()
+	defer fake.removeTagMutex.RUnlock()
+	return len(fake.removeTagArgsForCall)
+}
+
+func (fake *FakeRDSInstance) RemoveTagCalls(stub func(string, string) error) {
+	fake.removeTagMutex.Lock()
+	defer fake.removeTagMutex.Unlock()
+	fake.RemoveTagStub = stub
+}
+
+func (fake *FakeRDSInstance) RemoveTagArgsForCall(i int) (string, string) {
+	fake.removeTagMutex.RLock()
+	defer fake.removeTagMutex.RUnlock()
+	argsForCall := fake.removeTagArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeRDSInstance) RemoveTagReturns(result1 error) {
+	fake.removeTagMutex.Lock()
+	defer fake.removeTagMutex.Unlock()
+	fake.RemoveTagStub = nil
+	fake.removeTagReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) RemoveTagReturnsOnCall(i int, result1 error) {
+	fake.removeTagMutex.Lock()
+	defer fake.removeTagMutex.Unlock()
+	fake.RemoveTagStub = nil
+	if fake.removeTagReturnsOnCall == nil {
+		fake.removeTagReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.removeTagReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) Restore(arg1 *rds.RestoreDBInstanceFromDBSnapshotInput) error {
+	fake.restoreMutex.Lock()
+	ret, specificReturn := fake.restoreReturnsOnCall[len(fake.restoreArgsForCall)]
+	fake.restoreArgsForCall = append(fake.restoreArgsForCall, struct {
+		arg1 *rds.RestoreDBInstanceFromDBSnapshotInput
+	}{arg1})
+	fake.recordInvocation("Restore", []interface{}{arg1})
+	fake.restoreMutex.Unlock()
+	if fake.RestoreStub != nil {
+		return fake.RestoreStub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.restoreReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeRDSInstance) RestoreCallCount() int {
+	fake.restoreMutex.RLock()
+	defer fake.restoreMutex.RUnlock()
+	return len(fake.restoreArgsForCall)
+}
+
+func (fake *FakeRDSInstance) RestoreCalls(stub func(*rds.RestoreDBInstanceFromDBSnapshotInput) error) {
+	fake.restoreMutex.Lock()
+	defer fake.restoreMutex.Unlock()
+	fake.RestoreStub = stub
+}
+
+func (fake *FakeRDSInstance) RestoreArgsForCall(i int) *rds.RestoreDBInstanceFromDBSnapshotInput {
+	fake.restoreMutex.RLock()
+	defer fake.restoreMutex.RUnlock()
+	argsForCall := fake.restoreArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeRDSInstance) RestoreReturns(result1 error) {
+	fake.restoreMutex.Lock()
+	defer fake.restoreMutex.Unlock()
+	fake.RestoreStub = nil
+	fake.restoreReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) RestoreReturnsOnCall(i int, result1 error) {
+	fake.restoreMutex.Lock()
+	defer fake.restoreMutex.Unlock()
+	fake.RestoreStub = nil
+	if fake.restoreReturnsOnCall == nil {
+		fake.restoreReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.restoreReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
 func (fake *FakeRDSInstance) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
+	fake.addTagsToResourceMutex.RLock()
+	defer fake.addTagsToResourceMutex.RUnlock()
+	fake.createMutex.RLock()
+	defer fake.createMutex.RUnlock()
+	fake.createParameterGroupMutex.RLock()
+	defer fake.createParameterGroupMutex.RUnlock()
+	fake.deleteMutex.RLock()
+	defer fake.deleteMutex.RUnlock()
+	fake.deleteSnapshotsMutex.RLock()
+	defer fake.deleteSnapshotsMutex.RUnlock()
 	fake.describeMutex.RLock()
 	defer fake.describeMutex.RUnlock()
-	fake.getResourceTagsMutex.RLock()
-	defer fake.getResourceTagsMutex.RUnlock()
 	fake.describeByTagMutex.RLock()
 	defer fake.describeByTagMutex.RUnlock()
 	fake.describeSnapshotsMutex.RLock()
 	defer fake.describeSnapshotsMutex.RUnlock()
-	fake.deleteSnapshotsMutex.RLock()
-	defer fake.deleteSnapshotsMutex.RUnlock()
-	fake.createMutex.RLock()
-	defer fake.createMutex.RUnlock()
-	fake.restoreMutex.RLock()
-	defer fake.restoreMutex.RUnlock()
+	fake.getParameterGroupMutex.RLock()
+	defer fake.getParameterGroupMutex.RUnlock()
+	fake.getResourceTagsMutex.RLock()
+	defer fake.getResourceTagsMutex.RUnlock()
+	fake.getTagMutex.RLock()
+	defer fake.getTagMutex.RUnlock()
 	fake.modifyMutex.RLock()
 	defer fake.modifyMutex.RUnlock()
-	fake.addTagsToResourceMutex.RLock()
-	defer fake.addTagsToResourceMutex.RUnlock()
+	fake.modifyParameterGroupMutex.RLock()
+	defer fake.modifyParameterGroupMutex.RUnlock()
 	fake.rebootMutex.RLock()
 	defer fake.rebootMutex.RUnlock()
 	fake.removeTagMutex.RLock()
 	defer fake.removeTagMutex.RUnlock()
-	fake.deleteMutex.RLock()
-	defer fake.deleteMutex.RUnlock()
-	fake.getTagMutex.RLock()
-	defer fake.getTagMutex.RUnlock()
+	fake.restoreMutex.RLock()
+	defer fake.restoreMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

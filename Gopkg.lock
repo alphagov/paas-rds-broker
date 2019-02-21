@@ -2,16 +2,19 @@
 
 
 [[projects]]
+  digest = "1:3634f744a1562db223595409dbe6bfc9ab88841938445bc092a0d851cb9db006"
   name = "code.cloudfoundry.org/lager"
   packages = [
     ".",
     "lagerctx",
-    "lagertest"
+    "lagertest",
   ]
+  pruneopts = "UT"
   revision = "b60e04e119450552243196105bae0d42179ee0ca"
   version = "v1.1.0"
 
 [[projects]]
+  digest = "1:dee3deb093ca194c6adddf84584c063054d307c0265f109881c1cf4c8c17c8e6"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -23,6 +26,7 @@
     "aws/credentials",
     "aws/credentials/ec2rolecreds",
     "aws/credentials/endpointcreds",
+    "aws/credentials/processcreds",
     "aws/credentials/stscreds",
     "aws/csm",
     "aws/defaults",
@@ -31,8 +35,10 @@
     "aws/request",
     "aws/session",
     "aws/signer/v4",
+    "internal/ini",
     "internal/sdkio",
     "internal/sdkrand",
+    "internal/sdkuri",
     "internal/shareddefaults",
     "private/protocol",
     "private/protocol/ec2query",
@@ -42,56 +48,78 @@
     "private/protocol/xml/xmlutil",
     "service/ec2",
     "service/rds",
-    "service/sts"
+    "service/sts",
   ]
-  revision = "d2d4fca90395039f60821c231da759cab8f318c7"
-  version = "v1.14.4"
+  pruneopts = "UT"
+  revision = "24d2586ee6c7aa6a6efec818c2b8709db125ee4c"
+  version = "v1.16.34"
 
 [[projects]]
-  name = "github.com/go-ini/ini"
-  packages = ["."]
-  revision = "06f5f3d67269ccec1fe5fe4134ba6e982984f7f5"
-  version = "v1.37.0"
-
-[[projects]]
+  digest = "1:32aa2925b00f43b3455b46fca49fde5541749896358addb2ddb077359e17bfba"
   name = "github.com/go-sql-driver/mysql"
   packages = ["."]
+  pruneopts = "UT"
   revision = "527bcd55aab2e53314f1a150922560174b493034"
 
 [[projects]]
+  digest = "1:874ca00e54068a78ce555979489511ec62cd4682bf068134dc4355753827895c"
   name = "github.com/gorilla/context"
   packages = ["."]
+  pruneopts = "UT"
   revision = "215affda49addc4c8ef7e2534915df2c8c35c6cd"
 
 [[projects]]
+  digest = "1:a6283ced592faaeedc9f622fc7ec96bdcd3e97372457d2bc81b7307bf873ce4c"
   name = "github.com/gorilla/mux"
   packages = ["."]
+  pruneopts = "UT"
   revision = "8a875a034c69b940914d83ea03d3f1299b4d094b"
 
 [[projects]]
-  name = "github.com/jmespath/go-jmespath"
-  packages = ["."]
-  revision = "0b12d6b5"
+  digest = "1:a1038ef593beb4771c8f0f9c26e8b00410acd800af5c6864651d9bf160ea1813"
+  name = "github.com/hpcloud/tail"
+  packages = [
+    ".",
+    "ratelimiter",
+    "util",
+    "watch",
+    "winfile",
+  ]
+  pruneopts = "UT"
+  revision = "a30252cb686a21eb2d0b98132633053ec2f7f1e5"
+  version = "v1.0.0"
 
 [[projects]]
+  digest = "1:bb81097a5b62634f3e9fec1014657855610c82d19b9a40c17612e32651e35dca"
+  name = "github.com/jmespath/go-jmespath"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "c2b33e84"
+
+[[projects]]
+  digest = "1:b51af1902cc32eefc0d1dadfcc555b0543cceb3e23eb6dd6db32482c5165a3b0"
   name = "github.com/lib/pq"
   packages = [
     ".",
-    "oid"
+    "oid",
   ]
+  pruneopts = "UT"
   revision = "ffe986aba3e6cfcded8b06615965941408891ef0"
 
 [[projects]]
+  digest = "1:9dd8858ae7fa91d2477ec05605b000d3c1ad65e3a1e36f9bf8f97a170c05ea05"
   name = "github.com/onsi/ginkgo"
   packages = [
     ".",
     "config",
+    "extensions/table",
     "internal/codelocation",
     "internal/containernode",
     "internal/failer",
     "internal/leafnodes",
     "internal/remote",
     "internal/spec",
+    "internal/spec_iterator",
     "internal/specrunner",
     "internal/suite",
     "internal/testingtproxy",
@@ -100,11 +128,14 @@
     "reporters/stenographer",
     "reporters/stenographer/support/go-colorable",
     "reporters/stenographer/support/go-isatty",
-    "types"
+    "types",
   ]
-  revision = "a23f924ce96d61f963fb6219b8ff069d8d768cc2"
+  pruneopts = "UT"
+  revision = "2e1be8f7d90e9d3e3e58b0ce470f2f14d075406f"
+  version = "v1.7.0"
 
 [[projects]]
+  digest = "1:b4764603c54d74435f246901248aefb2b9d430bb7b160afde1afc41d89d48f1a"
   name = "github.com/onsi/gomega"
   packages = [
     ".",
@@ -120,47 +151,137 @@
     "matchers/support/goraph/edge",
     "matchers/support/goraph/node",
     "matchers/support/goraph/util",
-    "types"
+    "types",
   ]
-  revision = "e85f63af4302dc0e4277c6008ecf803f1d80e4f0"
+  pruneopts = "UT"
+  revision = "65fb64232476ad9046e57c26cd0bff3d3a8dc6cd"
+  version = "v1.4.3"
 
 [[projects]]
+  digest = "1:8845cf1e26c684dc871891ce953d802403dd97285d0e1a3b06dc87b08eb7b237"
   name = "github.com/phayes/freeport"
   packages = ["."]
+  pruneopts = "UT"
   revision = "e7681b37614941bf73b404e0caa37f19e33b5fed"
 
 [[projects]]
+  digest = "1:3d01977b0bc0ef11e81d670dbfa5e09185a033863e89b364e26b0f6a6f167798"
   name = "github.com/pivotal-cf/brokerapi"
   packages = [
     ".",
-    "auth"
+    "auth",
   ]
+  pruneopts = "UT"
   revision = "b90ba3f93800e6618e6f06280fba6466726f1e9a"
 
 [[projects]]
   branch = "master"
+  digest = "1:bffc9efe1d7783f54cb0003b57cb3c8fe49f56beb9859cf122be97504e854666"
   name = "github.com/robfig/cron"
   packages = ["."]
+  pruneopts = "UT"
   revision = "2315d5715e36303a941d907f038da7f7c44c773b"
 
 [[projects]]
+  digest = "1:34bf609f0bc576cd648a993bd711fb9b25f13dcd4ec1d1f5b4137b9d3ed0ff2f"
   name = "github.com/satori/go.uuid"
   packages = ["."]
+  pruneopts = "UT"
   revision = "b061729afc07e77a8aa4fad0a2fd840958f1942a"
 
 [[projects]]
+  branch = "master"
+  digest = "1:4939e20b972c22cd512abff0bf6ed8fc0e3e86aeb836d016be3323c6a901d99d"
+  name = "golang.org/x/net"
+  packages = [
+    "html",
+    "html/atom",
+    "html/charset",
+  ]
+  pruneopts = "UT"
+  revision = "65e2d4e15006aab9813ff8769e768bbf4bb667a0"
+
+[[projects]]
+  digest = "1:36e8440c31079d74414fd18f6b4ec10282f60c4abf3678ae3de48ab73010f532"
   name = "golang.org/x/sys"
   packages = ["unix"]
+  pruneopts = "UT"
   revision = "d75a52659825e75fff6158388dddc6a5b04f9ba5"
 
 [[projects]]
+  digest = "1:aa4d6967a3237f8367b6bf91503964a77183ecf696f1273e8ad3551bb4412b5f"
+  name = "golang.org/x/text"
+  packages = [
+    "encoding",
+    "encoding/charmap",
+    "encoding/htmlindex",
+    "encoding/internal",
+    "encoding/internal/identifier",
+    "encoding/japanese",
+    "encoding/korean",
+    "encoding/simplifiedchinese",
+    "encoding/traditionalchinese",
+    "encoding/unicode",
+    "internal/gen",
+    "internal/tag",
+    "internal/utf8internal",
+    "language",
+    "runes",
+    "transform",
+    "unicode/cldr",
+  ]
+  pruneopts = "UT"
+  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
+  version = "v0.3.0"
+
+[[projects]]
+  digest = "1:abeb38ade3f32a92943e5be54f55ed6d6e3b6602761d74b4aab4c9dd45c18abd"
+  name = "gopkg.in/fsnotify.v1"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9"
+  source = "https://github.com/fsnotify/fsnotify"
+  version = "v1.4.7"
+
+[[projects]]
+  branch = "v1"
+  digest = "1:0caa92e17bc0b65a98c63e5bc76a9e844cd5e56493f8fdbb28fad101a16254d9"
+  name = "gopkg.in/tomb.v1"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "dd632973f1e7218eb1089048e0798ec9ae7dceb8"
+
+[[projects]]
+  digest = "1:cacb98d52c60c337c2ce95a7af83ba0313a93ce5e73fa9e99a96aff70776b9d3"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
+  pruneopts = "UT"
   revision = "a5b47d31c556af34a302ce5d659e6fea44d90de0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bf8a019765c4308f4b33601da49c4abedf8bd1173ebe45ac4a67a8815a38775a"
+  input-imports = [
+    "code.cloudfoundry.org/lager",
+    "code.cloudfoundry.org/lager/lagertest",
+    "github.com/aws/aws-sdk-go/aws",
+    "github.com/aws/aws-sdk-go/aws/awserr",
+    "github.com/aws/aws-sdk-go/aws/ec2metadata",
+    "github.com/aws/aws-sdk-go/aws/request",
+    "github.com/aws/aws-sdk-go/aws/session",
+    "github.com/aws/aws-sdk-go/service/ec2",
+    "github.com/aws/aws-sdk-go/service/rds",
+    "github.com/go-sql-driver/mysql",
+    "github.com/lib/pq",
+    "github.com/onsi/ginkgo",
+    "github.com/onsi/ginkgo/extensions/table",
+    "github.com/onsi/gomega",
+    "github.com/onsi/gomega/gbytes",
+    "github.com/onsi/gomega/gexec",
+    "github.com/phayes/freeport",
+    "github.com/pivotal-cf/brokerapi",
+    "github.com/robfig/cron",
+    "github.com/satori/go.uuid",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
