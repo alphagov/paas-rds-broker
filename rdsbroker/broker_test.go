@@ -6,12 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/alphagov/paas-rds-broker/rdsbroker/fakes"
 	"net/http"
 	"net/http/httptest"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/alphagov/paas-rds-broker/rdsbroker/fakes"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -560,6 +561,41 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 
+			Context("when the snapshot had extensions enabled", func() {
+				It("sets the same extensions on the new database", func() {
+					dbSnapshotTags[awsrds.TagExtensions] = "foo:bar"
+					rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbSnapshotTags), nil)
+
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(paramGroupSelector.SelectParameterGroupCallCount()).To(Equal(1))
+					_, inputProvisionParameters := paramGroupSelector.SelectParameterGroupArgsForCall(0)
+					Expect(inputProvisionParameters.Extensions).To(ContainElement("foo"))
+					Expect(inputProvisionParameters.Extensions).To(ContainElement("bar"))
+				})
+
+				Context("when the user passes extensions to set", func() {
+					BeforeEach(func() {
+						provisionDetails.RawParameters = json.RawMessage(`{"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `", "enabled_extensions": ["postgres_super_extension"]}`)
+					})
+					It("adds those extensions to the set of extensions on the snapshot", func() {
+						dbSnapshotTags[awsrds.TagExtensions] = "foo:bar"
+						rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbSnapshotTags), nil)
+
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(paramGroupSelector.SelectParameterGroupCallCount()).To(Equal(1))
+						_, inputProvisionParameters := paramGroupSelector.SelectParameterGroupArgsForCall(0)
+						Expect(inputProvisionParameters.Extensions).To(ContainElement("foo"))
+						Expect(inputProvisionParameters.Extensions).To(ContainElement("bar"))
+						Expect(inputProvisionParameters.Extensions).To(ContainElement("postgres_super_extension"))
+					})
+				})
+			})
 		})
 
 		Context("when creating a new service instance", func() {

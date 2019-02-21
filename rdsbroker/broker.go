@@ -224,6 +224,14 @@ func (b *RDSBroker) Provision(
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
 		}
 		snapshotIdentifier := aws.StringValue(snapshot.DBSnapshotIdentifier)
+
+		if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
+			if extensionsTag != "" {
+				snapshotExts := strings.Split(extensionsTag, ":")
+				ensureExtensionsAreSet(&provisionParameters, snapshotExts)
+			}
+		}
+
 		restoreDBInstanceInput, err := b.restoreDBInstanceInput(instanceID, snapshotIdentifier, servicePlan, provisionParameters, details)
 
 		if err != nil {
@@ -595,6 +603,15 @@ func (b *RDSBroker) LastOperation(
 }
 
 func ensureDefaultExtensionsAreSet(parameters *ProvisionParameters, plan ServicePlan) {
+	extensions := []string{}
+	for _, e := range plan.RDSProperties.DefaultExtensions {
+		extensions = append(extensions, aws.StringValue(e))
+	}
+
+	ensureExtensionsAreSet(parameters, extensions)
+}
+
+func ensureExtensionsAreSet(parameters *ProvisionParameters, extensions []string) {
 	inSlice := func(slice []string, element string) bool {
 		for _, e := range slice {
 			if e == element {
@@ -605,9 +622,9 @@ func ensureDefaultExtensionsAreSet(parameters *ProvisionParameters, plan Service
 		return false
 	}
 
-	for _, e := range plan.RDSProperties.DefaultExtensions {
-		if !inSlice(parameters.Extensions, aws.StringValue(e)) {
-			parameters.Extensions = append(parameters.Extensions, aws.StringValue(e))
+	for _, e := range extensions {
+		if !inSlice(parameters.Extensions, e) {
+			parameters.Extensions = append(parameters.Extensions, e)
 		}
 	}
 }
