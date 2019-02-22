@@ -538,7 +538,7 @@ func openConnection(databaseURI string) (*sql.DB, error) {
 	case "postgres":
 		dsn = dbURL.String()
 	case "mysql":
-		dsn = fmt.Sprintf("%s@tcp(%s)%s?tls=true",
+		dsn = fmt.Sprintf("%s@tcp(%s)%s?tls=skip-verify",
 			dbURL.User.String(),
 			dbURL.Host,
 			dbURL.EscapedPath(),
