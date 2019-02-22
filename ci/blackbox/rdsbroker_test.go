@@ -436,7 +436,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			TestRestoreFromSnapshot("postgres", "postgres-micro-10")
 		})
 
-		Describe("MySQL", func() {
+		PDescribe("MySQL", func() {
 			TestRestoreFromSnapshot("mysql", "mysql-micro")
 		})
 	})
