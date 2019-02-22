@@ -71,28 +71,30 @@ func (pgs *ParameterGroupSource) createParameterGroup(name string, servicePlan S
 }
 
 func (pgs *ParameterGroupSource) setParameterGroupProperties(name string, servicePlan ServicePlan, provisionParameters ProvisionParameters) error {
-	dbParams := []*rds.Parameter{}
-	dbParams = append(dbParams, rdsParameter("rds.force_ssl", "1", "pending-reboot"))
-	dbParams = append(dbParams, rdsParameter("rds.log_retention_period", "10080", "immediate"))
-
 	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
+		dbParams := []*rds.Parameter{}
+		dbParams = append(dbParams, rdsParameter("rds.force_ssl", "1", "pending-reboot"))
+		dbParams = append(dbParams, rdsParameter("rds.log_retention_period", "10080", "immediate"))
+
 		preloadLibs := filterExtensionsNeedingPreloads(servicePlan, provisionParameters.Extensions, pgs.supportedPreloadExtensions)
 
 		if len(preloadLibs) > 0 {
 			libsCSV := strings.Join(preloadLibs, ",")
 			dbParams = append(dbParams, rdsParameter("shared_preload_libraries", libsCSV, "pending-reboot"))
 		}
+
+		pgs.logger.Debug("modifying a parameter group", lager.Data{
+			"groupName":  name,
+			"parameters": dbParams,
+		})
+
+		return pgs.rdsInstance.ModifyParameterGroup(&rds.ModifyDBParameterGroupInput{
+			DBParameterGroupName: aws.String(name),
+			Parameters:           dbParams,
+		})
 	}
 
-	pgs.logger.Debug("modifying a parameter group", lager.Data{
-		"groupName":  name,
-		"parameters": dbParams,
-	})
-
-	return pgs.rdsInstance.ModifyParameterGroup(&rds.ModifyDBParameterGroupInput{
-		DBParameterGroupName: aws.String(name),
-		Parameters:           dbParams,
-	})
+	return nil
 }
 
 func composeGroupName(config Config, servicePlan ServicePlan, provisionParameters ProvisionParameters, supportedPreloadExtensions map[string][]DBExtension) string {

@@ -228,6 +228,18 @@ var _ = Describe("ParameterGroupsSource", func() {
 			})
 
 			Describe("it modifies the created parameter group", func() {
+				It("does not make any changes to the parameter group for MySQL databases", func() {
+					servicePlan.RDSProperties.Engine = aws.String("mysql")
+					servicePlan.RDSProperties.EngineVersion = aws.String("5.7")
+					servicePlan.RDSProperties.EngineFamily = aws.String("mysql5.7")
+
+					rdsFake.ModifyParameterGroupReturns(nil)
+
+					parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+
+					Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(0), "ModifyParameterGroup was called when it shouldn't have been")
+				})
+
 				It("and sets the force SSL property", func() {
 					rdsFake.ModifyParameterGroupReturns(nil)
 
