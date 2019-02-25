@@ -202,15 +202,15 @@ var _ = Describe("RDS Broker Daemon", func() {
 		}
 
 		Describe("Postgres 9.5", func() {
-			TestProvisionBindDeprovision("postgres", "micro-without-snapshot")
+			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot")
 		})
 
 		Describe("Postgres 10.5", func() {
-			TestProvisionBindDeprovision("postgres", "micro-without-snapshot-10")
+			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-10")
 		})
 
 		Describe("MySQL", func() {
-			TestProvisionBindDeprovision("mysql", "micro-without-snapshot")
+			TestProvisionBindDeprovision("mysql", "mysql-micro-without-snapshot")
 		})
 	})
 
@@ -310,15 +310,15 @@ var _ = Describe("RDS Broker Daemon", func() {
 		}
 
 		Describe("Postgres 9.5", func() {
-			TestFinalSnapshot("postgres", "micro")
+			TestFinalSnapshot("postgres", "postgres-micro")
 		})
 
 		Describe("Postgres 10.5", func() {
-			TestFinalSnapshot("postgres", "micro-10")
+			TestFinalSnapshot("postgres", "postgres-micro-10")
 		})
 
 		Describe("MySQL", func() {
-			TestFinalSnapshot("mysql", "micro")
+			TestFinalSnapshot("mysql", "mysql-micro")
 		})
 	})
 
@@ -429,15 +429,15 @@ var _ = Describe("RDS Broker Daemon", func() {
 		}
 
 		Describe("Postgres 9.5", func() {
-			TestRestoreFromSnapshot("postgres", "micro")
+			TestRestoreFromSnapshot("postgres", "postgres-micro")
 		})
 
 		Describe("Postgres 10.5", func() {
-			TestRestoreFromSnapshot("postgres", "micro-10")
+			TestRestoreFromSnapshot("postgres", "postgres-micro-10")
 		})
 
-		Describe("MySQL", func() {
-			TestRestoreFromSnapshot("mysql", "micro")
+		PDescribe("MySQL", func() {
+			TestRestoreFromSnapshot("mysql", "mysql-micro")
 		})
 	})
 
@@ -538,7 +538,7 @@ func openConnection(databaseURI string) (*sql.DB, error) {
 	case "postgres":
 		dsn = dbURL.String()
 	case "mysql":
-		dsn = fmt.Sprintf("%s@tcp(%s)%s?tls=true",
+		dsn = fmt.Sprintf("%s@tcp(%s)%s?tls=skip-verify",
 			dbURL.User.String(),
 			dbURL.Host,
 			dbURL.EscapedPath(),
