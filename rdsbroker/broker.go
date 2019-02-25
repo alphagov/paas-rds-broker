@@ -187,7 +187,7 @@ func (b *RDSBroker) Provision(
 	}
 
 	if provisionParameters.RestoreFromLatestSnapshotOf == nil {
-		createDBInstance, err := b.createDBInstance(instanceID, servicePlan, provisionParameters, details)
+		createDBInstance, err := b.newCreateDBInstanceInput(instanceID, servicePlan, provisionParameters, details)
 		if err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
@@ -867,7 +867,7 @@ func (b *RDSBroker) dbNameFromDBInstance(instanceID string, dbInstance *rds.DBIn
 	return dbName
 }
 
-func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.CreateDBInstanceInput, error) {
+func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.CreateDBInstanceInput, error) {
 	skipFinalSnapshot := false
 	if provisionParameters.SkipFinalSnapshot != nil {
 		skipFinalSnapshot = *provisionParameters.SkipFinalSnapshot
