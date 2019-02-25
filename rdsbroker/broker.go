@@ -334,8 +334,7 @@ func (b *RDSBroker) Update(
 	// could have been enabled at creation time
 	previousDbParamGroup := existingInstance.DBParameterGroups[0].DBParameterGroupName
 
-	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, previousDbParamGroup)
-	modifyDBInstanceInput.ApplyImmediately = aws.Bool(!updateParameters.ApplyAtMaintenanceWindow)
+	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, updateParameters, previousDbParamGroup)
 
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)
 	if err != nil {
@@ -684,7 +683,7 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 
 	existingParameterGroup := dbInstance.DBParameterGroups[0].DBParameterGroupName
 
-	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, existingParameterGroup)
+	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, UpdateParameters{}, existingParameterGroup)
 	modifyDBInstanceInput.MasterUserPassword = aws.String(b.generateMasterPassword(instanceID))
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)
 	if err != nil {
@@ -970,7 +969,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 	}, nil
 }
 
-func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan, parameterGroupName *string) *rds.ModifyDBInstanceInput {
+func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan, updateParameters UpdateParameters, parameterGroupName *string) *rds.ModifyDBInstanceInput {
 	modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
 		DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBInstanceClass:            servicePlan.RDSProperties.DBInstanceClass,
@@ -991,6 +990,7 @@ func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan Serv
 		PreferredBackupWindow:      servicePlan.RDSProperties.PreferredBackupWindow,
 		StorageType:                servicePlan.RDSProperties.StorageType,
 		VpcSecurityGroupIds:        servicePlan.RDSProperties.VpcSecurityGroupIds,
+		ApplyImmediately:           aws.Bool(!updateParameters.ApplyAtMaintenanceWindow),
 	}
 
 	b.logger.Debug("newModifyDBInstanceInputAndTags", lager.Data{
