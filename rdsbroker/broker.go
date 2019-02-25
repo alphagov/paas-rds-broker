@@ -889,7 +889,7 @@ func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan Serv
 		return nil, err
 	}
 
-	return &rds.CreateDBInstanceInput{
+	createDBInstanceInput := &rds.CreateDBInstanceInput{
 		DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBName:                     aws.String(b.dbName(instanceID)),
 		MasterUsername:             aws.String(b.generateMasterUsername()),
@@ -919,7 +919,14 @@ func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan Serv
 		StorageType:                servicePlan.RDSProperties.StorageType,
 		VpcSecurityGroupIds:        servicePlan.RDSProperties.VpcSecurityGroupIds,
 		Tags:                       awsrds.BuilRDSTags(b.dbTags(tags)),
-	}, nil
+	}
+	if provisionParameters.PreferredBackupWindow != "" {
+		createDBInstanceInput.PreferredBackupWindow = aws.String(provisionParameters.PreferredBackupWindow)
+	}
+	if provisionParameters.PreferredMaintenanceWindow != "" {
+		createDBInstanceInput.PreferredMaintenanceWindow = aws.String(provisionParameters.PreferredMaintenanceWindow)
+	}
+	return createDBInstanceInput, nil
 }
 
 func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.RestoreDBInstanceFromDBSnapshotInput, error) {
@@ -991,6 +998,12 @@ func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan Serv
 		StorageType:                servicePlan.RDSProperties.StorageType,
 		VpcSecurityGroupIds:        servicePlan.RDSProperties.VpcSecurityGroupIds,
 		ApplyImmediately:           aws.Bool(!updateParameters.ApplyAtMaintenanceWindow),
+	}
+	if updateParameters.PreferredBackupWindow != "" {
+		modifyDBInstanceInput.PreferredBackupWindow = aws.String(updateParameters.PreferredBackupWindow)
+	}
+	if updateParameters.PreferredMaintenanceWindow != "" {
+		modifyDBInstanceInput.PreferredMaintenanceWindow = aws.String(updateParameters.PreferredMaintenanceWindow)
 	}
 
 	b.logger.Debug("newModifyDBInstanceInputAndTags", lager.Data{

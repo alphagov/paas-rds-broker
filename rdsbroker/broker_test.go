@@ -1028,8 +1028,7 @@ var _ = Describe("RDS Broker", func() {
 					Expect(aws.StringValue(input.PreferredBackupWindow)).To(Equal("test-preferred-backup-window"))
 				})
 
-				//FIXME: These tests are pending until we allow this user provided parameter
-				PContext("but has PreferredBackupWindow Parameter", func() {
+				Context("but has PreferredBackupWindow Parameter", func() {
 					BeforeEach(func() {
 						provisionDetails.RawParameters = json.RawMessage(`{"preferred_backup_window": "test-preferred-backup-window-parameter"}`)
 					})
@@ -1057,8 +1056,7 @@ var _ = Describe("RDS Broker", func() {
 					Expect(aws.StringValue(input.PreferredMaintenanceWindow)).To(Equal("test-preferred-maintenance-window"))
 				})
 
-				//FIXME: These tests are pending until we allow this user provided parameter
-				PContext("but has PreferredMaintenanceWindow Parameter", func() {
+				Context("but has PreferredMaintenanceWindow Parameter", func() {
 					BeforeEach(func() {
 						provisionDetails.RawParameters = json.RawMessage(`{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}`)
 					})
@@ -1705,8 +1703,7 @@ var _ = Describe("RDS Broker", func() {
 				Expect(aws.StringValue(input.PreferredBackupWindow)).To(Equal("test-preferred-backup-window"))
 			})
 
-			//FIXME: These tests are pending until we allow this user provided parameter
-			PContext("but has PreferredBackupWindow Parameter", func() {
+			Context("but has PreferredBackupWindow Parameter", func() {
 				BeforeEach(func() {
 					updateDetails.RawParameters = json.RawMessage(`{"preferred_backup_window": "test-preferred-backup-window-parameter"}`)
 				})
@@ -1734,8 +1731,7 @@ var _ = Describe("RDS Broker", func() {
 				Expect(aws.StringValue(input.PreferredMaintenanceWindow)).To(Equal("test-preferred-maintenance-window"))
 			})
 
-			//FIXME: These tests are pending until we allow this user provided parameter
-			PContext("but has PreferredMaintenanceWindow Parameter", func() {
+			Context("but has PreferredMaintenanceWindow Parameter", func() {
 				BeforeEach(func() {
 					updateDetails.RawParameters = json.RawMessage(`{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}`)
 				})
