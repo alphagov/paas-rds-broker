@@ -337,13 +337,6 @@ func (b *RDSBroker) Update(
 	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, previousDbParamGroup)
 	modifyDBInstanceInput.ApplyImmediately = aws.Bool(!updateParameters.ApplyAtMaintenanceWindow)
 
-	var skipFinalSnapshot string
-	if updateParameters.SkipFinalSnapshot != nil {
-		skipFinalSnapshot = strconv.FormatBool(*updateParameters.SkipFinalSnapshot)
-	} else {
-		skipFinalSnapshot = strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot == nil && *servicePlan.RDSProperties.SkipFinalSnapshot)
-	}
-
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
@@ -352,13 +345,16 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, err
 	}
 
-	tags := awsrds.BuilRDSTags(b.dbTags(RDSInstanceTags{
-		Action:            "Updated",
-		ServiceID:         details.ServiceID,
-		PlanID:            details.PlanID,
-		SkipFinalSnapshot: skipFinalSnapshot,
-	}))
+	instanceTags := RDSInstanceTags{
+		Action:    "Updated",
+		ServiceID: details.ServiceID,
+		PlanID:    details.PlanID,
+	}
+	if updateParameters.SkipFinalSnapshot != nil {
+		instanceTags.SkipFinalSnapshot = strconv.FormatBool(*updateParameters.SkipFinalSnapshot)
+	}
 
+	tags := awsrds.BuilRDSTags(b.dbTags(instanceTags))
 	b.dbInstance.AddTagsToResource(aws.StringValue(updatedDBInstance.DBInstanceArn), tags)
 
 	return brokerapi.UpdateServiceSpec{IsAsync: true}, nil
@@ -878,12 +874,6 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 	} else if servicePlan.RDSProperties.SkipFinalSnapshot != nil {
 		skipFinalSnapshot = *servicePlan.RDSProperties.SkipFinalSnapshot
 	}
-	skipFinalSnapshotStr := strconv.FormatBool(skipFinalSnapshot)
-
-	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters)
-	if err != nil {
-		return nil, err
-	}
 
 	tags := RDSInstanceTags{
 		Action:            "Created",
@@ -891,8 +881,13 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		PlanID:            details.PlanID,
 		OrganizationID:    details.OrganizationGUID,
 		SpaceID:           details.SpaceGUID,
-		SkipFinalSnapshot: skipFinalSnapshotStr,
+		SkipFinalSnapshot: strconv.FormatBool(skipFinalSnapshot),
 		Extensions:        provisionParameters.Extensions,
+	}
+
+	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters)
+	if err != nil {
+		return nil, err
 	}
 
 	return &rds.CreateDBInstanceInput{
