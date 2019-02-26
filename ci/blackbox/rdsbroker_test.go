@@ -120,11 +120,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 				By("checking the instance credentials")
 				Eventually(rdsBrokerSession, 30*time.Second).Should(gbytes.Say("credentials check has ended"))
 
-				By("caching the instance details before master credentials rotation")
-				detailsBefore, err := rdsClient.GetDBInstanceDetails(instanceID)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(detailsBefore.DBInstances).To(HaveLen(1))
-
 				By("creating a binding")
 				resp, err := brokerAPIClient.DoBindRequest(instanceID, serviceID, planID, appGUID, bindingID)
 				Expect(err).ToNot(HaveOccurred())
@@ -151,6 +146,22 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(err).ToNot(HaveOccurred())
 				err = permissionsTest(credentials.URI)
 				Expect(err).ToNot(HaveOccurred())
+
+				By("updating the backup and maintenance windows")
+				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"preferred_maintenance_window":"tue:10:00-tue:11:00", "preferred_backup_window":"21:00-22:00"}`)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
+				Expect(state).To(Equal("succeeded"))
+
+				details, err := rdsClient.GetDBInstanceDetails(instanceID)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(details.DBInstances).To(HaveLen(1))
+				Expect(aws.StringValue(details.DBInstances[0].PreferredMaintenanceWindow)).To(Equal("tue:10:00-tue:11:00"))
+				Expect(aws.StringValue(details.DBInstances[0].PreferredBackupWindow)).To(Equal("21:00-22:00"))
+
+				By("caching the instance details before master credentials rotation")
+				detailsBefore := details
 
 				By("restarting the broker with a new master password seed")
 				rdsBrokerSession.Kill()
