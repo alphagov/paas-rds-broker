@@ -2,7 +2,7 @@ version: 2
 jobs:
   default:
     docker:
-      - image: circleci/golang:1.8
+      - image: circleci/golang:1.12
       - image: circleci/postgres:9.5-alpine
         environment:
           POSTGRES_PASSWORD: abc123
@@ -21,7 +21,7 @@ jobs:
             POSTGRESQL_PASSWORD: abc123
   postgres-10:
     docker:
-      - image: circleci/golang:1.8
+      - image: circleci/golang:1.12
       - image: circleci/postgres:10.5-alpine
         environment:
           POSTGRES_PASSWORD: abc123
