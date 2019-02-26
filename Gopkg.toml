@@ -24,6 +24,8 @@
 #   go-tests = true
 #   unused-packages = true
 
+required = ["github.com/onsi/ginkgo/ginkgo"]
+
 [[constraint]]
   name = "code.cloudfoundry.org/lager"
   version = "1.1.0"

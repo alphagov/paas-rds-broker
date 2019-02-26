@@ -4,7 +4,11 @@ meta:
     working_directory: /go/src/github.com/alphagov/paas-rds-broker
     steps:
       - checkout
-      - run: go get -u github.com/onsi/ginkgo/ginkgo
+      - run:
+          name: install ginkgo cli
+          command: |
+            cd "vendor/github.com/onsi/ginkgo/ginkgo"
+            go install
       - run:
           command: ginkgo -r --skipPackage=ci
           environment:

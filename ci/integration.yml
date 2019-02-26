@@ -15,5 +15,9 @@ run:
     - |
       mkdir -p "${GOPATH}/src/github.com/alphagov/paas-rds-broker"
       rsync -az repo/ "${GOPATH}/src/github.com/alphagov/paas-rds-broker/"
+
+      cd "${GOPATH}/src/github.com/alphagov/paas-rds-broker/vendor/github.com/onsi/ginkgo/ginkgo"
+      go install
+
       cd "${GOPATH}/src/github.com/alphagov/paas-rds-broker"
       make integration
