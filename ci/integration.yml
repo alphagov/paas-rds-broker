@@ -7,14 +7,15 @@ image_resource:
     tag: 1.12
 inputs:
   - name: repo
+    path: src/github.com/alphagov/paas-rds-broker
 run:
   path: sh
   args:
     - -e
     - -c
     - |
-      mkdir -p "${GOPATH}/src/github.com/alphagov/paas-rds-broker"
-      rsync -az repo/ "${GOPATH}/src/github.com/alphagov/paas-rds-broker/"
+      export GOPATH=$(pwd)
+      export PATH="${GOPATH}/bin:${PATH}"
 
       cd "${GOPATH}/src/github.com/alphagov/paas-rds-broker/vendor/github.com/onsi/ginkgo/ginkgo"
       go install
