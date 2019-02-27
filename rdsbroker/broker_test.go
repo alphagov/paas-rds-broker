@@ -1143,15 +1143,30 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("when Parameters are not valid", func() {
 
+				It("returns an error", func() {
+					provisionDetails.RawParameters = json.RawMessage(`not JSON`)
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(0))
+				})
+
 				Context("and user provision parameters are not allowed", func() {
 					BeforeEach(func() {
 						allowUserProvisionParameters = false
 					})
 
 					It("does not return an error", func() {
+						provisionDetails.RawParameters = json.RawMessage(`not JSON`)
 						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 						Expect(err).ToNot(HaveOccurred())
 					})
+				})
+
+				It("returns an error for extra params", func() {
+					provisionDetails.RawParameters = json.RawMessage(`{"foo": "bar"}`)
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(MatchError(ContainSubstring(`unknown field "foo"`)))
+					Expect(rdsInstance.CreateCallCount()).To(Equal(0))
 				})
 			})
 
@@ -1828,15 +1843,30 @@ var _ = Describe("RDS Broker", func() {
 		})
 
 		Context("when Parameters are not valid", func() {
+			It("returns an error", func() {
+				updateDetails.RawParameters = json.RawMessage(`not JSON`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
+			})
+
 			Context("and user update parameters are not allowed", func() {
 				BeforeEach(func() {
 					allowUserUpdateParameters = false
 				})
 
 				It("does not return an error", func() {
+					updateDetails.RawParameters = json.RawMessage(`not JSON`)
 					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 					Expect(err).ToNot(HaveOccurred())
 				})
+			})
+
+			It("returns an error for extra params", func() {
+				updateDetails.RawParameters = json.RawMessage(`{"foo": "bar"}`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(MatchError(ContainSubstring(`unknown field "foo"`)))
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
 			})
 		})
 
@@ -2163,16 +2193,13 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
-		// FIXME: Re-enable these tests when we have some bind-time parameters again
-		PContext("when Parameters are not valid", func() {
-			BeforeEach(func() {
-				bindDetails.RawParameters = json.RawMessage(`{"dbname": true}`)
-			})
+		Context("when Parameters are not valid", func() {
 
 			It("returns the proper error", func() {
+				bindDetails.RawParameters = json.RawMessage(`not JSON`)
 				_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("'dbname' expected type 'string', got unconvertible type 'bool'"))
+				Expect(sqlProvider.GetSQLEngineCalled).To(BeFalse())
 			})
 
 			Context("and user bind parameters are not allowed", func() {
@@ -2181,9 +2208,17 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("does not return an error", func() {
+					bindDetails.RawParameters = json.RawMessage(`not JSON`)
 					_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
 					Expect(err).ToNot(HaveOccurred())
 				})
+			})
+
+			It("returns an error for extra params", func() {
+				bindDetails.RawParameters = json.RawMessage(`{"foo": "bar"}`)
+				_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails)
+				Expect(err).To(MatchError(ContainSubstring(`unknown field "foo"`)))
+				Expect(sqlProvider.GetSQLEngineCalled).To(BeFalse())
 			})
 		})
 

@@ -1,6 +1,7 @@
 package rdsbroker
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -165,7 +166,9 @@ func (b *RDSBroker) Provision(
 
 	provisionParameters := ProvisionParameters{}
 	if b.allowUserProvisionParameters && len(details.RawParameters) > 0 {
-		if err := json.Unmarshal(details.RawParameters, &provisionParameters); err != nil {
+		decoder := json.NewDecoder(bytes.NewReader(details.RawParameters))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&provisionParameters); err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
 		if err := provisionParameters.Validate(); err != nil {
@@ -266,7 +269,9 @@ func (b *RDSBroker) Update(
 
 	updateParameters := UpdateParameters{}
 	if b.allowUserUpdateParameters && len(details.RawParameters) > 0 {
-		if err := json.Unmarshal(details.RawParameters, &updateParameters); err != nil {
+		decoder := json.NewDecoder(bytes.NewReader(details.RawParameters))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&updateParameters); err != nil {
 			return brokerapi.UpdateServiceSpec{}, err
 		}
 		if err := updateParameters.Validate(); err != nil {
@@ -419,7 +424,9 @@ func (b *RDSBroker) Bind(
 
 	bindParameters := BindParameters{}
 	if b.allowUserBindParameters && len(details.RawParameters) > 0 {
-		if err := json.Unmarshal(details.RawParameters, &bindParameters); err != nil {
+		decoder := json.NewDecoder(bytes.NewReader(details.RawParameters))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&bindParameters); err != nil {
 			return bindingResponse, err
 		}
 	}
