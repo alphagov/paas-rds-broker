@@ -459,6 +459,7 @@ func pollForOperationCompletion(brokerAPIClient *BrokerAPIClient, instanceID, se
 	var err error
 
 	fmt.Fprint(GinkgoWriter, "Polling for Instance Operation to complete")
+	time.Sleep(15 * time.Second) // Ensure the operation has actually started in AWS
 	Eventually(
 		func() string {
 			fmt.Fprint(GinkgoWriter, ".")
