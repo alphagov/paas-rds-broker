@@ -3,17 +3,22 @@ platform: linux
 image_resource:
   type: docker-image
   source:
-    repository: governmentpaas/cf-acceptance-tests
-    tag: b77e27029dfcb85f6c58f0a59298d05cc5eeb903
+    repository: golang
+    tag: 1.12
 inputs:
   - name: repo
+    path: src/github.com/alphagov/paas-rds-broker
 run:
   path: sh
   args:
     - -e
     - -c
     - |
-      mkdir -p "${GOPATH}/src/github.com/alphagov/paas-rds-broker"
-      rsync -az repo/ "${GOPATH}/src/github.com/alphagov/paas-rds-broker/"
+      export GOPATH=$(pwd)
+      export PATH="${GOPATH}/bin:${PATH}"
+
+      cd "${GOPATH}/src/github.com/alphagov/paas-rds-broker/vendor/github.com/onsi/ginkgo/ginkgo"
+      go install
+
       cd "${GOPATH}/src/github.com/alphagov/paas-rds-broker"
       make integration
