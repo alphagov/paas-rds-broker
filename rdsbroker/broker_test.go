@@ -667,19 +667,12 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			Context("creates a SkipFinalSnapshot tag", func() {
-
-				Context("given there are no provision parameters set", func() {
-
+				Context("with a plan that doesn't specify SkipFinalSnapshot", func() {
 					BeforeEach(func() {
-						provisionDetails = brokerapi.ProvisionDetails{
-							OrganizationGUID: "organization-id",
-							PlanID:           "Plan-3",
-							ServiceID:        "Service-3",
-							SpaceGUID:        "space-id",
-						}
+						rdsProperties1.SkipFinalSnapshot = nil
 					})
 
-					It("sets the tag to false (default behaviour)", func() {
+					It("sets the tag to false by default", func() {
 						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 						Expect(err).ToNot(HaveOccurred())
 
@@ -690,16 +683,10 @@ var _ = Describe("RDS Broker", func() {
 						tagsByName := awsrds.RDSTagsValues(input.Tags)
 						Expect(tagsByName["SkipFinalSnapshot"]).To(Equal("false"))
 					})
-				})
 
-				Context("given there are provision parameters set", func() {
+					It("allows the user to override this", func() {
+						provisionDetails.RawParameters = json.RawMessage(`{"skip_final_snapshot": true}`)
 
-					BeforeEach(func() {
-						params := json.RawMessage(`{"SkipFinalSnapshot": "true"}`)
-						provisionDetails.RawParameters = params
-					})
-
-					It("the parameters override the default", func() {
 						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 						Expect(err).ToNot(HaveOccurred())
 
@@ -712,6 +699,37 @@ var _ = Describe("RDS Broker", func() {
 					})
 				})
 
+				Context("with a plan that specifies SkipFinalSnapshot", func() {
+					BeforeEach(func() {
+						rdsProperties1.SkipFinalSnapshot = boolPointer(true)
+					})
+
+					It("sets the tag to the plan value by default", func() {
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+						input := rdsInstance.CreateArgsForCall(0)
+						Expect(input).ToNot(BeNil())
+
+						tagsByName := awsrds.RDSTagsValues(input.Tags)
+						Expect(tagsByName["SkipFinalSnapshot"]).To(Equal("true"))
+					})
+
+					It("allows the user to override this", func() {
+						provisionDetails.RawParameters = json.RawMessage(`{"skip_final_snapshot": false}`)
+
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+						input := rdsInstance.CreateArgsForCall(0)
+						Expect(input).ToNot(BeNil())
+
+						tagsByName := awsrds.RDSTagsValues(input.Tags)
+						Expect(tagsByName["SkipFinalSnapshot"]).To(Equal("false"))
+					})
+				})
 			})
 
 			Context("with a db prefix including - and _", func() {
@@ -1010,8 +1028,7 @@ var _ = Describe("RDS Broker", func() {
 					Expect(aws.StringValue(input.PreferredBackupWindow)).To(Equal("test-preferred-backup-window"))
 				})
 
-				//FIXME: These tests are pending until we allow this user provided parameter
-				PContext("but has PreferredBackupWindow Parameter", func() {
+				Context("but has PreferredBackupWindow Parameter", func() {
 					BeforeEach(func() {
 						provisionDetails.RawParameters = json.RawMessage(`{"preferred_backup_window": "test-preferred-backup-window-parameter"}`)
 					})
@@ -1039,8 +1056,7 @@ var _ = Describe("RDS Broker", func() {
 					Expect(aws.StringValue(input.PreferredMaintenanceWindow)).To(Equal("test-preferred-maintenance-window"))
 				})
 
-				//FIXME: These tests are pending until we allow this user provided parameter
-				PContext("but has PreferredMaintenanceWindow Parameter", func() {
+				Context("but has PreferredMaintenanceWindow Parameter", func() {
 					BeforeEach(func() {
 						provisionDetails.RawParameters = json.RawMessage(`{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}`)
 					})
@@ -1687,8 +1703,7 @@ var _ = Describe("RDS Broker", func() {
 				Expect(aws.StringValue(input.PreferredBackupWindow)).To(Equal("test-preferred-backup-window"))
 			})
 
-			//FIXME: These tests are pending until we allow this user provided parameter
-			PContext("but has PreferredBackupWindow Parameter", func() {
+			Context("but has PreferredBackupWindow Parameter", func() {
 				BeforeEach(func() {
 					updateDetails.RawParameters = json.RawMessage(`{"preferred_backup_window": "test-preferred-backup-window-parameter"}`)
 				})
@@ -1716,8 +1731,7 @@ var _ = Describe("RDS Broker", func() {
 				Expect(aws.StringValue(input.PreferredMaintenanceWindow)).To(Equal("test-preferred-maintenance-window"))
 			})
 
-			//FIXME: These tests are pending until we allow this user provided parameter
-			PContext("but has PreferredMaintenanceWindow Parameter", func() {
+			Context("but has PreferredMaintenanceWindow Parameter", func() {
 				BeforeEach(func() {
 					updateDetails.RawParameters = json.RawMessage(`{"preferred_maintenance_window": "test-preferred-maintenance-window-parameter"}`)
 				})
@@ -1729,6 +1743,31 @@ var _ = Describe("RDS Broker", func() {
 					input := rdsInstance.ModifyArgsForCall(0)
 					Expect(aws.StringValue(input.PreferredMaintenanceWindow)).To(Equal("test-preferred-maintenance-window-parameter"))
 				})
+			})
+		})
+
+		Describe("handling SkipFinalSnapshot", func() {
+
+			It("should not update the tag by default", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(1))
+				_, tags := rdsInstance.AddTagsToResourceArgsForCall(0)
+				Expect(awsrds.RDSTagsValues(tags)).NotTo(HaveKey("SkipFinalSnapshot"))
+			})
+
+			It("should update the tag if the user requests it", func() {
+				updateDetails.RawParameters = json.RawMessage(`{"skip_final_snapshot": true}`)
+
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(1))
+				_, tags := rdsInstance.AddTagsToResourceArgsForCall(0)
+				tagValues := awsrds.RDSTagsValues(tags)
+				Expect(tagValues).To(HaveKey("SkipFinalSnapshot"))
+				Expect(tagValues["SkipFinalSnapshot"]).To(Equal("true"))
 			})
 		})
 

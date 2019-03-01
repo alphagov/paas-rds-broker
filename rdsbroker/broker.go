@@ -187,7 +187,7 @@ func (b *RDSBroker) Provision(
 	}
 
 	if provisionParameters.RestoreFromLatestSnapshotOf == nil {
-		createDBInstance, err := b.createDBInstance(instanceID, servicePlan, provisionParameters, details)
+		createDBInstance, err := b.newCreateDBInstanceInput(instanceID, servicePlan, provisionParameters, details)
 		if err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
@@ -334,15 +334,7 @@ func (b *RDSBroker) Update(
 	// could have been enabled at creation time
 	previousDbParamGroup := existingInstance.DBParameterGroups[0].DBParameterGroupName
 
-	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, previousDbParamGroup)
-	modifyDBInstanceInput.ApplyImmediately = aws.Bool(!updateParameters.ApplyAtMaintenanceWindow)
-
-	var skipFinalSnapshot string
-	if updateParameters.SkipFinalSnapshot != nil {
-		skipFinalSnapshot = strconv.FormatBool(*updateParameters.SkipFinalSnapshot)
-	} else {
-		skipFinalSnapshot = strconv.FormatBool(servicePlan.RDSProperties.SkipFinalSnapshot == nil && *servicePlan.RDSProperties.SkipFinalSnapshot)
-	}
+	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, updateParameters, previousDbParamGroup)
 
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)
 	if err != nil {
@@ -352,13 +344,16 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, err
 	}
 
-	tags := awsrds.BuilRDSTags(b.dbTags(RDSInstanceTags{
-		Action:            "Updated",
-		ServiceID:         details.ServiceID,
-		PlanID:            details.PlanID,
-		SkipFinalSnapshot: skipFinalSnapshot,
-	}))
+	instanceTags := RDSInstanceTags{
+		Action:    "Updated",
+		ServiceID: details.ServiceID,
+		PlanID:    details.PlanID,
+	}
+	if updateParameters.SkipFinalSnapshot != nil {
+		instanceTags.SkipFinalSnapshot = strconv.FormatBool(*updateParameters.SkipFinalSnapshot)
+	}
 
+	tags := awsrds.BuilRDSTags(b.dbTags(instanceTags))
 	b.dbInstance.AddTagsToResource(aws.StringValue(updatedDBInstance.DBInstanceArn), tags)
 
 	return brokerapi.UpdateServiceSpec{IsAsync: true}, nil
@@ -688,7 +683,7 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 
 	existingParameterGroup := dbInstance.DBParameterGroups[0].DBParameterGroupName
 
-	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, existingParameterGroup)
+	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, UpdateParameters{}, existingParameterGroup)
 	modifyDBInstanceInput.MasterUserPassword = aws.String(b.generateMasterPassword(instanceID))
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)
 	if err != nil {
@@ -871,18 +866,12 @@ func (b *RDSBroker) dbNameFromDBInstance(instanceID string, dbInstance *rds.DBIn
 	return dbName
 }
 
-func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.CreateDBInstanceInput, error) {
+func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.CreateDBInstanceInput, error) {
 	skipFinalSnapshot := false
 	if provisionParameters.SkipFinalSnapshot != nil {
 		skipFinalSnapshot = *provisionParameters.SkipFinalSnapshot
 	} else if servicePlan.RDSProperties.SkipFinalSnapshot != nil {
 		skipFinalSnapshot = *servicePlan.RDSProperties.SkipFinalSnapshot
-	}
-	skipFinalSnapshotStr := strconv.FormatBool(skipFinalSnapshot)
-
-	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters)
-	if err != nil {
-		return nil, err
 	}
 
 	tags := RDSInstanceTags{
@@ -891,11 +880,16 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		PlanID:            details.PlanID,
 		OrganizationID:    details.OrganizationGUID,
 		SpaceID:           details.SpaceGUID,
-		SkipFinalSnapshot: skipFinalSnapshotStr,
+		SkipFinalSnapshot: strconv.FormatBool(skipFinalSnapshot),
 		Extensions:        provisionParameters.Extensions,
 	}
 
-	return &rds.CreateDBInstanceInput{
+	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters)
+	if err != nil {
+		return nil, err
+	}
+
+	createDBInstanceInput := &rds.CreateDBInstanceInput{
 		DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBName:                     aws.String(b.dbName(instanceID)),
 		MasterUsername:             aws.String(b.generateMasterUsername()),
@@ -925,7 +919,14 @@ func (b *RDSBroker) createDBInstance(instanceID string, servicePlan ServicePlan,
 		StorageType:                servicePlan.RDSProperties.StorageType,
 		VpcSecurityGroupIds:        servicePlan.RDSProperties.VpcSecurityGroupIds,
 		Tags:                       awsrds.BuilRDSTags(b.dbTags(tags)),
-	}, nil
+	}
+	if provisionParameters.PreferredBackupWindow != "" {
+		createDBInstanceInput.PreferredBackupWindow = aws.String(provisionParameters.PreferredBackupWindow)
+	}
+	if provisionParameters.PreferredMaintenanceWindow != "" {
+		createDBInstanceInput.PreferredMaintenanceWindow = aws.String(provisionParameters.PreferredMaintenanceWindow)
+	}
+	return createDBInstanceInput, nil
 }
 
 func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.RestoreDBInstanceFromDBSnapshotInput, error) {
@@ -975,7 +976,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 	}, nil
 }
 
-func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan, parameterGroupName *string) *rds.ModifyDBInstanceInput {
+func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan, updateParameters UpdateParameters, parameterGroupName *string) *rds.ModifyDBInstanceInput {
 	modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
 		DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBInstanceClass:            servicePlan.RDSProperties.DBInstanceClass,
@@ -996,6 +997,13 @@ func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan Serv
 		PreferredBackupWindow:      servicePlan.RDSProperties.PreferredBackupWindow,
 		StorageType:                servicePlan.RDSProperties.StorageType,
 		VpcSecurityGroupIds:        servicePlan.RDSProperties.VpcSecurityGroupIds,
+		ApplyImmediately:           aws.Bool(!updateParameters.ApplyAtMaintenanceWindow),
+	}
+	if updateParameters.PreferredBackupWindow != "" {
+		modifyDBInstanceInput.PreferredBackupWindow = aws.String(updateParameters.PreferredBackupWindow)
+	}
+	if updateParameters.PreferredMaintenanceWindow != "" {
+		modifyDBInstanceInput.PreferredMaintenanceWindow = aws.String(updateParameters.PreferredMaintenanceWindow)
 	}
 
 	b.logger.Debug("newModifyDBInstanceInputAndTags", lager.Data{
