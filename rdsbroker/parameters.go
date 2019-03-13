@@ -8,7 +8,7 @@ type ProvisionParameters struct {
 	PreferredMaintenanceWindow  string   `json:"preferred_maintenance_window"`
 	SkipFinalSnapshot           *bool    `json:"skip_final_snapshot"`
 	RestoreFromLatestSnapshotOf *string  `json:"restore_from_latest_snapshot_of"`
-	Extensions                  []string `json:"enabled_extensions"`
+	Extensions                  []string `json:"enable_extensions"`
 }
 
 type UpdateParameters struct {

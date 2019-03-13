@@ -578,7 +578,7 @@ var _ = Describe("RDS Broker", func() {
 
 				Context("when the user passes extensions to set", func() {
 					BeforeEach(func() {
-						provisionDetails.RawParameters = json.RawMessage(`{"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `", "enabled_extensions": ["postgres_super_extension"]}`)
+						provisionDetails.RawParameters = json.RawMessage(`{"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `", "enable_extensions": ["postgres_super_extension"]}`)
 					})
 					It("adds those extensions to the set of extensions on the snapshot", func() {
 						dbSnapshotTags[awsrds.TagExtensions] = "foo:bar"
@@ -617,7 +617,7 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			It("sets the right tags", func() {
-				jsonData := []byte(`{"enabled_extensions": ["postgis", "pg_stat_statements"]}`)
+				jsonData := []byte(`{"enable_extensions": ["postgis", "pg_stat_statements"]}`)
 				rawparams := (*json.RawMessage)(&jsonData)
 				provisionDetails.RawParameters = *rawparams
 
@@ -1201,7 +1201,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("will enable the plan's default extensions when no other extensions have been requested", func() {
-					payload := []byte(`{"enabled_extensions": []}`)
+					payload := []byte(`{"enable_extensions": []}`)
 					payloadMessage := (*json.RawMessage)(&payload)
 					provisionDetails.RawParameters = *payloadMessage
 
@@ -1221,7 +1221,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("will enable the plan's default extensions in addition to any extensions requested", func() {
-					payload := []byte(`{"enabled_extensions": ["postgres_super_extension"]}`)
+					payload := []byte(`{"enable_extensions": ["postgres_super_extension"]}`)
 					payloadMessage := (*json.RawMessage)(&payload)
 					provisionDetails.RawParameters = *payloadMessage
 
@@ -1242,7 +1242,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("returns an error when an extension isn't supported", func() {
-					jsonData := []byte(`{"enabled_extensions": ["foo"]}`)
+					jsonData := []byte(`{"enable_extensions": ["foo"]}`)
 					rawparams := (*json.RawMessage)(&jsonData)
 					provisionDetails.RawParameters = *rawparams
 
