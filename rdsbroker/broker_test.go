@@ -571,9 +571,9 @@ var _ = Describe("RDS Broker", func() {
 					Expect(err).ToNot(HaveOccurred())
 
 					Expect(paramGroupSelector.SelectParameterGroupCallCount()).To(Equal(1))
-					_, inputProvisionParameters := paramGroupSelector.SelectParameterGroupArgsForCall(0)
-					Expect(inputProvisionParameters.Extensions).To(ContainElement("foo"))
-					Expect(inputProvisionParameters.Extensions).To(ContainElement("bar"))
+					_, extensions := paramGroupSelector.SelectParameterGroupArgsForCall(0)
+					Expect(extensions).To(ContainElement("foo"))
+					Expect(extensions).To(ContainElement("bar"))
 				})
 
 				Context("when the user passes extensions to set", func() {
@@ -589,10 +589,10 @@ var _ = Describe("RDS Broker", func() {
 						Expect(err).ToNot(HaveOccurred())
 
 						Expect(paramGroupSelector.SelectParameterGroupCallCount()).To(Equal(1))
-						_, inputProvisionParameters := paramGroupSelector.SelectParameterGroupArgsForCall(0)
-						Expect(inputProvisionParameters.Extensions).To(ContainElement("foo"))
-						Expect(inputProvisionParameters.Extensions).To(ContainElement("bar"))
-						Expect(inputProvisionParameters.Extensions).To(ContainElement("postgres_super_extension"))
+						_, extensions := paramGroupSelector.SelectParameterGroupArgsForCall(0)
+						Expect(extensions).To(ContainElement("foo"))
+						Expect(extensions).To(ContainElement("bar"))
+						Expect(extensions).To(ContainElement("postgres_super_extension"))
 					})
 				})
 			})

@@ -1,5 +1,7 @@
 package rdsbroker
 
+import "fmt"
+
 type ProvisionParameters struct {
 	BackupRetentionPeriod       int64    `json:"backup_retention_period"`
 	CharacterSetName            string   `json:"character_set_name"`
@@ -12,13 +14,15 @@ type ProvisionParameters struct {
 }
 
 type UpdateParameters struct {
-	ApplyAtMaintenanceWindow   bool   `json:"apply_at_maintenance_window"`
-	BackupRetentionPeriod      int64  `json:"backup_retention_period"`
-	PreferredBackupWindow      string `json:"preferred_backup_window"`
-	PreferredMaintenanceWindow string `json:"preferred_maintenance_window"`
-	SkipFinalSnapshot          *bool  `json:"skip_final_snapshot"`
-	Reboot                     *bool  `json:"reboot"`
-	ForceFailover              *bool  `json:"force_failover"`
+	ApplyAtMaintenanceWindow   bool     `json:"apply_at_maintenance_window"`
+	BackupRetentionPeriod      int64    `json:"backup_retention_period"`
+	PreferredBackupWindow      string   `json:"preferred_backup_window"`
+	PreferredMaintenanceWindow string   `json:"preferred_maintenance_window"`
+	SkipFinalSnapshot          *bool    `json:"skip_final_snapshot"`
+	Reboot                     *bool    `json:"reboot"`
+	ForceFailover              *bool    `json:"force_failover"`
+	EnableExtensions           []string `json:"enable_extensions"`
+	DisableExtensions          []string `json:"disable_extensions"`
 }
 
 type BindParameters struct {
@@ -30,6 +34,13 @@ func (pp *ProvisionParameters) Validate() error {
 	return nil
 }
 
-func (pp *UpdateParameters) Validate() error {
+func (up *UpdateParameters) Validate() error {
+	for _, ext1 := range up.EnableExtensions {
+		for _, ext2 := range up.DisableExtensions {
+			if ext1 == ext2 {
+				return fmt.Errorf("%s is set in both enable_extensions and disable_extensions", ext1)
+			}
+		}
+	}
 	return nil
 }

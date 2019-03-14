@@ -40,7 +40,8 @@ var _ = Describe("RDS Broker", func() {
 
 		config Config
 
-		rdsInstance *rdsfake.FakeRDSInstance
+		rdsInstance        *rdsfake.FakeRDSInstance
+		existingDbInstance *rds.DBInstance
 
 		sqlProvider *sqlfake.FakeProvider
 		sqlEngine   *sqlfake.FakeSQLEngine
@@ -58,6 +59,7 @@ var _ = Describe("RDS Broker", func() {
 		skipFinalSnapshot            bool
 		dbPrefix                     string
 		brokerName                   string
+		newParamGroupName            string
 	)
 
 	const (
@@ -82,6 +84,7 @@ var _ = Describe("RDS Broker", func() {
 		skipFinalSnapshot = true
 		dbPrefix = "cf"
 		brokerName = "mybroker"
+		newParamGroupName = "originalParameterGroupName"
 
 		rdsInstance = &rdsfake.FakeRDSInstance{}
 
@@ -205,9 +208,18 @@ var _ = Describe("RDS Broker", func() {
 		logger.RegisterSink(testSink)
 
 		paramGroupSelector = fakes.FakeParameterGroupSelector{}
-		paramGroupSelector.SelectParameterGroupReturns(dbPrefix+"-postgres10-"+brokerName, nil)
+		paramGroupSelector.SelectParameterGroupReturns(newParamGroupName, nil)
 
 		rdsBroker = New(config, rdsInstance, sqlProvider, &paramGroupSelector, logger)
+
+		existingDbInstance = &rds.DBInstance{
+			DBParameterGroups: []*rds.DBParameterGroupStatus{
+				&rds.DBParameterGroupStatus{
+					DBParameterGroupName: aws.String("originalParameterGroupName"),
+				},
+			},
+		}
+		rdsInstance.DescribeReturns(existingDbInstance, nil)
 	})
 
 	Describe("Update", func() {
@@ -215,7 +227,6 @@ var _ = Describe("RDS Broker", func() {
 			updateDetails           brokerapi.UpdateDetails
 			acceptsIncomplete       bool
 			properUpdateServiceSpec brokerapi.UpdateServiceSpec
-			existingDbInstance      *rds.DBInstance
 		)
 
 		BeforeEach(func() {
@@ -234,15 +245,6 @@ var _ = Describe("RDS Broker", func() {
 			properUpdateServiceSpec = brokerapi.UpdateServiceSpec{
 				IsAsync: true,
 			}
-
-			existingDbInstance = &rds.DBInstance{
-				DBParameterGroups: []*rds.DBParameterGroupStatus{
-					&rds.DBParameterGroupStatus{
-						DBParameterGroupName: aws.String("rdsbroker-postgres10-envname"),
-					},
-				},
-			}
-			rdsInstance.DescribeReturns(existingDbInstance, nil)
 
 			rdsInstance.ModifyReturns(
 				&rds.DBInstance{
@@ -816,76 +818,166 @@ var _ = Describe("RDS Broker", func() {
 				rdsInstance.GetResourceTagsReturns(nil, errors.New("operation failed"))
 			})
 
-			It("does not return an error", func() {
+			It("returns an error", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(err).ToNot(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 			})
 		})
-	})
 
-	Describe("Reboot", func() {
-		var (
-			updateDetails           brokerapi.UpdateDetails
-			acceptsIncomplete       bool
-			properUpdateServiceSpec brokerapi.UpdateServiceSpec
-		)
+		It("accepts the enable_extensions parameter", func() {
+			updateDetails.RawParameters = json.RawMessage(`{"enable_extensions": []}`)
+			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+			Expect(err).ToNot(HaveOccurred())
+		})
 
-		BeforeEach(func() {
-			updateDetails = brokerapi.UpdateDetails{
-				ServiceID: "Service-1",
-				PlanID:    "Plan-1",
-				PreviousValues: brokerapi.PreviousValues{
-					PlanID:    "Plan-1",
+		It("accepts the disable_extensions parameter", func() {
+			updateDetails.RawParameters = json.RawMessage(`{"disable_extensions": []}`)
+			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("if an extension is in both enable_extensions and disable_enxtension", func() {
+			It("returns an error", func() {
+				updateDetails.RawParameters = json.RawMessage(`{"disable_extensions": ["postgres_super_extension"], "enable_extensions": ["postgres_super_extension"]}`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(MatchError("postgres_super_extension is set in both enable_extensions and disable_extensions"))
+			})
+		})
+
+		Context("when reboot is set to true", func() {
+			BeforeEach(func() {
+				updateDetails = brokerapi.UpdateDetails{
 					ServiceID: "Service-1",
-					OrgID:     "organization-id",
-					SpaceID:   "space-id",
-				},
-				RawParameters: json.RawMessage(`{ "reboot": true }`),
-			}
-			acceptsIncomplete = true
-			properUpdateServiceSpec = brokerapi.UpdateServiceSpec{
-				IsAsync: true,
-			}
+					PlanID:    "Plan-1",
+					PreviousValues: brokerapi.PreviousValues{
+						PlanID:    "Plan-1",
+						ServiceID: "Service-1",
+						OrgID:     "organization-id",
+						SpaceID:   "space-id",
+					},
+					RawParameters: json.RawMessage(`{ "reboot": true }`),
+				}
+			})
 
-			rdsInstance.RebootReturns(
-				nil,
-			)
+			It("returns the proper response", func() {
+				updateServiceSpec, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(updateServiceSpec).To(Equal(properUpdateServiceSpec))
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.RebootCallCount()).To(Equal(1))
+				input := rdsInstance.RebootArgsForCall(0)
+				Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+			})
+
+			It("passes the force failover option", func() {
+				updateDetails.RawParameters = json.RawMessage(`{ "reboot": true, "force_failover": true }`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.RebootCallCount()).To(Equal(1))
+				input := rdsInstance.RebootArgsForCall(0)
+				Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
+				Expect(aws.BoolValue(input.ForceFailover)).To(BeTrue())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+			})
+
+			It("fails if the reboot include a plan change", func() {
+				updateDetails.RawParameters = json.RawMessage(`{ "reboot": true, "force_failover": true }`)
+				updateDetails.PlanID = "plan-2"
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(MatchError("Invalid to reboot and update plan in the same command"))
+				Expect(rdsInstance.RebootCallCount()).To(Equal(0))
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
+			})
 		})
 
-		It("returns the proper response", func() {
-			updateServiceSpec, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-			Expect(updateServiceSpec).To(Equal(properUpdateServiceSpec))
-			Expect(err).ToNot(HaveOccurred())
-		})
+		Context("when extension is added", func() {
+			BeforeEach(func() {
+				updateDetails = brokerapi.UpdateDetails{
+					ServiceID: "Service-1",
+					PlanID:    "Plan-1",
+					PreviousValues: brokerapi.PreviousValues{
+						PlanID:    "Plan-1",
+						ServiceID: "Service-1",
+						OrgID:     "organization-id",
+						SpaceID:   "space-id",
+					},
+					RawParameters: json.RawMessage(`{ "reboot": true }`),
+				}
 
-		It("makes the proper calls", func() {
-			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(rdsInstance.RebootCallCount()).To(Equal(1))
-			input := rdsInstance.RebootArgsForCall(0)
-			Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
-			Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
-		})
+				dbTags := map[string]string{
+					awsrds.TagExtensions: "postgis:pg_stat_statements",
+				}
+				rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbTags), nil)
+			})
 
-		It("passes the force failover option", func() {
-			updateDetails.RawParameters = json.RawMessage(`{ "reboot": true, "force_failover": true }`)
-			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(rdsInstance.RebootCallCount()).To(Equal(1))
-			input := rdsInstance.RebootArgsForCall(0)
-			Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
-			Expect(aws.BoolValue(input.ForceFailover)).To(BeTrue())
-			Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
-		})
+			It("successfully sets an extension", func() {
+				updateDetails.RawParameters = json.RawMessage(`{"enable_extensions": ["postgres_super_extension"]}`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
 
-		It("fails if the reboot include a plan change", func() {
-			updateDetails.RawParameters = json.RawMessage(`{ "reboot": true, "force_failover": true }`)
-			updateDetails.PlanID = "plan-2"
-			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError("Invalid to reboot and update plan in the same command"))
-			Expect(rdsInstance.RebootCallCount()).To(Equal(0))
-			Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal(newParamGroupName))
+
+				Expect(paramGroupSelector.SelectParameterGroupCallCount()).To(Equal(1))
+				_, extensions := paramGroupSelector.SelectParameterGroupArgsForCall(0)
+				Expect(extensions).To(ContainElement("postgres_super_extension"))
+				Expect(extensions).To(ContainElement("postgis"))
+				Expect(extensions).To(ContainElement("pg_stat_statements"))
+				Expect(extensions).To(HaveLen(3))
+				Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(1))
+				_, tags := rdsInstance.AddTagsToResourceArgsForCall(0)
+				Expect(tags).To(ContainElement(&rds.Tag{
+					Key:   aws.String("Extensions"),
+					Value: aws.String("postgis:pg_stat_statements:postgres_super_extension"),
+				}))
+
+			})
+
+			It("ignores an extension that has already been enabled", func() {
+				updateDetails.RawParameters = json.RawMessage(`{"enable_extensions": ["pg_stat_statements"]}`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, tags := rdsInstance.AddTagsToResourceArgsForCall(0)
+				Expect(tags).To(ContainElement(&rds.Tag{
+					Key:   aws.String("Extensions"),
+					Value: aws.String("postgis:pg_stat_statements"),
+				}))
+
+				_, extensions := paramGroupSelector.SelectParameterGroupArgsForCall(0)
+				Expect(extensions).To(HaveLen(2))
+			})
+
+			It("checks if the extension is supported", func() {
+				updateDetails.RawParameters = json.RawMessage(`{"enable_extensions": ["noext"]}`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(MatchError("noext is not supported"))
+			})
+
+			Context("when the parameter group is updated", func() {
+				BeforeEach(func() {
+					newParamGroupName = "updatedParamGroupName"
+				})
+
+				It("enables an extension successfully if reboot is set to true", func() {
+					updateDetails.RawParameters = json.RawMessage(`{"enable_extensions": ["postgres_super_extension"], "reboot": true}`)
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("fails when reboot isn't set and an extension that requires one is set", func() {
+					updateDetails.RawParameters = json.RawMessage(`{"enable_extensions": ["postgres_super_extension"]}`)
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(MatchError("The requested extensions require the instance to be manually rebooted. Please re-run update service with reboot set to true"))
+				})
+			})
 		})
 	})
 })

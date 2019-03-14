@@ -1,9 +1,10 @@
 package rdsbroker
 
 import (
+	"errors"
+
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
-	"errors"
 	"github.com/alphagov/paas-rds-broker/awsrds/fakes"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -17,7 +18,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 	Describe("composeGroupName", func() {
 		var config Config
 		var servicePlan ServicePlan
-		var provisionParameters ProvisionParameters
+		var extensions []string
 		var supportedPreloads map[string][]DBExtension
 
 		BeforeEach(func() {
@@ -34,8 +35,6 @@ var _ = Describe("ParameterGroupsSource", func() {
 				},
 			}
 
-			provisionParameters = ProvisionParameters{}
-
 			supportedPreloads = map[string][]DBExtension{
 				"postgres10": {
 					DBExtension{
@@ -47,57 +46,57 @@ var _ = Describe("ParameterGroupsSource", func() {
 		})
 
 		It("prepends the configured dbprefix", func() {
-			name := composeGroupName(config, servicePlan, provisionParameters, map[string][]DBExtension{})
+			name := composeGroupName(config, servicePlan, extensions, map[string][]DBExtension{})
 			Expect(name).To(HavePrefix(config.DBPrefix))
 		})
 
 		It("contains the normalised engine family", func() {
 			servicePlan.RDSProperties.EngineFamily = aws.String("test-db-engine-family")
-			name := composeGroupName(config, servicePlan, provisionParameters, map[string][]DBExtension{})
+			name := composeGroupName(config, servicePlan, extensions, map[string][]DBExtension{})
 			Expect(name).To(ContainSubstring("testdbenginefamily"))
 		})
 
 		It("contains the broker name", func() {
-			name := composeGroupName(config, servicePlan, provisionParameters, map[string][]DBExtension{})
+			name := composeGroupName(config, servicePlan, extensions, map[string][]DBExtension{})
 			Expect(name).To(ContainSubstring("envname"))
 		})
 
 		Context("contains the names of extensions", func() {
 			It("only if the db engine is postgres", func() {
-				provisionParameters.Extensions = []string{"pg_stat_statements"}
+				extensions = []string{"pg_stat_statements"}
 				servicePlan.RDSProperties.Engine = aws.String("database")
-				name := composeGroupName(config, servicePlan, provisionParameters, map[string][]DBExtension{})
+				name := composeGroupName(config, servicePlan, extensions, map[string][]DBExtension{})
 				Expect(name).ToNot(HaveSuffix("pgstatstatements"))
 			})
 
 			It("which have been normalised", func() {
-				provisionParameters.Extensions = []string{"pg_stat_statements"}
-				name := composeGroupName(config, servicePlan, provisionParameters, supportedPreloads)
+				extensions = []string{"pg_stat_statements"}
+				name := composeGroupName(config, servicePlan, extensions, supportedPreloads)
 				Expect(name).To(HaveSuffix("pgstatstatements"))
 			})
 
 			It("which require a pre-load library for that engine version", func() {
-				provisionParameters.Extensions = []string{"pg_stat_statements", "notanext"}
-				name := composeGroupName(config, servicePlan, provisionParameters, supportedPreloads)
+				extensions = []string{"pg_stat_statements", "notanext"}
+				name := composeGroupName(config, servicePlan, extensions, supportedPreloads)
 				Expect(name).To(HaveSuffix("pgstatstatements"))
 				Expect(name).ToNot(ContainSubstring("notanext"))
 			})
 
 			It("dash-separates extension names", func() {
-				provisionParameters.Extensions = []string{"pg_stat_statements", "pg_z"}
+				extensions = []string{"pg_stat_statements", "pg_z"}
 
 				supportedPreloads["postgres10"] = append(supportedPreloads["postgres10"], DBExtension{
 					Name:                   "pg_z",
 					RequiresPreloadLibrary: true,
 				})
 
-				name := composeGroupName(config, servicePlan, provisionParameters, supportedPreloads)
+				name := composeGroupName(config, servicePlan, extensions, supportedPreloads)
 
 				Expect(name).To(HaveSuffix("pgstatstatements-pgz"))
 			})
 
 			It("orders the extensions alphabetically", func() {
-				provisionParameters.Extensions = []string{"pg_stat_statements", "pg_a", "pg_z"}
+				extensions = []string{"pg_stat_statements", "pg_a", "pg_z"}
 
 				supportedPreloads["postgres10"] = append(supportedPreloads["postgres10"], DBExtension{
 					Name:                   "pg_a",
@@ -109,7 +108,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 					RequiresPreloadLibrary: true,
 				})
 
-				name := composeGroupName(config, servicePlan, provisionParameters, supportedPreloads)
+				name := composeGroupName(config, servicePlan, extensions, supportedPreloads)
 
 				Expect(name).To(HaveSuffix("pga-pgstatstatements-pgz"))
 			})
@@ -119,7 +118,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 	Describe("SelectParameterGroup", func() {
 		var config Config
 		var servicePlan ServicePlan
-		var provisionDetails ProvisionParameters
+		var extensions []string
 		var rdsFake *fakes.FakeRDSInstance
 		var supportedPreloads map[string][]DBExtension
 
@@ -141,8 +140,6 @@ var _ = Describe("ParameterGroupsSource", func() {
 					EngineFamily:  aws.String("postgres10"),
 				},
 			}
-
-			provisionDetails = ProvisionParameters{}
 
 			logger := lager.NewLogger("rdsbroker_test")
 			gingkoSink := lager.NewWriterSink(GinkgoWriter, lager.INFO)
@@ -167,7 +164,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 			rdsError := awserr.New(rds.ErrCodeDBClusterAlreadyExistsFault, "not found", nil)
 			rdsFake.GetParameterGroupReturns(nil, rdsError)
 
-			_, err := parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+			_, err := parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -182,12 +179,12 @@ var _ = Describe("ParameterGroupsSource", func() {
 			})
 
 			It("does not attempt to create the group", func() {
-				parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+				parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 				Expect(rdsFake.CreateParameterGroupCallCount()).To(Equal(0))
 			})
 
 			It("returns the group name", func() {
-				name, _ := parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+				name, _ := parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 				Expect(name).To(Equal("rdsbroker-postgres10-envname"))
 			})
 		})
@@ -200,7 +197,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 			It("attempts to create the group", func() {
 				rdsFake.CreateParameterGroupReturns(nil)
 
-				parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+				parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 
 				Expect(rdsFake.CreateParameterGroupCallCount()).To(Equal(1))
 				createDBParameterGroupInput := rdsFake.CreateParameterGroupArgsForCall(0)
@@ -211,7 +208,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 				rdsFake.CreateParameterGroupReturns(nil)
 				servicePlan.RDSProperties.EngineFamily = aws.String("postgres10-cfg")
 
-				parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+				parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 
 				Expect(rdsFake.CreateParameterGroupCallCount()).To(Equal(1))
 				createDBParameterGroupInput := rdsFake.CreateParameterGroupArgsForCall(0)
@@ -222,7 +219,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 				createError := awserr.New(rds.ErrCodeDBParameterGroupAlreadyExistsFault, "exists", nil)
 				rdsFake.CreateParameterGroupReturns(createError)
 
-				_, err := parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+				_, err := parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 
 				Expect(err).To(HaveOccurred())
 			})
@@ -235,7 +232,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 
 					rdsFake.ModifyParameterGroupReturns(nil)
 
-					parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+					parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 
 					Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(0), "ModifyParameterGroup was called when it shouldn't have been")
 				})
@@ -243,7 +240,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 				It("and sets the force SSL property", func() {
 					rdsFake.ModifyParameterGroupReturns(nil)
 
-					parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+					parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 					Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
 
 					modifyInput := rdsFake.ModifyParameterGroupArgsForCall(0)
@@ -263,7 +260,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 				It("and sets the log retention period", func() {
 					rdsFake.ModifyParameterGroupReturns(nil)
 
-					parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+					parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 					Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
 
 					modifyInput := rdsFake.ModifyParameterGroupArgsForCall(0)
@@ -282,7 +279,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 			})
 
 			It("when an extension requires a preload library, it modifies the parameter group to add it", func() {
-				provisionDetails.Extensions = []string{"pg_stat_statements", "pg_super_ext"}
+				extensions = []string{"pg_stat_statements", "pg_super_ext"}
 
 				supportedPreloads["postgres10"] = append(supportedPreloads["postgres10"], DBExtension{
 					Name:                   "pg_super_ext",
@@ -291,7 +288,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 
 				rdsFake.ModifyParameterGroupReturns(nil)
 
-				parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+				parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 
 				Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
 
@@ -310,12 +307,12 @@ var _ = Describe("ParameterGroupsSource", func() {
 			})
 
 			It("when no preload libraries are needed, it does not set the shared_preload_libraries parameter, because it's value cannot be empty", func() {
-				provisionDetails.Extensions = []string{"postgis"}
+				extensions = []string{"postgis"}
 				servicePlan.RDSProperties.AllowedExtensions = []*string{aws.String("postgis")}
 
 				rdsFake.ModifyParameterGroupReturns(nil)
 
-				parameterGroupSource.SelectParameterGroup(servicePlan, provisionDetails)
+				parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 				Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
 
 				modifyInput := rdsFake.ModifyParameterGroupArgsForCall(0)

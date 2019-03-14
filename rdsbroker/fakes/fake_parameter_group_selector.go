@@ -8,11 +8,11 @@ import (
 )
 
 type FakeParameterGroupSelector struct {
-	SelectParameterGroupStub        func(rdsbroker.ServicePlan, rdsbroker.ProvisionParameters) (string, error)
+	SelectParameterGroupStub        func(rdsbroker.ServicePlan, []string) (string, error)
 	selectParameterGroupMutex       sync.RWMutex
 	selectParameterGroupArgsForCall []struct {
 		arg1 rdsbroker.ServicePlan
-		arg2 rdsbroker.ProvisionParameters
+		arg2 []string
 	}
 	selectParameterGroupReturns struct {
 		result1 string
@@ -26,14 +26,19 @@ type FakeParameterGroupSelector struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeParameterGroupSelector) SelectParameterGroup(arg1 rdsbroker.ServicePlan, arg2 rdsbroker.ProvisionParameters) (string, error) {
+func (fake *FakeParameterGroupSelector) SelectParameterGroup(arg1 rdsbroker.ServicePlan, arg2 []string) (string, error) {
+	var arg2Copy []string
+	if arg2 != nil {
+		arg2Copy = make([]string, len(arg2))
+		copy(arg2Copy, arg2)
+	}
 	fake.selectParameterGroupMutex.Lock()
 	ret, specificReturn := fake.selectParameterGroupReturnsOnCall[len(fake.selectParameterGroupArgsForCall)]
 	fake.selectParameterGroupArgsForCall = append(fake.selectParameterGroupArgsForCall, struct {
 		arg1 rdsbroker.ServicePlan
-		arg2 rdsbroker.ProvisionParameters
-	}{arg1, arg2})
-	fake.recordInvocation("SelectParameterGroup", []interface{}{arg1, arg2})
+		arg2 []string
+	}{arg1, arg2Copy})
+	fake.recordInvocation("SelectParameterGroup", []interface{}{arg1, arg2Copy})
 	fake.selectParameterGroupMutex.Unlock()
 	if fake.SelectParameterGroupStub != nil {
 		return fake.SelectParameterGroupStub(arg1, arg2)
@@ -51,13 +56,13 @@ func (fake *FakeParameterGroupSelector) SelectParameterGroupCallCount() int {
 	return len(fake.selectParameterGroupArgsForCall)
 }
 
-func (fake *FakeParameterGroupSelector) SelectParameterGroupCalls(stub func(rdsbroker.ServicePlan, rdsbroker.ProvisionParameters) (string, error)) {
+func (fake *FakeParameterGroupSelector) SelectParameterGroupCalls(stub func(rdsbroker.ServicePlan, []string) (string, error)) {
 	fake.selectParameterGroupMutex.Lock()
 	defer fake.selectParameterGroupMutex.Unlock()
 	fake.SelectParameterGroupStub = stub
 }
 
-func (fake *FakeParameterGroupSelector) SelectParameterGroupArgsForCall(i int) (rdsbroker.ServicePlan, rdsbroker.ProvisionParameters) {
+func (fake *FakeParameterGroupSelector) SelectParameterGroupArgsForCall(i int) (rdsbroker.ServicePlan, []string) {
 	fake.selectParameterGroupMutex.RLock()
 	defer fake.selectParameterGroupMutex.RUnlock()
 	argsForCall := fake.selectParameterGroupArgsForCall[i]
