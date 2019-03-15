@@ -490,7 +490,8 @@ var _ = Describe("PostgresEngine", func() {
 	})
 
 	Describe("Extensions", func() {
-		It("can create extensions", func() {
+		It("can create and drop extensions", func() {
+			By("creating the extensions")
 			err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
 			defer postgresEngine.Close()
 			Expect(err).ToNot(HaveOccurred())
@@ -499,6 +500,8 @@ var _ = Describe("PostgresEngine", func() {
 			rows, err := postgresEngine.db.Query("SELECT extname FROM pg_catalog.pg_extension")
 			defer rows.Close()
 			Expect(err).ToNot(HaveOccurred())
+
+			By("checking the extensions post CreateExtensions")
 			extensions := []string{}
 			for rows.Next() {
 				var name string
@@ -509,6 +512,25 @@ var _ = Describe("PostgresEngine", func() {
 			Expect(rows.Err()).ToNot(HaveOccurred())
 			Expect(extensions).To(ContainElement("uuid-ossp"))
 			Expect(extensions).To(ContainElement("pgcrypto"))
+
+			By("dropping the extensions")
+			err = postgresEngine.DropExtensions([]string{"pgcrypto"})
+			Expect(err).ToNot(HaveOccurred())
+			rows, err = postgresEngine.db.Query("SELECT extname FROM pg_catalog.pg_extension")
+			defer rows.Close()
+			Expect(err).ToNot(HaveOccurred())
+
+			By("checking the extensions post DropExtensions")
+			extensions = []string{}
+			for rows.Next() {
+				var name string
+				err = rows.Scan(&name)
+				Expect(err).ToNot(HaveOccurred())
+				extensions = append(extensions, name)
+			}
+			Expect(rows.Err()).ToNot(HaveOccurred())
+			Expect(extensions).To(ContainElement("uuid-ossp"))
+			Expect(extensions).ToNot(ContainElement("pgcrypto"))
 		})
 	})
 })
