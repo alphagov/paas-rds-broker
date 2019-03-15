@@ -323,11 +323,17 @@ func (b *RDSBroker) Update(
 
 	newDbParamGroup := previousDbParamGroup
 
-	extensions := mergeExtensions(aws.StringValueSlice(servicePlan.RDSProperties.DefaultExtensions), updateParameters.EnableExtensions)
-	ok, unsupportedExtensions := extensionsAreSupported(servicePlan, updateParameters.EnableExtensions)
+	ok, unsupportedExtension := extensionsAreSupported(servicePlan, mergeExtensions(updateParameters.EnableExtensions, updateParameters.DisableExtensions))
 	if !ok {
-		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("%s is not supported", unsupportedExtensions)
+		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("%s is not supported", unsupportedExtension)
 	}
+
+	ok, defaultExtension := containsDefaultExtension(servicePlan, updateParameters.DisableExtensions)
+	if ok {
+		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("%s cannot be disabled", defaultExtension)
+	}
+
+	extensions := mergeExtensions(aws.StringValueSlice(servicePlan.RDSProperties.DefaultExtensions), updateParameters.EnableExtensions)
 
 	tags, err := b.dbInstance.GetResourceTags(aws.StringValue(existingInstance.DBInstanceArn))
 	if err != nil {
@@ -339,6 +345,12 @@ func (b *RDSBroker) Update(
 		if extensionsTag != "" {
 			extensions = mergeExtensions(extensions, strings.Split(extensionsTag, ":"))
 		}
+	}
+
+	extensions = removeExtensions(extensions, updateParameters.DisableExtensions)
+	err = b.ensureDropExtensions(instanceID, existingInstance, updateParameters.DisableExtensions)
+	if err != nil {
+		return brokerapi.UpdateServiceSpec{}, err
 	}
 
 	if len(updateParameters.EnableExtensions) > 0 || len(updateParameters.DisableExtensions) > 0 {
@@ -660,6 +672,17 @@ func mergeExtensions(l1 []string, l2 []string) []string {
 	return result
 }
 
+func removeExtensions(extensions []string, exclude []string) []string {
+	var result []string
+	for _, e := range extensions {
+		if !searchExtension(exclude, e) {
+			result = append(result, e)
+		}
+	}
+
+	return result
+}
+
 func extensionsAreSupported(plan ServicePlan, extensions []string) (bool, string) {
 	supported := aws.StringValueSlice(plan.RDSProperties.AllowedExtensions)
 	for _, e := range extensions {
@@ -668,6 +691,16 @@ func extensionsAreSupported(plan ServicePlan, extensions []string) (bool, string
 		}
 	}
 	return true, ""
+}
+
+func containsDefaultExtension(plan ServicePlan, extensions []string) (bool, string) {
+	defaultExtensions := aws.StringValueSlice(plan.RDSProperties.DefaultExtensions)
+	for _, e := range extensions {
+		if searchExtension(defaultExtensions, e) {
+			return true, e
+		}
+	}
+	return false, ""
 }
 
 func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) error {
@@ -689,6 +722,27 @@ func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstance *rds.DB
 			if err = sqlEngine.CreateExtensions(postgresExtensionsString); err != nil {
 				return err
 			}
+		}
+	}
+
+	return nil
+}
+
+func (b *RDSBroker) ensureDropExtensions(instanceID string, dbInstance *rds.DBInstance, extensions []string) error {
+	b.logger.Debug("ensure-drop-extensions", lager.Data{
+		instanceIDLogKey: instanceID,
+	})
+
+	if aws.StringValue(dbInstance.Engine) == "postgres" {
+		dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
+		sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
+		if err != nil {
+			return err
+		}
+		defer sqlEngine.Close()
+
+		if err = sqlEngine.DropExtensions(extensions); err != nil {
+			return err
 		}
 	}
 

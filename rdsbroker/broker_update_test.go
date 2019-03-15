@@ -937,7 +937,6 @@ var _ = Describe("RDS Broker", func() {
 					Key:   aws.String("Extensions"),
 					Value: aws.String("postgis:pg_stat_statements:postgres_super_extension"),
 				}))
-
 			})
 
 			It("ignores an extension that has already been enabled", func() {
@@ -977,6 +976,51 @@ var _ = Describe("RDS Broker", func() {
 					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 					Expect(err).To(MatchError("The requested extensions require the instance to be manually rebooted. Please re-run update service with reboot set to true"))
 				})
+			})
+		})
+
+		Context("when an extension is removed", func() {
+			BeforeEach(func() {
+				updateDetails = brokerapi.UpdateDetails{
+					ServiceID: "Service-1",
+					PlanID:    "Plan-1",
+					PreviousValues: brokerapi.PreviousValues{
+						PlanID:    "Plan-1",
+						ServiceID: "Service-1",
+						OrgID:     "organization-id",
+						SpaceID:   "space-id",
+					},
+					RawParameters: json.RawMessage(`{ "reboot": true }`),
+				}
+
+				dbTags := map[string]string{
+					awsrds.TagExtensions: "postgis:pg_stat_statements:postgres_super_extension",
+				}
+				rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbTags), nil)
+				newParamGroupName = "updatedParamGroupName"
+			})
+
+			It("successfully removes an extension", func() {
+				updateDetails.RawParameters = json.RawMessage(`{"disable_extensions": ["postgres_super_extension"], "reboot": true}`)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal(newParamGroupName))
+
+				Expect(paramGroupSelector.SelectParameterGroupCallCount()).To(Equal(1))
+				_, extensions := paramGroupSelector.SelectParameterGroupArgsForCall(0)
+				Expect(extensions).ToNot(ContainElement("postgres_super_extension"))
+				Expect(extensions).To(ContainElement("postgis"))
+				Expect(extensions).To(ContainElement("pg_stat_statements"))
+				Expect(extensions).To(HaveLen(2))
+				Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(1))
+				_, tags := rdsInstance.AddTagsToResourceArgsForCall(0)
+				Expect(tags).To(ContainElement(&rds.Tag{
+					Key:   aws.String("Extensions"),
+					Value: aws.String("postgis:pg_stat_statements"),
+				}))
 			})
 		})
 	})

@@ -259,6 +259,7 @@ func (d *PostgresEngine) JDBCURI(address string, port int64, dbname string, user
 }
 
 const createExtensionPattern = `CREATE EXTENSION IF NOT EXISTS "{{.extension}}"`
+const dropExtensionPattern = `DROP EXTENSION IF EXISTS "{{.extension}}"`
 
 func (d *PostgresEngine) CreateExtensions(extensions []string) error {
 	for _, extension := range extensions {
@@ -268,6 +269,20 @@ func (d *PostgresEngine) CreateExtensions(extensions []string) error {
 			return err
 		}
 		if _, err := d.db.Exec(createExtensionStatement.String()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (d *PostgresEngine) DropExtensions(extensions []string) error {
+	for _, extension := range extensions {
+		dropExtensionTemplate := template.Must(template.New(extension + "Extension").Parse(dropExtensionPattern))
+		var dropExtensionStatement bytes.Buffer
+		if err := dropExtensionTemplate.Execute(&dropExtensionStatement, map[string]string{"extension": extension}); err != nil {
+			return err
+		}
+		if _, err := d.db.Exec(dropExtensionStatement.String()); err != nil {
 			return err
 		}
 	}
