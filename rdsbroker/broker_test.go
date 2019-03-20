@@ -1752,6 +1752,7 @@ var _ = Describe("RDS Broker", func() {
 			dbInstanceStatus            string
 			lastOperationState          brokerapi.LastOperationState
 			properLastOperationResponse brokerapi.LastOperation
+			parameterGroupStatus        string
 
 			defaultDBInstance = &rds.DBInstance{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
@@ -1779,8 +1780,14 @@ var _ = Describe("RDS Broker", func() {
 				{Key: aws.String("Extensions"), Value: aws.String("postgis:pg-stat-statements")},
 			}
 		)
+
+		BeforeEach(func() {
+			parameterGroupStatus = "in-sync"
+		})
+
 		JustBeforeEach(func() {
 			defaultDBInstance.DBInstanceStatus = aws.String(dbInstanceStatus)
+			defaultDBInstance.DBParameterGroups[0].ParameterApplyStatus = aws.String(parameterGroupStatus)
 			rdsInstance.DescribeReturns(defaultDBInstance, nil)
 
 			rdsInstance.GetResourceTagsReturns(defaultDBInstanceTags, nil)
@@ -1892,7 +1899,34 @@ var _ = Describe("RDS Broker", func() {
 					Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
 				})
 			})
+		})
 
+		Context("when the parameter group has a pending-reboot state", func() {
+			BeforeEach(func() {
+				dbInstanceStatus = "available"
+				parameterGroupStatus = "pending-reboot"
+			})
+
+			It("reboots the database", func() {
+				lastOperationState, err := rdsBroker.LastOperation(ctx, instanceID, "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationState.State).To(Equal(brokerapi.InProgress))
+				Expect(rdsInstance.RebootCallCount()).To(Equal(1))
+			})
+		})
+
+		Context("when the parameter group has a pending-reboot state and instance is unavailable", func() {
+			BeforeEach(func() {
+				dbInstanceStatus = "modifying"
+				parameterGroupStatus = "pending-reboot"
+			})
+
+			It("reboots the database", func() {
+				lastOperationState, err := rdsBroker.LastOperation(ctx, instanceID, "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationState.State).To(Equal(brokerapi.InProgress))
+				Expect(rdsInstance.RebootCallCount()).To(Equal(0))
+			})
 		})
 
 		Context("when last operation failed", func() {

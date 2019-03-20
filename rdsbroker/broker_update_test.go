@@ -969,6 +969,7 @@ var _ = Describe("RDS Broker", func() {
 					updateDetails.RawParameters = json.RawMessage(`{"enable_extensions": ["postgres_super_extension"], "reboot": true}`)
 					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.RebootCallCount()).To(Equal(0))
 				})
 
 				It("fails when reboot isn't set and an extension that requires one is set", func() {
@@ -1021,6 +1022,7 @@ var _ = Describe("RDS Broker", func() {
 					Key:   aws.String("Extensions"),
 					Value: aws.String("postgis:pg_stat_statements"),
 				}))
+				Expect(rdsInstance.RebootCallCount()).To(Equal(0))
 			})
 		})
 	})

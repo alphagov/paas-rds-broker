@@ -353,6 +353,8 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, err
 	}
 
+	deferReboot := false
+
 	if len(updateParameters.EnableExtensions) > 0 || len(updateParameters.DisableExtensions) > 0 {
 		var err error
 		newDbParamGroup, err = b.parameterGroupsSelector.SelectParameterGroup(servicePlan, extensions)
@@ -364,6 +366,9 @@ func (b *RDSBroker) Update(
 			if updateParameters.Reboot == nil || !*updateParameters.Reboot {
 				return brokerapi.UpdateServiceSpec{}, errors.New("The requested extensions require the instance to be manually rebooted. Please re-run update service with reboot set to true")
 			}
+			// When updating the parameter group, the instance will be in a modifying state
+			// for a couple of mins. So we have to defer the reboot to the last operation call.
+			deferReboot = true
 		}
 	}
 
@@ -391,7 +396,7 @@ func (b *RDSBroker) Update(
 	builtTags := awsrds.BuilRDSTags(b.dbTags(instanceTags))
 	b.dbInstance.AddTagsToResource(aws.StringValue(updatedDBInstance.DBInstanceArn), builtTags)
 
-	if updateParameters.Reboot != nil && *updateParameters.Reboot {
+	if updateParameters.Reboot != nil && *updateParameters.Reboot && !deferReboot {
 		rebootDBInstanceInput := &rds.RebootDBInstanceInput{
 			DBInstanceIdentifier: aws.String(b.dbInstanceIdentifier(instanceID)),
 			ForceFailover:        updateParameters.ForceFailover,
@@ -575,6 +580,15 @@ func (b *RDSBroker) LastOperation(
 		instanceIDLogKey: instanceID,
 	})
 
+	var lastOperationResponse brokerapi.LastOperation
+
+	defer func() {
+		b.logger.Debug("last-operation.done", lager.Data{
+			instanceIDLogKey:            instanceID,
+			lastOperationResponseLogKey: lastOperationResponse,
+		})
+	}()
+
 	dbInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
@@ -602,7 +616,7 @@ func (b *RDSBroker) LastOperation(
 		state = brokerapi.InProgress
 	}
 
-	lastOperationResponse := brokerapi.LastOperation{
+	lastOperationResponse = brokerapi.LastOperation{
 		State:       state,
 		Description: fmt.Sprintf("DB Instance '%s' status is '%s'", b.dbInstanceIdentifier(instanceID), status),
 	}
@@ -620,29 +634,38 @@ func (b *RDSBroker) LastOperation(
 				State:       brokerapi.InProgress,
 				Description: fmt.Sprintf("DB Instance '%s' has pending modifications", b.dbInstanceIdentifier(instanceID)),
 			}
-		} else {
-			asyncOperarionTriggered, err := b.PostRestoreTasks(instanceID, dbInstance, tagsByName)
-			if err != nil {
-				return brokerapi.LastOperation{State: brokerapi.Failed}, err
+			return lastOperationResponse, nil
+		}
+
+		asyncOperationTriggered, err := b.PostRestoreTasks(instanceID, dbInstance, tagsByName)
+		if err != nil {
+			return brokerapi.LastOperation{State: brokerapi.Failed}, err
+		}
+		if asyncOperationTriggered {
+			lastOperationResponse = brokerapi.LastOperation{
+				State:       brokerapi.InProgress,
+				Description: fmt.Sprintf("DB Instance '%s' has pending post restore modifications", b.dbInstanceIdentifier(instanceID)),
 			}
-			if asyncOperarionTriggered {
-				lastOperationResponse = brokerapi.LastOperation{
-					State:       brokerapi.InProgress,
-					Description: fmt.Sprintf("DB Instance '%s' has pending post restore modifications", b.dbInstanceIdentifier(instanceID)),
-				}
-			} else {
-				err = b.ensureCreateExtensions(instanceID, dbInstance, tagsByName)
-				if err != nil {
-					return brokerapi.LastOperation{State: brokerapi.Failed}, err
-				}
+			return lastOperationResponse, nil
+		}
+
+		asyncOperationTriggered, err = b.RebootIfRequired(instanceID, dbInstance)
+		if err != nil {
+			return brokerapi.LastOperation{State: brokerapi.Failed}, err
+		}
+		if asyncOperationTriggered {
+			lastOperationResponse = brokerapi.LastOperation{
+				State:       brokerapi.InProgress,
+				Description: fmt.Sprintf("DB Instance '%s' is rebooting", b.dbInstanceIdentifier(instanceID)),
 			}
+			return lastOperationResponse, nil
+		}
+
+		err = b.ensureCreateExtensions(instanceID, dbInstance, tagsByName)
+		if err != nil {
+			return brokerapi.LastOperation{State: brokerapi.Failed}, err
 		}
 	}
-
-	b.logger.Debug("last-operation.done", lager.Data{
-		instanceIDLogKey:            instanceID,
-		lastOperationResponseLogKey: lastOperationResponse,
-	})
 
 	return lastOperationResponse, nil
 }
@@ -749,7 +772,7 @@ func (b *RDSBroker) ensureDropExtensions(instanceID string, dbInstance *rds.DBIn
 	return nil
 }
 
-func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperarionTriggered bool, err error) {
+func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperationTriggered bool, err error) {
 	serviceID := tagsByName[awsrds.TagServiceID]
 	planID := tagsByName[awsrds.TagPlanID]
 	organizationID := tagsByName[awsrds.TagOrganizationID]
@@ -793,7 +816,7 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 	return true, nil
 }
 
-func (b *RDSBroker) rebootInstance(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperarionTriggered bool, err error) {
+func (b *RDSBroker) rebootInstance(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperationTriggered bool, err error) {
 	rebootDBInstanceInput := &rds.RebootDBInstanceInput{
 		DBInstanceIdentifier: aws.String(b.dbInstanceIdentifier(instanceID)),
 	}
@@ -830,7 +853,7 @@ func (b *RDSBroker) openSQLEngineForDBInstance(instanceID string, dbName string,
 	return sqlEngine, err
 }
 
-func (b *RDSBroker) changeUserPassword(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperarionTriggered bool, err error) {
+func (b *RDSBroker) changeUserPassword(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperationTriggered bool, err error) {
 	dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
 	sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
 	if err != nil {
@@ -844,7 +867,7 @@ func (b *RDSBroker) changeUserPassword(instanceID string, dbInstance *rds.DBInst
 	return true, nil
 }
 
-func (b *RDSBroker) PostRestoreTasks(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperarionTriggered bool, err error) {
+func (b *RDSBroker) PostRestoreTasks(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperationTriggered bool, err error) {
 	restoreStateFuncs := map[string]func(instanceID string, instance *rds.DBInstance, tagsByName map[string]string) (bool, error){
 		StateUpdateSettings:    b.updateDBSettings,
 		StateReboot:            b.rebootInstance,
@@ -866,6 +889,25 @@ func (b *RDSBroker) PostRestoreTasks(instanceID string, dbInstance *rds.DBInstan
 		}
 	}
 
+	return false, nil
+}
+
+func (b *RDSBroker) RebootIfRequired(instanceID string, dbInstance *rds.DBInstance) (asyncOperationTriggered bool, err error) {
+	if aws.StringValue(dbInstance.DBParameterGroups[0].ParameterApplyStatus) == "applying" {
+		return true, nil
+	}
+
+	if aws.StringValue(dbInstance.DBParameterGroups[0].ParameterApplyStatus) == "pending-reboot" {
+		rebootDBInstanceInput := &rds.RebootDBInstanceInput{
+			DBInstanceIdentifier: aws.String(b.dbInstanceIdentifier(instanceID)),
+		}
+
+		err := b.dbInstance.Reboot(rebootDBInstanceInput)
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	}
 	return false, nil
 }
 
