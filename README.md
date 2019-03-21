@@ -93,8 +93,12 @@ Update calls support the following optional [arbitrary parameters](https://docs.
 | `preferred_maintenance_window` | String  | The weekly time range during which system maintenance can occur (*)
 | `reboot`                       | Boolean | Reboot the instance immediately. Any other parameter or change in the updated would be ignored. See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RebootInstance.html for detais.
 | `force_failover`               | Boolean | For HA failover during reboot. Only valid when used with `reboot` and for HA plans. See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RebootInstance.html for detais.
+| `enable_extensions`           | []String | The names of the extensions which should be enabled. Supported extensions are specified by the plan, and the supplied list is combined with the set of default extensions defined by the plan. (*\*)
+| `disable_extensions`           | []String | The names of the extensions which should be disabled. Supported extensions are specified by the plan, and default extensions cannot be disabled. (*\*)
 
 (*) Refer to the [Amazon Relational Database Service Documentation](https://aws.amazon.com/documentation/rds/) for more details about how to set these properties
+
+(\*\*) Postgres only
 
 #### Reboot
 
@@ -190,6 +194,8 @@ databases in that group.
 
 The RDS broker will create new parameter groups to support new combinations of extensions as necessary, or otherwise
 add new databases to existing groups with the right extensions.
+
+Enabling or disabling extensions like `pg_stat_statements` that require shared preload libraries via an update call will apply a new parameter group. As a result, it also requires `"reboot": true` to be specified.
 
 ## Contributing
 
