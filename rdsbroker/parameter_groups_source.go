@@ -1,18 +1,19 @@
 package rdsbroker
 
 import (
-	"code.cloudfoundry.org/lager"
 	"fmt"
+	"sort"
+	"strings"
+
+	"code.cloudfoundry.org/lager"
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"sort"
-	"strings"
 )
 
 //go:generate counterfeiter -o fakes/fake_parameter_group_selector.go . ParameterGroupSelector
 type ParameterGroupSelector interface {
-	SelectParameterGroup(servicePlan ServicePlan, parameters ProvisionParameters) (string, error)
+	SelectParameterGroup(servicePlan ServicePlan, extensions []string) (string, error)
 }
 
 type ParameterGroupSource struct {
@@ -26,13 +27,13 @@ func NewParameterGroupSource(config Config, rdsInstance awsrds.RDSInstance, supp
 	return &ParameterGroupSource{config, rdsInstance, logger, supportedPreloadExtensions}
 }
 
-func (pgs *ParameterGroupSource) SelectParameterGroup(servicePlan ServicePlan, parameters ProvisionParameters) (string, error) {
+func (pgs *ParameterGroupSource) SelectParameterGroup(servicePlan ServicePlan, extensions []string) (string, error) {
 	pgs.logger.Debug("selecting a parameter group", lager.Data{
 		servicePlanLogKey: servicePlan,
-		extensionsLogKey:  parameters.Extensions,
+		extensionsLogKey:  extensions,
 	})
 
-	groupName := composeGroupName(pgs.config, servicePlan, parameters, pgs.supportedPreloadExtensions)
+	groupName := composeGroupName(pgs.config, servicePlan, extensions, pgs.supportedPreloadExtensions)
 	pgs.logger.Info(fmt.Sprintf("database should be created with parameter group '%s'", groupName))
 	_, err := pgs.rdsInstance.GetParameterGroup(groupName)
 
@@ -45,7 +46,7 @@ func (pgs *ParameterGroupSource) SelectParameterGroup(servicePlan ServicePlan, p
 				return "", err
 			}
 
-			err = pgs.setParameterGroupProperties(groupName, servicePlan, parameters)
+			err = pgs.setParameterGroupProperties(groupName, servicePlan, extensions)
 			if err != nil {
 				return "", err
 			}
@@ -70,13 +71,13 @@ func (pgs *ParameterGroupSource) createParameterGroup(name string, servicePlan S
 	})
 }
 
-func (pgs *ParameterGroupSource) setParameterGroupProperties(name string, servicePlan ServicePlan, provisionParameters ProvisionParameters) error {
+func (pgs *ParameterGroupSource) setParameterGroupProperties(name string, servicePlan ServicePlan, extensions []string) error {
 	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
 		dbParams := []*rds.Parameter{}
 		dbParams = append(dbParams, rdsParameter("rds.force_ssl", "1", "pending-reboot"))
 		dbParams = append(dbParams, rdsParameter("rds.log_retention_period", "10080", "immediate"))
 
-		preloadLibs := filterExtensionsNeedingPreloads(servicePlan, provisionParameters.Extensions, pgs.supportedPreloadExtensions)
+		preloadLibs := filterExtensionsNeedingPreloads(servicePlan, extensions, pgs.supportedPreloadExtensions)
 
 		if len(preloadLibs) > 0 {
 			libsCSV := strings.Join(preloadLibs, ",")
@@ -97,11 +98,11 @@ func (pgs *ParameterGroupSource) setParameterGroupProperties(name string, servic
 	return nil
 }
 
-func composeGroupName(config Config, servicePlan ServicePlan, provisionParameters ProvisionParameters, supportedPreloadExtensions map[string][]DBExtension) string {
+func composeGroupName(config Config, servicePlan ServicePlan, extensions []string, supportedPreloadExtensions map[string][]DBExtension) string {
 
 	normalisedFamily := normaliseIdentifier(aws.StringValue(servicePlan.RDSProperties.EngineFamily))
 	normalisedExtensions := []string{}
-	relevantExtensions := filterExtensionsNeedingPreloads(servicePlan, provisionParameters.Extensions, supportedPreloadExtensions)
+	relevantExtensions := filterExtensionsNeedingPreloads(servicePlan, extensions, supportedPreloadExtensions)
 	for _, ext := range relevantExtensions {
 		normalisedExtensions = append(normalisedExtensions, normaliseIdentifier(ext))
 	}

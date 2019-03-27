@@ -225,6 +225,59 @@ var _ = Describe("RDS Broker Daemon", func() {
 		})
 	})
 
+	Describe("update extensions", func() {
+		TestUpdateExtensions := func(serviceID, planID string) {
+			var (
+				instanceID string
+			)
+
+			BeforeEach(func() {
+				instanceID = uuid.NewV4().String()
+
+				brokerAPIClient.AcceptsIncomplete = true
+
+				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
+				Expect(state).To(Equal("succeeded"))
+			})
+
+			AfterEach(func() {
+				brokerAPIClient.AcceptsIncomplete = true
+				code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
+				Expect(state).To(Equal("gone"))
+			})
+
+			It("handles an enable/disable extensions", func() {
+				By("enable extension")
+				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"enable_extensions": ["pg_stat_statements"], "reboot": true }`)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				extensions := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
+				Expect(extensions).To(Equal("succeeded"))
+
+				By("disable extension")
+				code, operation, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"disable_extensions": ["pg_stat_statements"], "reboot": true }`)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				extensions = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
+				Expect(extensions).To(Equal("succeeded"))
+			})
+		}
+
+		Describe("Postgres 9.5", func() {
+			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot")
+		})
+
+		Describe("Postgres 10.5", func() {
+			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-10")
+		})
+	})
+
 	Describe("Final snapshot enable/disable", func() {
 		TestFinalSnapshot := func(serviceID, planID string) {
 			var (

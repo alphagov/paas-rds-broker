@@ -160,3 +160,7 @@ func (d *MySQLEngine) connectionString(address string, port int64, dbname string
 func (d *MySQLEngine) CreateExtensions(extensions []string) error {
 	return nil
 }
+
+func (d *MySQLEngine) DropExtensions(extensions []string) error {
+	return nil
+}

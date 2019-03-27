@@ -74,7 +74,7 @@ Provision calls support the following optional [arbitrary parameters](https://do
 | `dbname`                       | String   | The name of the Database to be provisioned. If it does not exists, the broker will create it, otherwise, it will reuse the existing one. If this parameter is not set, the broker will use a random Database name
 | `preferred_backup_window`      | String   | The daily time range during which automated backups are created if automated backups are enabled (*)
 | `preferred_maintenance_window` | String   | The weekly time range during which system maintenance can occur (*)
-| `enabled_extensions`           | []String | The names of the extensions which should be enabled. Supported extensions are specified by the plan, and the supplied list is combined with the set of default extensions defined by the plan. If this parameter isn't provided, the plan's default extensions will be enabled. (*\*) 
+| `enable_extensions`           | []String | The names of the extensions which should be enabled. Supported extensions are specified by the plan, and the supplied list is combined with the set of default extensions defined by the plan. If this parameter isn't provided, the plan's default extensions will be enabled. (*\*)
 
 (\*) Refer to the [Amazon Relational Database Service Documentation](https://aws.amazon.com/documentation/rds/) for more details about how to set these properties
 
@@ -93,8 +93,12 @@ Update calls support the following optional [arbitrary parameters](https://docs.
 | `preferred_maintenance_window` | String  | The weekly time range during which system maintenance can occur (*)
 | `reboot`                       | Boolean | Reboot the instance immediately. Any other parameter or change in the updated would be ignored. See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RebootInstance.html for detais.
 | `force_failover`               | Boolean | For HA failover during reboot. Only valid when used with `reboot` and for HA plans. See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RebootInstance.html for detais.
+| `enable_extensions`           | []String | The names of the extensions which should be enabled. Supported extensions are specified by the plan, and the supplied list is combined with the set of default extensions defined by the plan. (*\*)
+| `disable_extensions`           | []String | The names of the extensions which should be disabled. Supported extensions are specified by the plan, and default extensions cannot be disabled. (*\*)
 
 (*) Refer to the [Amazon Relational Database Service Documentation](https://aws.amazon.com/documentation/rds/) for more details about how to set these properties
+
+(\*\*) Postgres only
 
 #### Reboot
 
@@ -184,12 +188,14 @@ unbinding of the instances, and may cause downtime if it is not handled properly
 
 ### Extensions and parameter groups
 
-Certain Postgres extensions (such as `pg_stat_statements`) require [shared preload libraries](https://www.postgresql.org/docs/9.5/runtime-config-client.html#RUNTIME-CONFIG-CLIENT-PRELOAD) 
-to be enabled. In RDS, preload libraries are specified as a parameter in the parameter group, and are enabled for all 
+Certain Postgres extensions (such as `pg_stat_statements`) require [shared preload libraries](https://www.postgresql.org/docs/9.5/runtime-config-client.html#RUNTIME-CONFIG-CLIENT-PRELOAD)
+to be enabled. In RDS, preload libraries are specified as a parameter in the parameter group, and are enabled for all
 databases in that group.
 
-The RDS broker will create new parameter groups to support new combinations of extensions as necessary, or otherwise 
+The RDS broker will create new parameter groups to support new combinations of extensions as necessary, or otherwise
 add new databases to existing groups with the right extensions.
+
+Enabling or disabling extensions like `pg_stat_statements` that require shared preload libraries via an update call will apply a new parameter group. As a result, it also requires `"reboot": true` to be specified.
 
 ## Contributing
 

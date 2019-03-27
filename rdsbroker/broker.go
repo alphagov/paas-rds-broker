@@ -182,8 +182,8 @@ func (b *RDSBroker) Provision(
 	}
 
 	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
-		ensureDefaultExtensionsAreSet(&provisionParameters, servicePlan)
-		ok, unsupportedExtensions := extensionsAreSupported(servicePlan, provisionParameters)
+		provisionParameters.Extensions = mergeExtensions(aws.StringValueSlice(servicePlan.RDSProperties.DefaultExtensions), provisionParameters.Extensions)
+		ok, unsupportedExtensions := extensionsAreSupported(servicePlan, provisionParameters.Extensions)
 		if !ok {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("%s is not supported", unsupportedExtensions)
 		}
@@ -231,7 +231,7 @@ func (b *RDSBroker) Provision(
 		if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
 			if extensionsTag != "" {
 				snapshotExts := strings.Split(extensionsTag, ":")
-				ensureExtensionsAreSet(&provisionParameters, snapshotExts)
+				provisionParameters.Extensions = mergeExtensions(provisionParameters.Extensions, snapshotExts)
 			}
 		}
 
@@ -289,23 +289,9 @@ func (b *RDSBroker) Update(
 		if details.PlanID != details.PreviousValues.PlanID {
 			return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Invalid to reboot and update plan in the same command")
 		}
-
-		rebootDBInstanceInput := &rds.RebootDBInstanceInput{
-			DBInstanceIdentifier: aws.String(b.dbInstanceIdentifier(instanceID)),
-			ForceFailover:        updateParameters.ForceFailover,
-		}
-
-		err := b.dbInstance.Reboot(rebootDBInstanceInput)
-		if err != nil {
-			if err == awsrds.ErrDBInstanceDoesNotExist {
-				return brokerapi.UpdateServiceSpec{}, brokerapi.ErrInstanceDoesNotExist
-			}
-			return brokerapi.UpdateServiceSpec{}, err
-		}
-		return brokerapi.UpdateServiceSpec{IsAsync: true}, nil
 	}
 
-	if !service.PlanUpdatable {
+	if details.PlanID != details.PreviousValues.PlanID && !service.PlanUpdatable {
 		return brokerapi.UpdateServiceSpec{}, brokerapi.ErrPlanChangeNotSupported
 	}
 
@@ -333,13 +319,60 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("cannot find instance %s", b.dbInstanceIdentifier(instanceID))
 	}
 
-	// The db parameter group should not change
-	// when updating a database, because it controls
-	// the function of certain extensions which
-	// could have been enabled at creation time
-	previousDbParamGroup := existingInstance.DBParameterGroups[0].DBParameterGroupName
+	previousDbParamGroup := *existingInstance.DBParameterGroups[0].DBParameterGroupName
 
-	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, updateParameters, previousDbParamGroup)
+	newDbParamGroup := previousDbParamGroup
+
+	ok, unsupportedExtension := extensionsAreSupported(servicePlan, mergeExtensions(updateParameters.EnableExtensions, updateParameters.DisableExtensions))
+	if !ok {
+		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("%s is not supported", unsupportedExtension)
+	}
+
+	ok, defaultExtension := containsDefaultExtension(servicePlan, updateParameters.DisableExtensions)
+	if ok {
+		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("%s cannot be disabled", defaultExtension)
+	}
+
+	extensions := mergeExtensions(aws.StringValueSlice(servicePlan.RDSProperties.DefaultExtensions), updateParameters.EnableExtensions)
+
+	tags, err := b.dbInstance.GetResourceTags(aws.StringValue(existingInstance.DBInstanceArn))
+	if err != nil {
+		return brokerapi.UpdateServiceSpec{}, err
+	}
+	tagsByName := awsrds.RDSTagsValues(tags)
+
+	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
+		if extensionsTag != "" {
+			extensions = mergeExtensions(extensions, strings.Split(extensionsTag, ":"))
+		}
+	}
+
+	extensions = removeExtensions(extensions, updateParameters.DisableExtensions)
+	err = b.ensureDropExtensions(instanceID, existingInstance, updateParameters.DisableExtensions)
+	if err != nil {
+		return brokerapi.UpdateServiceSpec{}, err
+	}
+
+	deferReboot := false
+
+	if len(updateParameters.EnableExtensions) > 0 || len(updateParameters.DisableExtensions) > 0 {
+		var err error
+		newDbParamGroup, err = b.parameterGroupsSelector.SelectParameterGroup(servicePlan, extensions)
+		if err != nil {
+			return brokerapi.UpdateServiceSpec{}, err
+		}
+
+		if newDbParamGroup != previousDbParamGroup {
+			if updateParameters.Reboot == nil || !*updateParameters.Reboot {
+				return brokerapi.UpdateServiceSpec{}, errors.New("The requested extensions require the instance to be manually rebooted. Please re-run update service with reboot set to true")
+			}
+			// When updating the parameter group, the instance will be in a modifying state
+			// for a couple of mins. So we have to defer the reboot to the last operation call.
+			deferReboot = true
+		}
+	}
+
+	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, updateParameters, newDbParamGroup)
 
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)
 	if err != nil {
@@ -350,16 +383,31 @@ func (b *RDSBroker) Update(
 	}
 
 	instanceTags := RDSInstanceTags{
-		Action:    "Updated",
-		ServiceID: details.ServiceID,
-		PlanID:    details.PlanID,
+		Action:     "Updated",
+		ServiceID:  details.ServiceID,
+		PlanID:     details.PlanID,
+		Extensions: extensions,
 	}
+
 	if updateParameters.SkipFinalSnapshot != nil {
 		instanceTags.SkipFinalSnapshot = strconv.FormatBool(*updateParameters.SkipFinalSnapshot)
 	}
 
-	tags := awsrds.BuilRDSTags(b.dbTags(instanceTags))
-	b.dbInstance.AddTagsToResource(aws.StringValue(updatedDBInstance.DBInstanceArn), tags)
+	builtTags := awsrds.BuilRDSTags(b.dbTags(instanceTags))
+	b.dbInstance.AddTagsToResource(aws.StringValue(updatedDBInstance.DBInstanceArn), builtTags)
+
+	if updateParameters.Reboot != nil && *updateParameters.Reboot && !deferReboot {
+		rebootDBInstanceInput := &rds.RebootDBInstanceInput{
+			DBInstanceIdentifier: aws.String(b.dbInstanceIdentifier(instanceID)),
+			ForceFailover:        updateParameters.ForceFailover,
+		}
+
+		err := b.dbInstance.Reboot(rebootDBInstanceInput)
+		if err != nil {
+			return brokerapi.UpdateServiceSpec{}, err
+		}
+		return brokerapi.UpdateServiceSpec{IsAsync: true}, nil
+	}
 
 	return brokerapi.UpdateServiceSpec{IsAsync: true}, nil
 }
@@ -532,6 +580,15 @@ func (b *RDSBroker) LastOperation(
 		instanceIDLogKey: instanceID,
 	})
 
+	var lastOperationResponse brokerapi.LastOperation
+
+	defer func() {
+		b.logger.Debug("last-operation.done", lager.Data{
+			instanceIDLogKey:            instanceID,
+			lastOperationResponseLogKey: lastOperationResponse,
+		})
+	}()
+
 	dbInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
@@ -559,7 +616,7 @@ func (b *RDSBroker) LastOperation(
 		state = brokerapi.InProgress
 	}
 
-	lastOperationResponse := brokerapi.LastOperation{
+	lastOperationResponse = brokerapi.LastOperation{
 		State:       state,
 		Description: fmt.Sprintf("DB Instance '%s' status is '%s'", b.dbInstanceIdentifier(instanceID), status),
 	}
@@ -577,79 +634,96 @@ func (b *RDSBroker) LastOperation(
 				State:       brokerapi.InProgress,
 				Description: fmt.Sprintf("DB Instance '%s' has pending modifications", b.dbInstanceIdentifier(instanceID)),
 			}
-		} else {
-			asyncOperarionTriggered, err := b.PostRestoreTasks(instanceID, dbInstance, tagsByName)
-			if err != nil {
-				return brokerapi.LastOperation{State: brokerapi.Failed}, err
+			return lastOperationResponse, nil
+		}
+
+		asyncOperationTriggered, err := b.PostRestoreTasks(instanceID, dbInstance, tagsByName)
+		if err != nil {
+			return brokerapi.LastOperation{State: brokerapi.Failed}, err
+		}
+		if asyncOperationTriggered {
+			lastOperationResponse = brokerapi.LastOperation{
+				State:       brokerapi.InProgress,
+				Description: fmt.Sprintf("DB Instance '%s' has pending post restore modifications", b.dbInstanceIdentifier(instanceID)),
 			}
-			if asyncOperarionTriggered {
-				lastOperationResponse = brokerapi.LastOperation{
-					State:       brokerapi.InProgress,
-					Description: fmt.Sprintf("DB Instance '%s' has pending post restore modifications", b.dbInstanceIdentifier(instanceID)),
-				}
-			} else {
-				err = b.ensureCreateExtensions(instanceID, dbInstance, tagsByName)
-				if err != nil {
-					return brokerapi.LastOperation{State: brokerapi.Failed}, err
-				}
+			return lastOperationResponse, nil
+		}
+
+		asyncOperationTriggered, err = b.RebootIfRequired(instanceID, dbInstance)
+		if err != nil {
+			return brokerapi.LastOperation{State: brokerapi.Failed}, err
+		}
+		if asyncOperationTriggered {
+			lastOperationResponse = brokerapi.LastOperation{
+				State:       brokerapi.InProgress,
+				Description: fmt.Sprintf("DB Instance '%s' is rebooting", b.dbInstanceIdentifier(instanceID)),
 			}
+			return lastOperationResponse, nil
+		}
+
+		err = b.ensureCreateExtensions(instanceID, dbInstance, tagsByName)
+		if err != nil {
+			return brokerapi.LastOperation{State: brokerapi.Failed}, err
 		}
 	}
-
-	b.logger.Debug("last-operation.done", lager.Data{
-		instanceIDLogKey:            instanceID,
-		lastOperationResponseLogKey: lastOperationResponse,
-	})
 
 	return lastOperationResponse, nil
 }
 
-func ensureDefaultExtensionsAreSet(parameters *ProvisionParameters, plan ServicePlan) {
-	extensions := []string{}
-	for _, e := range plan.RDSProperties.DefaultExtensions {
-		extensions = append(extensions, aws.StringValue(e))
-	}
-
-	ensureExtensionsAreSet(parameters, extensions)
-}
-
-func ensureExtensionsAreSet(parameters *ProvisionParameters, extensions []string) {
-	inSlice := func(slice []string, element string) bool {
-		for _, e := range slice {
-			if e == element {
-				return true
-			}
-		}
-
-		return false
-	}
-
-	for _, e := range extensions {
-		if !inSlice(parameters.Extensions, e) {
-			parameters.Extensions = append(parameters.Extensions, e)
+func searchExtension(slice []string, element string) bool {
+	for _, e := range slice {
+		if e == element {
+			return true
 		}
 	}
+
+	return false
 }
 
-func extensionsAreSupported(plan ServicePlan, parameters ProvisionParameters) (bool, string) {
-	extensions := parameters.Extensions
+func mergeExtensions(l1 []string, l2 []string) []string {
+	var result []string
+	for _, e := range l1 {
+		result = append(result, e)
+	}
 
-	supported := plan.RDSProperties.AllowedExtensions
+	for _, e := range l2 {
+		if !searchExtension(result, e) {
+			result = append(result, e)
+		}
+	}
+
+	return result
+}
+
+func removeExtensions(extensions []string, exclude []string) []string {
+	var result []string
 	for _, e := range extensions {
-		if !extensionIsSupported(supported, e) {
+		if !searchExtension(exclude, e) {
+			result = append(result, e)
+		}
+	}
+
+	return result
+}
+
+func extensionsAreSupported(plan ServicePlan, extensions []string) (bool, string) {
+	supported := aws.StringValueSlice(plan.RDSProperties.AllowedExtensions)
+	for _, e := range extensions {
+		if !searchExtension(supported, e) {
 			return false, e
 		}
 	}
 	return true, ""
 }
 
-func extensionIsSupported(extensions []*string, s string) bool {
+func containsDefaultExtension(plan ServicePlan, extensions []string) (bool, string) {
+	defaultExtensions := aws.StringValueSlice(plan.RDSProperties.DefaultExtensions)
 	for _, e := range extensions {
-		if s == *e {
-			return true
+		if searchExtension(defaultExtensions, e) {
+			return true, e
 		}
 	}
-	return false
+	return false, ""
 }
 
 func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) error {
@@ -677,7 +751,28 @@ func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstance *rds.DB
 	return nil
 }
 
-func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperarionTriggered bool, err error) {
+func (b *RDSBroker) ensureDropExtensions(instanceID string, dbInstance *rds.DBInstance, extensions []string) error {
+	b.logger.Debug("ensure-drop-extensions", lager.Data{
+		instanceIDLogKey: instanceID,
+	})
+
+	if aws.StringValue(dbInstance.Engine) == "postgres" {
+		dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
+		sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
+		if err != nil {
+			return err
+		}
+		defer sqlEngine.Close()
+
+		if err = sqlEngine.DropExtensions(extensions); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperationTriggered bool, err error) {
 	serviceID := tagsByName[awsrds.TagServiceID]
 	planID := tagsByName[awsrds.TagPlanID]
 	organizationID := tagsByName[awsrds.TagOrganizationID]
@@ -688,7 +783,7 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 		return false, fmt.Errorf("Service Plan '%s' not found", tagsByName[awsrds.TagPlanID])
 	}
 
-	existingParameterGroup := dbInstance.DBParameterGroups[0].DBParameterGroupName
+	existingParameterGroup := aws.StringValue(dbInstance.DBParameterGroups[0].DBParameterGroupName)
 
 	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, UpdateParameters{}, existingParameterGroup)
 	modifyDBInstanceInput.MasterUserPassword = aws.String(b.generateMasterPassword(instanceID))
@@ -721,7 +816,7 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 	return true, nil
 }
 
-func (b *RDSBroker) rebootInstance(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperarionTriggered bool, err error) {
+func (b *RDSBroker) rebootInstance(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperationTriggered bool, err error) {
 	rebootDBInstanceInput := &rds.RebootDBInstanceInput{
 		DBInstanceIdentifier: aws.String(b.dbInstanceIdentifier(instanceID)),
 	}
@@ -758,7 +853,7 @@ func (b *RDSBroker) openSQLEngineForDBInstance(instanceID string, dbName string,
 	return sqlEngine, err
 }
 
-func (b *RDSBroker) changeUserPassword(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperarionTriggered bool, err error) {
+func (b *RDSBroker) changeUserPassword(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperationTriggered bool, err error) {
 	dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
 	sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
 	if err != nil {
@@ -772,7 +867,7 @@ func (b *RDSBroker) changeUserPassword(instanceID string, dbInstance *rds.DBInst
 	return true, nil
 }
 
-func (b *RDSBroker) PostRestoreTasks(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperarionTriggered bool, err error) {
+func (b *RDSBroker) PostRestoreTasks(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperationTriggered bool, err error) {
 	restoreStateFuncs := map[string]func(instanceID string, instance *rds.DBInstance, tagsByName map[string]string) (bool, error){
 		StateUpdateSettings:    b.updateDBSettings,
 		StateReboot:            b.rebootInstance,
@@ -794,6 +889,25 @@ func (b *RDSBroker) PostRestoreTasks(instanceID string, dbInstance *rds.DBInstan
 		}
 	}
 
+	return false, nil
+}
+
+func (b *RDSBroker) RebootIfRequired(instanceID string, dbInstance *rds.DBInstance) (asyncOperationTriggered bool, err error) {
+	if aws.StringValue(dbInstance.DBParameterGroups[0].ParameterApplyStatus) == "applying" {
+		return true, nil
+	}
+
+	if aws.StringValue(dbInstance.DBParameterGroups[0].ParameterApplyStatus) == "pending-reboot" {
+		rebootDBInstanceInput := &rds.RebootDBInstanceInput{
+			DBInstanceIdentifier: aws.String(b.dbInstanceIdentifier(instanceID)),
+		}
+
+		err := b.dbInstance.Reboot(rebootDBInstanceInput)
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	}
 	return false, nil
 }
 
@@ -891,7 +1005,7 @@ func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan Serv
 		Extensions:        provisionParameters.Extensions,
 	}
 
-	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters)
+	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters.Extensions)
 	if err != nil {
 		return nil, err
 	}
@@ -945,7 +1059,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 	}
 	skipFinalSnapshotStr := strconv.FormatBool(skipFinalSnapshot)
 
-	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters)
+	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters.Extensions)
 	if err != nil {
 		return nil, err
 	}
@@ -983,13 +1097,13 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 	}, nil
 }
 
-func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan, updateParameters UpdateParameters, parameterGroupName *string) *rds.ModifyDBInstanceInput {
+func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan, updateParameters UpdateParameters, parameterGroupName string) *rds.ModifyDBInstanceInput {
 	modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
 		DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBInstanceClass:            servicePlan.RDSProperties.DBInstanceClass,
 		AutoMinorVersionUpgrade:    servicePlan.RDSProperties.AutoMinorVersionUpgrade,
 		CopyTagsToSnapshot:         servicePlan.RDSProperties.CopyTagsToSnapshot,
-		DBParameterGroupName:       parameterGroupName,
+		DBParameterGroupName:       aws.String(parameterGroupName),
 		DBSubnetGroupName:          servicePlan.RDSProperties.DBSubnetGroupName,
 		EngineVersion:              servicePlan.RDSProperties.EngineVersion,
 		OptionGroupName:            servicePlan.RDSProperties.OptionGroupName,

@@ -30,6 +30,7 @@ type FakeSQLEngine struct {
 	DropUserError     error
 
 	CreateExtensionsCalled bool
+	DropExtensionsCalled   bool
 
 	ResetStateCalled bool
 	ResetStateError  error
@@ -88,6 +89,12 @@ func (f *FakeSQLEngine) JDBCURI(address string, port int64, dbname string, usern
 
 func (f *FakeSQLEngine) CreateExtensions(extensions []string) error {
 	f.CreateExtensionsCalled = true
+
+	return nil
+}
+
+func (f *FakeSQLEngine) DropExtensions(extensions []string) error {
+	f.DropExtensionsCalled = true
 
 	return nil
 }

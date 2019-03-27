@@ -35,8 +35,7 @@
                                 ],
                                 "default_extensions": [
                                     "uuid-ossp",
-                                    "postgis",
-                                    "pg_stat_statements"
+                                    "postgis"
                                 ],
                                 "allowed_extensions": [
                                     "uuid-ossp",
@@ -65,8 +64,7 @@
                                 ],
                                 "default_extensions": [
                                     "uuid-ossp",
-                                    "postgis",
-                                    "pg_stat_statements"
+                                    "postgis"
                                 ],
                                 "allowed_extensions": [
                                     "uuid-ossp",
@@ -94,8 +92,7 @@
                                 "default_extensions": [
                                     "uuid-ossp",
                                     "postgis",
-                                    "citext",
-                                    "pg_stat_statements"
+                                    "citext"
                                 ],
                                 "allowed_extensions": [
                                     "uuid-ossp",
@@ -126,8 +123,7 @@
                                 "default_extensions": [
                                     "uuid-ossp",
                                     "postgis",
-                                    "citext",
-                                    "pg_stat_statements"
+                                    "citext"
                                 ],
                                 "allowed_extensions": [
                                     "uuid-ossp",
