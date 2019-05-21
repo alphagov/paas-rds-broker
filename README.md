@@ -20,22 +20,6 @@ $ go install github.com/alphagov/paas-rds-broker
 $ rds-broker -config=<path-to-your-config-file>
 ```
 
-### Cloud Foundry
-
-The broker can be deployed to an already existing [Cloud Foundry](https://www.cloudfoundry.org/) installation:
-
-```
-$ git clone https://github.com/alphagov/paas-rds-broker.git
-$ cd rds-broker
-```
-
-Modify the [included manifest file](https://github.com/alphagov/paas-rds-broker/blob/master/manifest.yml) to include your AWS credentials and optionally the [sample configuration file](https://github.com/alphagov/paas-rds-broker/blob/master/config-sample.json). Then you can push the broker to your [Cloud Foundry](https://www.cloudfoundry.org/) environment:
-
-```
-$ cp config-sample.json config.json
-$ cf push rds-broker
-```
-
 ### BOSH
 
 This broker can be deployed using the [AWS Service Broker BOSH Release](https://github.com/cf-platform-eng/aws-broker-boshrelease).
