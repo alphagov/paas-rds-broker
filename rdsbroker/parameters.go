@@ -1,5 +1,6 @@
 package rdsbroker
 
+import "encoding/json"
 import "fmt"
 
 type ProvisionParameters struct {
@@ -26,8 +27,7 @@ type UpdateParameters struct {
 }
 
 type BindParameters struct {
-	// This is currently empty, but preserved to make it easier to add
-	// bind-time parameters in future.
+	User *json.RawMessage `json:"user"`
 }
 
 func (pp *ProvisionParameters) Validate() error {
