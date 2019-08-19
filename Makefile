@@ -28,7 +28,7 @@ stop_postgres_10:
 	docker rm -f postgres-10
 
 start_mysql:
-	docker run -p 3306:3306 --name mysql -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -d mysql:5.7; \
+	docker run -p 3307:3306 --name mysql -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -d mysql:5.7; \
 	until docker exec mysql mysqladmin ping --silent; do \
 	    printf "."; sleep 1;                             \
 	done; \

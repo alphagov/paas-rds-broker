@@ -55,7 +55,7 @@ var _ = Describe("MySQLEngine", func() {
 		mysqlEngine.requireSSL = false
 
 		address = getEnvOrDefault("MYSQL_HOSTNAME", "127.0.0.1")
-		portString := getEnvOrDefault("MYSQL_PORT", "3306")
+		portString := getEnvOrDefault("MYSQL_PORT", "3307")
 		p, err := strconv.Atoi(portString)
 		Expect(err).ToNot(HaveOccurred())
 		port = int64(p)
