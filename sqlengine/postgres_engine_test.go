@@ -210,7 +210,7 @@ var _ = Describe("PostgresEngine", func() {
 					Expect(err).ToNot(HaveOccurred())
 					defer postgresEngine.Close()
 
-					_, _, err = postgresEngine.CreateUser(bindingID, dbname)
+					_, _, err = postgresEngine.CreateUser(bindingID, dbname, nil)
 					Expect(err).ToNot(HaveOccurred())
 
 					err = postgresEngine.DropUser(bindingID)
@@ -235,87 +235,92 @@ var _ = Describe("PostgresEngine", func() {
 			bindingID = "binding-id" + randomTestSuffix
 			err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
 			Expect(err).ToNot(HaveOccurred())
-
-			createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
-			Expect(err).ToNot(HaveOccurred())
 		})
 
-		AfterEach(func() {
-			err := postgresEngine.DropUser(bindingID)
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		It("CreateUser() returns valid credentials", func() {
-			connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
-			db, err := sql.Open("postgres", connectionString)
-			Expect(err).ToNot(HaveOccurred())
-			defer db.Close()
-			err = db.Ping()
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		It("creates a user with the necessary permissions on the database", func() {
-			connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
-			db, err := sql.Open("postgres", connectionString)
-			Expect(err).ToNot(HaveOccurred())
-			defer db.Close()
-
-			_, err = db.Exec("CREATE TABLE foo (col CHAR(8))")
-			Expect(err).ToNot(HaveOccurred())
-
-			_, err = db.Exec("INSERT INTO foo (col) VALUES ('value')")
-			Expect(err).ToNot(HaveOccurred())
-
-			_, err = db.Exec("CREATE SCHEMA bar")
-			Expect(err).ToNot(HaveOccurred())
-
-			_, err = db.Exec("CREATE TABLE bar.baz (col CHAR(8))")
-			Expect(err).ToNot(HaveOccurred())
-
-			_, err = db.Exec("INSERT INTO bar.baz (col) VALUES ('other')")
-			Expect(err).ToNot(HaveOccurred())
-
-			_, err = db.Exec("DROP TABLE bar.baz")
-			Expect(err).ToNot(HaveOccurred())
-
-			_, err = db.Exec("DROP SCHEMA bar CASCADE")
-			Expect(err).ToNot(HaveOccurred())
-
-		})
-
-		Context("When there are two different bindings", func() {
-			var (
-				otherBindingID       string
-				otherCreatedUser     string
-				otherCreatedPassword string
-			)
-
+		Context("Without userBindParameters supplied", func() {
 			BeforeEach(func() {
 				var err error
-				otherBindingID = "other-binding-id" + randomTestSuffix
-				otherCreatedUser, otherCreatedPassword, err = postgresEngine.CreateUser(otherBindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, nil)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
 			AfterEach(func() {
-				err := postgresEngine.DropUser(otherBindingID)
+				err := postgresEngine.DropUser(bindingID)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("CreateUser() returns different user and password", func() {
-				fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
-				Expect(otherCreatedUser).ToNot(Equal(createdUser))
-				fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
-				Expect(otherCreatedPassword).ToNot(Equal(createdPassword))
+			It("CreateUser() returns valid credentials", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+				err = db.Ping()
+				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("Tables created by one binding can be accessed and deleted by other", func() {
-				connectionString1 := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
-				connectionString2 := postgresEngine.URI(address, port, dbname, otherCreatedUser, otherCreatedPassword)
-				createObjects(connectionString1, "table1")
-				accessAndDeleteObjects(connectionString2, "table1")
-				createObjects(connectionString2, "table2")
-				accessAndDeleteObjects(connectionString1, "table2")
+			It("creates a user with the necessary permissions on the database", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("CREATE TABLE foo (col CHAR(8))")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("INSERT INTO foo (col) VALUES ('value')")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("CREATE SCHEMA bar")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("CREATE TABLE bar.baz (col CHAR(8))")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("INSERT INTO bar.baz (col) VALUES ('other')")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("DROP TABLE bar.baz")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("DROP SCHEMA bar CASCADE")
+				Expect(err).ToNot(HaveOccurred())
+
+			})
+
+			Context("When there are two different bindings", func() {
+				var (
+					otherBindingID       string
+					otherCreatedUser     string
+					otherCreatedPassword string
+				)
+
+				BeforeEach(func() {
+					var err error
+					otherBindingID = "other-binding-id" + randomTestSuffix
+					otherCreatedUser, otherCreatedPassword, err = postgresEngine.CreateUser(otherBindingID, dbname, nil)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				AfterEach(func() {
+					err := postgresEngine.DropUser(otherBindingID)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("CreateUser() returns different user and password", func() {
+					fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
+					Expect(otherCreatedUser).ToNot(Equal(createdUser))
+					fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
+					Expect(otherCreatedPassword).ToNot(Equal(createdPassword))
+				})
+
+				It("Tables created by one binding can be accessed and deleted by other", func() {
+					connectionString1 := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+					connectionString2 := postgresEngine.URI(address, port, dbname, otherCreatedUser, otherCreatedPassword)
+					createObjects(connectionString1, "table1")
+					accessAndDeleteObjects(connectionString2, "table1")
+					createObjects(connectionString2, "table2")
+					accessAndDeleteObjects(connectionString1, "table2")
+				})
 			})
 		})
 	})
@@ -337,7 +342,7 @@ var _ = Describe("PostgresEngine", func() {
 
 			BeforeEach(func() {
 				var err error
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, nil)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -395,7 +400,7 @@ var _ = Describe("PostgresEngine", func() {
 			BeforeEach(func() {
 				var err error
 				postgresEngine.UsernameGenerator = generateUsernameOld
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, nil)
 				postgresEngine.UsernameGenerator = generateUsername
 				Expect(err).ToNot(HaveOccurred())
 			})
@@ -444,46 +449,52 @@ var _ = Describe("PostgresEngine", func() {
 			It("CreateUser() can be called after ResetState()", func() {
 				err := postgresEngine.ResetState()
 				Expect(err).ToNot(HaveOccurred())
-				_, _, err = postgresEngine.CreateUser(bindingID, dbname)
+				_, _, err = postgresEngine.CreateUser(bindingID, dbname, nil)
 				Expect(err).ToNot(HaveOccurred())
 			})
 		})
 
 		Describe("when there was already a user created", func() {
-			BeforeEach(func() {
-				var err error
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
-				Expect(err).ToNot(HaveOccurred())
+			AssertState := func(){
+				It("ResetState() removes the credentials", func() {
+					connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+					db, err := sql.Open("postgres", connectionString)
+					defer db.Close()
+					Expect(err).ToNot(HaveOccurred())
+					err = db.Ping()
+					Expect(err).To(HaveOccurred())
 
-				err = postgresEngine.ResetState()
-				Expect(err).ToNot(HaveOccurred())
-			})
+					pqErr, ok := err.(*pq.Error)
+					Expect(ok).To(BeTrue())
+					Expect(pqErr.Code).To(SatisfyAny(
+						BeEquivalentTo("28P01"),
+						BeEquivalentTo("28000"),
+					))
+					Expect(pqErr.Message).To(SatisfyAny(
+						MatchRegexp("authentication failed for user"),
+						MatchRegexp("role .* does not exist"),
+					))
+				})
 
-			It("ResetState() removes the credentials", func() {
-				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
-				db, err := sql.Open("postgres", connectionString)
-				defer db.Close()
-				Expect(err).ToNot(HaveOccurred())
-				err = db.Ping()
-				Expect(err).To(HaveOccurred())
+				It("CreateUser() returns the same user and different password", func() {
+					user, password, err := postgresEngine.CreateUser(bindingID, dbname, nil)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(user).To(Equal(createdUser))
+					Expect(password).ToNot(Equal(createdPassword))
+				})
+			}
 
-				pqErr, ok := err.(*pq.Error)
-				Expect(ok).To(BeTrue())
-				Expect(pqErr.Code).To(SatisfyAny(
-					BeEquivalentTo("28P01"),
-					BeEquivalentTo("28000"),
-				))
-				Expect(pqErr.Message).To(SatisfyAny(
-					MatchRegexp("authentication failed for user"),
-					MatchRegexp("role .* does not exist"),
-				))
-			})
+			Describe("with empty userBindParameters", func() {
+				BeforeEach(func() {
+					var err error
+					createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, nil)
+					Expect(err).ToNot(HaveOccurred())
 
-			It("CreateUser() returns the same user and different password", func() {
-				user, password, err := postgresEngine.CreateUser(bindingID, dbname)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(user).To(Equal(createdUser))
-				Expect(password).ToNot(Equal(createdPassword))
+					err = postgresEngine.ResetState()
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				AssertState()
 			})
 
 		})

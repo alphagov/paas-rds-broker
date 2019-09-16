@@ -3,6 +3,7 @@ package sqlengine
 import (
 	"bytes"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/url"
@@ -121,7 +122,7 @@ func (d *PostgresEngine) createUser(bindingID, dbname string) (username, passwor
 	return username, password, tx.Commit()
 }
 
-func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) CreateUser(bindingID, dbname string, userBindParametersRaw *json.RawMessage) (username, password string, err error) {
 	var pqErr *pq.Error
 	tries := 0
 	for tries < 10 {

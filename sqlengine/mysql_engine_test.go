@@ -106,8 +106,8 @@ var _ = Describe("MySQLEngine", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("CreateUser() should successfully complete it's destiny", func() {
-			createdUser, createdPassword, err := mysqlEngine.CreateUser(bindingID, dbname)
+		It("CreateUser() should successfully complete its destiny", func() {
+			createdUser, createdPassword, err := mysqlEngine.CreateUser(bindingID, dbname, nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(createdUser).NotTo(BeEmpty())
 			Expect(createdPassword).NotTo(BeEmpty())
@@ -126,7 +126,7 @@ var _ = Describe("MySQLEngine", func() {
 		It("DropUser() should drop the username generated the old way successfully", func() {
 			mysqlEngine.UsernameGenerator = generateUsernameOld
 
-			_, _, err := mysqlEngine.CreateUser(bindingID, dbname)
+			_, _, err := mysqlEngine.CreateUser(bindingID, dbname, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			mysqlEngine.UsernameGenerator = generateUsername
