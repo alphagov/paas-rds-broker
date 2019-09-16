@@ -119,7 +119,7 @@ var _ = Describe("MySQLEngine", func() {
 		})
 
 		It("DropUser() should drop the user successfully", func() {
-			err := mysqlEngine.DropUser(bindingID)
+			err := mysqlEngine.DropUser(bindingID, dbname)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -131,7 +131,7 @@ var _ = Describe("MySQLEngine", func() {
 
 			mysqlEngine.UsernameGenerator = generateUsername
 
-			err = mysqlEngine.DropUser(bindingID)
+			err = mysqlEngine.DropUser(bindingID, dbname)
 			Expect(err).ToNot(HaveOccurred())
 		})
 	})

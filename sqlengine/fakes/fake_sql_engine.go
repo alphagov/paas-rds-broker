@@ -29,6 +29,7 @@ type FakeSQLEngine struct {
 
 	DropUserCalled    bool
 	DropUserBindingID string
+	DropUserDBName string
 	DropUserError     error
 
 	CreateExtensionsCalled bool
@@ -69,9 +70,10 @@ func (f *FakeSQLEngine) CreateUser(bindingID, dbname string, userBindParametersR
 	return f.CreateUserUsername, f.CreateUserPassword, f.CreateUserError
 }
 
-func (f *FakeSQLEngine) DropUser(bindingID string) error {
+func (f *FakeSQLEngine) DropUser(bindingID, dbname string) error {
 	f.DropUserCalled = true
 	f.DropUserBindingID = bindingID
+	f.DropUserDBName = dbname
 
 	return f.DropUserError
 }

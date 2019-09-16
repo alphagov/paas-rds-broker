@@ -213,7 +213,7 @@ var _ = Describe("PostgresEngine", func() {
 					_, _, err = postgresEngine.CreateUser(bindingID, dbname, nil)
 					Expect(err).ToNot(HaveOccurred())
 
-					err = postgresEngine.DropUser(bindingID)
+					err = postgresEngine.DropUser(bindingID, dbname)
 					Expect(err).ToNot(HaveOccurred())
 				}(fmt.Sprintf("binding-id-%d", i))
 			}
@@ -245,7 +245,7 @@ var _ = Describe("PostgresEngine", func() {
 			})
 
 			AfterEach(func() {
-				err := postgresEngine.DropUser(bindingID)
+				err := postgresEngine.DropUser(bindingID, dbname)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -302,7 +302,7 @@ var _ = Describe("PostgresEngine", func() {
 				})
 
 				AfterEach(func() {
-					err := postgresEngine.DropUser(otherBindingID)
+					err := postgresEngine.DropUser(otherBindingID, dbname)
 					Expect(err).ToNot(HaveOccurred())
 				})
 
@@ -347,7 +347,7 @@ var _ = Describe("PostgresEngine", func() {
 			})
 
 			It("DropUser() removes the credentials", func() {
-				err := postgresEngine.DropUser(bindingID)
+				err := postgresEngine.DropUser(bindingID, dbname)
 				Expect(err).ToNot(HaveOccurred())
 
 				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
@@ -379,7 +379,7 @@ var _ = Describe("PostgresEngine", func() {
 				_, err = rootConnection.Exec(revoke)
 				Expect(err).ToNot(HaveOccurred())
 
-				err = postgresEngine.DropUser(bindingID)
+				err = postgresEngine.DropUser(bindingID, dbname)
 				Expect(err).To(HaveOccurred())
 				pqErr, ok := err.(*pq.Error)
 				Expect(ok).To(BeTrue())
@@ -390,7 +390,7 @@ var _ = Describe("PostgresEngine", func() {
 
 		Context("A user doesn't exist", func() {
 			It("Calling DropUser() doesn't fail with 'role does not exist'", func() {
-				err := postgresEngine.DropUser(bindingID)
+				err := postgresEngine.DropUser(bindingID, dbname)
 				Expect(err).ToNot(HaveOccurred())
 			})
 		})
@@ -406,7 +406,7 @@ var _ = Describe("PostgresEngine", func() {
 			})
 
 			It("DropUser() removes the credentials", func() {
-				err := postgresEngine.DropUser(bindingID)
+				err := postgresEngine.DropUser(bindingID, dbname)
 				Expect(err).ToNot(HaveOccurred())
 
 				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
