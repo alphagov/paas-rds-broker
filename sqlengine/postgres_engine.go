@@ -143,7 +143,7 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string, userBindParameters
 
 }
 
-func (d *PostgresEngine) DropUser(bindingID string) error {
+func (d *PostgresEngine) DropUser(bindingID, dbname string) error {
 	username := d.UsernameGenerator(bindingID)
 	dropUserStatement := fmt.Sprintf(`drop role "%s"`, username)
 

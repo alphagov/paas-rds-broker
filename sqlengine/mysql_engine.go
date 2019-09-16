@@ -112,7 +112,7 @@ func (d *MySQLEngine) CreateUser(bindingID, dbname string, userBindParametersRaw
 	return username, password, nil
 }
 
-func (d *MySQLEngine) DropUser(bindingID string) error {
+func (d *MySQLEngine) DropUser(bindingID, dbname string) error {
 	username := d.UsernameGenerator(bindingID)
 
 	dropUserStatement := "DROP USER '" + username + "'@'%';"
