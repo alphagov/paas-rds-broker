@@ -2,6 +2,7 @@ package sqlengine
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -62,7 +63,7 @@ func (d *MySQLEngine) Close() {
 	}
 }
 
-func (d *MySQLEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
+func (d *MySQLEngine) CreateUser(bindingID, dbname string, userBindParametersRaw *json.RawMessage) (username, password string, err error) {
 	username = d.UsernameGenerator(bindingID)
 	password = generatePassword()
 	options := []string{
