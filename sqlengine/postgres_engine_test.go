@@ -42,7 +42,7 @@ func dropTestUser(connectionString, username string) {
 	defer db.Close()
 	Expect(err).ToNot(HaveOccurred())
 
-	statement := "DROP OWNED BY " + username
+	statement := "DROP OWNED BY " + username + " CASCADE"
 	_, err = db.Exec(statement)
 	if err != nil {
 		fmt.Fprintln(GinkgoWriter, err)
@@ -375,8 +375,10 @@ var _ = Describe("PostgresEngine", func() {
 				rootConnection, err := sql.Open("postgres", template1ConnectionString)
 				defer rootConnection.Close()
 				Expect(err).ToNot(HaveOccurred())
-				revoke := "ALTER USER " + masterUsername + " NOSUPERUSER"
-				_, err = rootConnection.Exec(revoke)
+				_, err = rootConnection.Exec(fmt.Sprintf("ALTER USER %s NOSUPERUSER", masterUsername))
+				Expect(err).ToNot(HaveOccurred())
+				// not even being able to connect to the db is a very bland error
+				_, err = rootConnection.Exec(fmt.Sprintf("GRANT CONNECT ON DATABASE %s TO %s", dbname, masterUsername))
 				Expect(err).ToNot(HaveOccurred())
 
 				err = postgresEngine.DropUser(bindingID, dbname)

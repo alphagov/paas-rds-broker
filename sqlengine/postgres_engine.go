@@ -82,6 +82,10 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 		return "", "", err
 	}
 
+	if err = d.ensurePublicPrivileges(tx, dbname); err != nil {
+		return "", "", err
+	}
+
 	username = d.UsernameGenerator(bindingID)
 	password = generatePassword()
 
@@ -97,11 +101,8 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 		return "", "", err
 	}
 
-	grantAllOnDatabaseStatement := fmt.Sprintf(`grant all privileges on database "%s" to "%s"`, dbname, groupname)
-	d.logger.Debug("grant-privileges", lager.Data{"statement": grantAllOnDatabaseStatement})
 
-	if _, err := tx.Exec(grantAllOnDatabaseStatement); err != nil {
-		d.logger.Error("Grant sql-error", err)
+	if err = d.ensureGroupPrivileges(tx, dbname, groupname); err != nil {
 		return "", "", err
 	}
 
@@ -399,6 +400,113 @@ func (d *PostgresEngine) ensureGroup(tx *sql.Tx, dbname, groupname string) error
 	d.logger.Debug("ensure-group", lager.Data{"statement": ensureGroupStatement.String()})
 
 	if _, err := tx.Exec(ensureGroupStatement.String()); err != nil {
+		d.logger.Error("sql-error", err)
+		return err
+	}
+
+	return nil
+}
+
+const ensurePublicPrivilegesPattern = `
+	do
+	$body$
+	declare
+		r record;
+	begin
+		-- these privileges must be revoked from PUBLIC else we will not be able to restrict
+		-- access to them in a more fine-grained way later
+		ALTER DEFAULT PRIVILEGES REVOKE ALL ON TABLES FROM PUBLIC;
+		ALTER DEFAULT PRIVILEGES REVOKE ALL ON SEQUENCES FROM PUBLIC;
+		ALTER DEFAULT PRIVILEGES REVOKE ALL ON SCHEMAS FROM PUBLIC;
+
+		REVOKE ALL ON DATABASE "{{.dbname}}" FROM PUBLIC;
+
+		-- there are other privileges for which we don't currently implement a way to further
+		-- control, so we have to ensure PUBLIC has access to them to prevent removing abilities
+		-- entirely for some users
+		ALTER DEFAULT PRIVILEGES GRANT ALL ON FUNCTIONS TO PUBLIC;
+		ALTER DEFAULT PRIVILEGES GRANT ALL ON TYPES TO PUBLIC;
+
+		-- now we perform equivalent operations for any objects that might already exist
+
+		FOR r IN SELECT schema_name FROM information_schema.schemata WHERE schema_name != 'information_schema' AND schema_name NOT LIKE 'pg_%' LOOP
+			-- revoke privileges we can handle more specifically
+			EXECUTE 'REVOKE ALL ON ALL TABLES IN SCHEMA ' || quote_ident(r.schema_name) || ' FROM PUBLIC';
+			EXECUTE 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA ' || quote_ident(r.schema_name) || ' FROM PUBLIC';
+			EXECUTE 'REVOKE ALL ON SCHEMA ' || quote_ident(r.schema_name) || ' FROM PUBLIC';
+
+			-- grant privileges we can't handle more specifically
+			EXECUTE 'GRANT ALL ON ALL FUNCTIONS IN SCHEMA ' || quote_ident(r.schema_name) || ' TO PUBLIC';
+		END LOOP;
+
+		FOR r IN SELECT user_defined_type_schema, user_defined_type_name FROM information_schema.user_defined_types LOOP
+			EXECUTE 'GRANT ALL ON TYPE ' || quote_ident(r.user_defined_type_schema) || '.' || quote_ident(r.user_defined_type_name) || ' TO  PUBLIC';
+		END LOOP;
+
+		FOR r IN SELECT domain_schema, domain_name FROM information_schema.domains LOOP
+			EXECUTE 'GRANT ALL ON DOMAIN ' || quote_ident(r.domain_schema) || '.' || quote_ident(r.domain_name) || ' TO  PUBLIC';
+		END LOOP;
+
+		FOR r IN SELECT lanname FROM pg_catalog.pg_language WHERE lanpltrusted LOOP
+			EXECUTE 'GRANT ALL ON LANGUAGE ' || quote_ident(r.lanname) || ' TO  PUBLIC';
+		END LOOP;
+	end
+	$body$
+	`
+
+var ensurePublicPrivilegesTemplate = template.Must(template.New("ensurePublicPrivileges").Parse(ensurePublicPrivilegesPattern))
+
+func (d *PostgresEngine) ensurePublicPrivileges(tx *sql.Tx, dbname string) error {
+	var ensurePublicPrivilegesStatement bytes.Buffer
+	if err := ensurePublicPrivilegesTemplate.Execute(&ensurePublicPrivilegesStatement, map[string]string{
+		"dbname": dbname,
+	}); err != nil {
+		return err
+	}
+	d.logger.Debug("ensure-public-privileges", lager.Data{"statement": ensurePublicPrivilegesStatement.String()})
+
+	if _, err := tx.Exec(ensurePublicPrivilegesStatement.String()); err != nil {
+		d.logger.Error("sql-error", err)
+		return err
+	}
+
+	return nil
+}
+
+const ensureGroupPrivilegesPattern = `
+	do
+	$body$
+	declare
+		r record;
+	begin
+		FOR r IN SELECT schema_name FROM information_schema.schemata WHERE schema_name != 'information_schema' AND schema_name NOT LIKE 'pg_%' LOOP
+			EXECUTE 'GRANT ALL ON ALL TABLES IN SCHEMA ' || quote_ident(r.schema_name) || ' TO "{{.rolename}}"';
+			EXECUTE 'GRANT ALL ON ALL SEQUENCES IN SCHEMA ' || quote_ident(r.schema_name) || ' TO "{{.rolename}}"';
+			EXECUTE 'GRANT ALL ON SCHEMA ' || quote_ident(r.schema_name) || ' TO "{{.rolename}}"';
+		END LOOP;
+
+		GRANT ALL ON DATABASE "{{.dbname}}" TO "{{.rolename}}";
+
+		ALTER DEFAULT PRIVILEGES GRANT ALL ON TABLES TO "{{.rolename}}";
+		ALTER DEFAULT PRIVILEGES GRANT ALL ON SEQUENCES TO "{{.rolename}}";
+		ALTER DEFAULT PRIVILEGES GRANT ALL ON SCHEMAS TO "{{.rolename}}";
+	end
+	$body$
+	`
+
+var ensureGroupPrivilegesTemplate = template.Must(template.New("ensureGroupPrivileges").Parse(ensureGroupPrivilegesPattern))
+
+func (d *PostgresEngine) ensureGroupPrivileges(tx *sql.Tx, dbname, groupname string) error {
+	var ensureGroupPrivilegesStatement bytes.Buffer
+	if err := ensureGroupPrivilegesTemplate.Execute(&ensureGroupPrivilegesStatement, map[string]string{
+		"dbname": dbname,
+		"rolename": groupname,
+	}); err != nil {
+		return err
+	}
+	d.logger.Debug("ensure-group-privileges", lager.Data{"statement": ensureGroupPrivilegesStatement.String()})
+
+	if _, err := tx.Exec(ensureGroupPrivilegesStatement.String()); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
