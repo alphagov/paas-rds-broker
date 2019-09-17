@@ -71,7 +71,7 @@ func (d *PostgresEngine) Close() {
 	}
 }
 
-func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, userBindParameters PostgresUserBindParameters) (username, password string, err error) {
 	groupname := d.generatePostgresGroup(dbname)
 
 	if err = d.ensureGroup(tx, dbname, groupname); err != nil {
@@ -93,14 +93,41 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 		return "", "", err
 	}
 
-	grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, username)
-	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+	if userBindParameters.IsOwner == nil || *userBindParameters.IsOwner {
+		grantMembershipStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, username)
+		d.logger.Debug("grant-group-membership", lager.Data{"statement": grantMembershipStatement})
 
-	if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
-		d.logger.Error("Grant sql-error", err)
-		return "", "", err
+		if _, err := tx.Exec(grantMembershipStatement); err != nil {
+			d.logger.Error("Grant sql-error", err)
+			return "", "", err
+		}
+	} else {
+		defaultPrivilegePlPgSQL := userBindParameters.GetDefaultPrivilegePlPgSQL(username, dbname)
+
+		if defaultPrivilegePlPgSQL != "" {
+			d.logger.Debug("set-nonowner-default-privileges", lager.Data{"statement": defaultPrivilegePlPgSQL})
+
+			if _, err := tx.Exec(fmt.Sprintf("DO %s", pq.QuoteLiteral(defaultPrivilegePlPgSQL))); err != nil {
+				d.logger.Error("Grant sql-error", err)
+				return "", "", err
+			}
+		}
+
+		privilegeAssignmentPlPgSQL := userBindParameters.GetPrivilegeAssignmentPlPgSQL(username, dbname)
+
+		if privilegeAssignmentPlPgSQL != "" {
+			d.logger.Debug("set-nonowner-privilege-assignment", lager.Data{"statement": privilegeAssignmentPlPgSQL})
+
+			if _, err := tx.Exec(fmt.Sprintf("DO %s", pq.QuoteLiteral(privilegeAssignmentPlPgSQL))); err != nil {
+				d.logger.Error("Grant sql-error", err)
+				return "", "", err
+			}
+		}
+
+		if err = d.ensureNonOwnerRestrictions(tx, username, dbname); err != nil {
+			return "", "", err
+		}
 	}
-
 
 	if err = d.ensureGroupPrivileges(tx, dbname, groupname); err != nil {
 		return "", "", err
@@ -109,13 +136,13 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 	return username, password, nil
 }
 
-func (d *PostgresEngine) createUser(bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) createUser(bindingID, dbname string, userBindParameters PostgresUserBindParameters) (username, password string, err error) {
 	tx, err := d.db.Begin()
 	if err != nil {
 		d.logger.Error("sql-error", err)
 		return "", "", err
 	}
-	username, password, err = d.execCreateUser(tx, bindingID, dbname)
+	username, password, err = d.execCreateUser(tx, bindingID, dbname, userBindParameters)
 	if err != nil {
 		_ = tx.Rollback()
 		return "", "", err
@@ -124,11 +151,23 @@ func (d *PostgresEngine) createUser(bindingID, dbname string) (username, passwor
 }
 
 func (d *PostgresEngine) CreateUser(bindingID, dbname string, userBindParametersRaw *json.RawMessage) (username, password string, err error) {
+	bindParameters := PostgresUserBindParameters{}
+	if userBindParametersRaw != nil && len(*userBindParametersRaw) > 0 {
+		decoder := json.NewDecoder(bytes.NewReader(*userBindParametersRaw))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&bindParameters); err != nil {
+			return "", "", err
+		}
+		if err := bindParameters.Validate(); err != nil {
+			return "", "", err
+		}
+	}
+
 	var pqErr *pq.Error
 	tries := 0
 	for tries < 10 {
 		tries++
-		username, password, err := d.createUser(bindingID, dbname)
+		username, password, err := d.createUser(bindingID, dbname, bindParameters)
 		if err != nil {
 			var ok bool
 			pqErr, ok = err.(*pq.Error)
@@ -507,6 +546,42 @@ func (d *PostgresEngine) ensureGroupPrivileges(tx *sql.Tx, dbname, groupname str
 	d.logger.Debug("ensure-group-privileges", lager.Data{"statement": ensureGroupPrivilegesStatement.String()})
 
 	if _, err := tx.Exec(ensureGroupPrivilegesStatement.String()); err != nil {
+		d.logger.Error("sql-error", err)
+		return err
+	}
+
+	return nil
+}
+
+const ensureNonOwnerRestrictionsPattern = `
+	do
+	$body$
+	declare
+		r record;
+	begin
+		-- we cannot allow any form of CREATE permission for non-owner users as it would cause ownership complications
+		FOR r IN SELECT schema_name FROM information_schema.schemata WHERE schema_name != 'information_schema' AND schema_name NOT LIKE 'pg_%' LOOP
+			EXECUTE 'REVOKE CREATE ON SCHEMA ' || quote_ident(r.schema_name) || ' FROM "{{.rolename}}"';
+		END LOOP;
+
+		REVOKE CREATE ON DATABASE "{{.dbname}}" FROM "{{.rolename}}";
+	end
+	$body$
+	`
+
+var ensureNonOwnerRestrictionsTemplate = template.Must(template.New("ensureNonOwnerRestrictions").Parse(ensureNonOwnerRestrictionsPattern))
+
+func (d *PostgresEngine) ensureNonOwnerRestrictions(tx *sql.Tx, username, dbname string) error {
+	var ensureNonOwnerRestrictionsStatement bytes.Buffer
+	if err := ensureNonOwnerRestrictionsTemplate.Execute(&ensureNonOwnerRestrictionsStatement, map[string]string{
+		"rolename": username,
+		"dbname": dbname,
+	}); err != nil {
+		return err
+	}
+	d.logger.Debug("ensure-non-owner-restrictions", lager.Data{"statement": ensureNonOwnerRestrictionsStatement.String()})
+
+	if _, err := tx.Exec(ensureNonOwnerRestrictionsStatement.String()); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}

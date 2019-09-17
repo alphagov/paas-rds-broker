@@ -323,6 +323,470 @@ var _ = Describe("PostgresEngine", func() {
 				})
 			})
 		})
+
+		Context("With invalid userBindParameters supplied", func() {
+			It("Returns an error for invalid json in userBindParameters", func() {
+				_, _, err := postgresEngine.CreateUser(bindingID, dbname, rawMessagePointer(`{"is_owner": true,, "grant_privileges": null}`))
+				Expect(err).To(MatchError(ContainSubstring(`invalid character`)))
+			})
+
+			It("Returns an error when unable to unmarshal userBindParameters", func() {
+				_, _, err := postgresEngine.CreateUser(bindingID, dbname, rawMessagePointer(`{"is_owner": 123}`))
+				Expect(err).To(MatchError(ContainSubstring(`number`)))
+			})
+
+			It("Returns an error when userBindParameters fails validation", func() {
+				_, _, err := postgresEngine.CreateUser(bindingID, dbname, rawMessagePointer(`{"is_owner": false, "default_privilege_policy": "grunt"}`))
+				Expect(err).To(MatchError(ContainSubstring(`default_privilege_policy must be one of 'grant' or 'revoke'`)))
+			})
+		})
+
+		Context("With a default-revoke non-owner specified by userBindParameters", func() {
+			BeforeEach(func() {
+				var err error
+				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_before_user AS SELECT 123 AS x")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_before_user")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE FUNCTION f_created_before_user() RETURNS integer AS 'BEGIN\nRETURN 321;\nEND;' LANGUAGE plpgsql")
+				Expect(err).ToNot(HaveOccurred())
+
+				createdUser, createdPassword, err = postgresEngine.CreateUser(
+					bindingID,
+					dbname,
+					rawMessagePointer(
+						// without public schema access very little works and it doesn't feel like we're testing much
+						`{"is_owner": false, "default_privilege_policy": "revoke", "grant_privileges": [{"target_type": "SCHEMA", "target_name": "public", "privilege": "USAGE"}]}`,
+					),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_after_user AS SELECT 456 AS x")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_after_user")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE FUNCTION f_created_after_user() RETURNS integer AS 'BEGIN\nRETURN 321;\nEND;' LANGUAGE plpgsql")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				err := postgresEngine.DropUser(bindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is unable to create objects", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("CREATE TABLE foo (col CHAR(8))")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec("CREATE SEQUENCE baz")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec("CREATE SCHEMA bar")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec("CREATE INDEX qux ON t_created_before_user (x)")
+				Expect(err).To(MatchError(ContainSubstring(`owner`)))
+			})
+
+			It("Is unable to access objects created before the user", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("INSERT INTO t_created_before_user VALUES (111)")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec("SELECT nextval('s_created_before_user')")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+			})
+
+			It("Is unable to access objects created after the user", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("INSERT INTO t_created_after_user VALUES (111)")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec("SELECT nextval('s_created_after_user')")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+			})
+
+			It("Is able to call functions created before and after the user", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("SELECT f_created_before_user()")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("SELECT f_created_after_user()")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is unable to drop tables", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("DROP TABLE t_created_before_user")
+				Expect(err).To(MatchError(ContainSubstring(`owner`)))
+
+				_, err = db.Exec("DROP TABLE t_created_after_user")
+				Expect(err).To(MatchError(ContainSubstring(`owner`)))
+			})
+
+			It("Is unable to create temporary tables", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("CREATE TEMPORARY TABLE qux AS SELECT 'abc'")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+			})
+
+			It("Is able to execute plpgsql", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec(fmt.Sprintf("DO %s LANGUAGE plpgsql", pq.QuoteLiteral("BEGIN\nEXECUTE 'SELECT 1';\nEND;")))
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("With a default-grant non-owner specified by userBindParameters", func() {
+			BeforeEach(func() {
+				var err error
+				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_before_user AS SELECT 123 AS x")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_before_user")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE FUNCTION f_created_before_user() RETURNS integer AS 'BEGIN\nRETURN 321;\nEND;' LANGUAGE plpgsql")
+				Expect(err).ToNot(HaveOccurred())
+
+				createdUser, createdPassword, err = postgresEngine.CreateUser(
+					bindingID,
+					dbname,
+					rawMessagePointer(
+						`{"is_owner": false, "default_privilege_policy": "grant"}`,
+					),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_after_user AS SELECT 456 AS x")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_after_user")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE FUNCTION f_created_after_user() RETURNS integer AS 'BEGIN\nRETURN 321;\nEND;' LANGUAGE plpgsql")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				err := postgresEngine.DropUser(bindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is unable to create objects", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("CREATE TABLE foo (col CHAR(8))")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec("CREATE SEQUENCE baz")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec("CREATE SCHEMA bar")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec("CREATE INDEX qux ON t_created_before_user (x)")
+				Expect(err).To(MatchError(ContainSubstring(`owner`)))
+			})
+
+			It("Is able to access objects created before the user", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("INSERT INTO t_created_before_user VALUES (111)")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("SELECT nextval('s_created_before_user')")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is able to access objects created after the user", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("INSERT INTO t_created_after_user VALUES (111)")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("SELECT nextval('s_created_after_user')")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is able to call functions created before and after the user", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("SELECT f_created_before_user()")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("SELECT f_created_after_user()")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is unable to drop tables", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("DROP TABLE t_created_before_user")
+				Expect(err).To(MatchError(ContainSubstring(`owner`)))
+
+				_, err = db.Exec("DROP TABLE t_created_after_user")
+				Expect(err).To(MatchError(ContainSubstring(`owner`)))
+			})
+
+			It("Is able to create temporary tables", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("CREATE TEMPORARY TABLE qux AS SELECT 'abc'")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is able to execute plpgsql", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec(fmt.Sprintf("DO %s LANGUAGE plpgsql", pq.QuoteLiteral("BEGIN\nEXECUTE 'SELECT 1';\nEND;")))
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("With a default-revoke non-owner with specific grants specified by userBindParameters", func() {
+			BeforeEach(func() {
+				var err error
+				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_before_user AS SELECT 123 AS x")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec(`CREATE TABLE "t_weirdly "" ; ' ,named " AS SELECT 123 AS x`)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_before_user")
+				Expect(err).ToNot(HaveOccurred())
+
+				createdUser, createdPassword, err = postgresEngine.CreateUser(
+					bindingID,
+					dbname,
+					rawMessagePointer(
+						`{"is_owner": false, "default_privilege_policy": "revoke", "grant_privileges": [
+							{"target_type": "SCHEMA", "target_name": "public", "privilege": "ALL"},
+							{"target_type": "TABLE", "target_name": "t_created_before_user", "privilege": "SELECT"},
+							{"target_type": "TABLE", "target_name": "t_created_after_user", "privilege": "SELECT"},
+							{"target_type": "TABLE", "target_name": "t_weirdly \" ; ' ,named ", "privilege": "INSERT"},
+							{"target_type": "TABLE", "target_name": "doesnt_exist", "privilege": "ALL"},
+							{"target_type": "SEQUENCE", "target_name": "s_created_before_user", "privilege": "SELECT"},
+							{"target_type": "SEQUENCE", "target_name": "s_created_after_user", "privilege": "ALL"},
+							{"target_type": "DATABASE", "privilege": "ALL"}
+						]}`,
+					),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_after_user AS SELECT 456 AS x")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_after_user")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is able to create temporary tables", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("CREATE TEMPORARY TABLE qux AS SELECT 'abc'")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is granted privileges specified to pre-existing objects", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("SELECT * FROM t_created_before_user")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec(`INSERT INTO "t_weirdly "" ; ' ,named " VALUES (555)`)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("SELECT last_value FROM s_created_before_user")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is not granted other privileges to specified pre-existing objects", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("INSERT INTO t_created_before_user VALUES (111)")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec("SELECT nextval('s_created_before_user')")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+			})
+
+			It("Is not granted privileges specified to objects created after the user", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("SELECT * FROM t_created_after_user")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec("SELECT last_value FROM s_created_after_user")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+			})
+
+			It("Is not granted any CREATE privileges", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("CREATE SCHEMA test123")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec("CREATE TABLE test456 AS SELECT 789 AS x")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+			})
+		})
+
+		Context("With a default-grant non-owner with specific revocations specified by userBindParameters", func() {
+			BeforeEach(func() {
+				var err error
+				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_before_user AS SELECT 123 AS x")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec(`CREATE TABLE "t_weirdly "" ; ' ,named " AS SELECT 123 AS x`)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_before_user")
+				Expect(err).ToNot(HaveOccurred())
+
+				createdUser, createdPassword, err = postgresEngine.CreateUser(
+					bindingID,
+					dbname,
+					rawMessagePointer(
+						`{"is_owner": false, "default_privilege_policy": "grant", "revoke_privileges": [
+							{"target_type": "TABLE", "target_name": "t_created_before_user", "privilege": "SELECT"},
+							{"target_type": "TABLE", "target_name": "t_created_after_user", "privilege": "SELECT"},
+							{"target_type": "TABLE", "target_name": "t_weirdly \" ; ' ,named ", "privilege": "INSERT"},
+							{"target_type": "TABLE", "target_name": "doesnt_exist", "privilege": "ALL"},
+							{"target_type": "SEQUENCE", "target_name": "s_created_before_user", "privilege": "UPDATE"},
+							{"target_type": "SEQUENCE", "target_name": "s_created_after_user", "privilege": "SELECT"}
+						]}`,
+					),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_after_user AS SELECT 456 AS x")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_after_user")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is able to create temporary tables", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("CREATE TEMPORARY TABLE qux AS SELECT 'abc'")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is revoked privileges specified from pre-existing objects", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("SELECT * FROM t_created_before_user")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec(`INSERT INTO "t_weirdly "" ; ' ,named " VALUES (555)`)
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec("SELECT setval('s_created_before_user', 101)")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+			})
+
+			It("Is not revoked other privileges from specified pre-existing objects", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("INSERT INTO t_created_before_user VALUES (111)")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("SELECT last_value FROM s_created_before_user")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is not revoked privileges specified from objects created after the user", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("SELECT * FROM t_created_after_user")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("SELECT last_value FROM s_created_after_user")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Is not granted any CREATE privileges", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("CREATE SCHEMA test123")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+
+				_, err = db.Exec("CREATE TABLE test456 AS SELECT 789 AS x")
+				Expect(err).To(MatchError(ContainSubstring(`permission`)))
+			})
+		})
 	})
 
 	Describe("DropUser", func() {
@@ -387,6 +851,54 @@ var _ = Describe("PostgresEngine", func() {
 				Expect(ok).To(BeTrue())
 				Expect(pqErr.Code).To(BeEquivalentTo("42501"))
 				Expect(pqErr.Message).To(MatchRegexp("permission denied to drop role"))
+			})
+		})
+
+		Context("A non-owner user exists", func() {
+
+			BeforeEach(func() {
+				var err error
+
+				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_before_user AS SELECT 123 AS x")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_before_user")
+				Expect(err).ToNot(HaveOccurred())
+
+				createdUser, createdPassword, err = postgresEngine.CreateUser(
+					bindingID,
+					dbname,
+					rawMessagePointer(
+						`{"is_owner": false, "default_privilege_policy": "revoke", "grant_privileges": [
+							{"target_type": "SCHEMA", "target_name": "public", "privilege": "USAGE"},
+							{"target_type": "TABLE", "target_name": "t_created_before_user", "privilege": "ALL"},
+							{"target_type": "SEQUENCE", "target_name": "s_created_before_user", "privilege": "ALL"}
+						]}`,
+					),
+				)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("DropUser() removes the credentials", func() {
+				err := postgresEngine.DropUser(bindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
+
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				defer db.Close()
+				Expect(err).ToNot(HaveOccurred())
+				err = db.Ping()
+				Expect(err).To(HaveOccurred())
+
+				pqErr, ok := err.(*pq.Error)
+				Expect(ok).To(BeTrue())
+				Expect(pqErr.Code).To(SatisfyAny(
+					BeEquivalentTo("28P01"),
+					BeEquivalentTo("28000"),
+				))
+				Expect(pqErr.Message).To(SatisfyAny(
+					MatchRegexp("authentication failed for user"),
+					MatchRegexp("role .* does not exist"),
+				))
 			})
 		})
 
@@ -499,6 +1011,24 @@ var _ = Describe("PostgresEngine", func() {
 				AssertState()
 			})
 
+			Describe("with non-owner userBindParameters", func() {
+				BeforeEach(func() {
+					var err error
+					createdUser, createdPassword, err = postgresEngine.CreateUser(
+						bindingID,
+						dbname,
+						rawMessagePointer(
+							`{"is_owner": false, "default_privilege_policy": "grant"}`,
+						),
+					)
+					Expect(err).ToNot(HaveOccurred())
+
+					err = postgresEngine.ResetState()
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				AssertState()
+			})
 		})
 	})
 
