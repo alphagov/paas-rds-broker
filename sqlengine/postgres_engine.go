@@ -272,6 +272,13 @@ func (d *PostgresEngine) ResetState() error {
 	}
 
 	for _, username := range users {
+		dropOwnedStatement := fmt.Sprintf(`drop owned by "%s"`, username)
+		d.logger.Debug("reset-state", lager.Data{"statement": dropOwnedStatement})
+		if _, err = tx.Exec(dropOwnedStatement); err != nil {
+			d.logger.Error("sql-error", err)
+			return err
+		}
+
 		dropUserStatement := fmt.Sprintf(`drop role "%s"`, username)
 		d.logger.Debug("reset-state", lager.Data{"statement": dropUserStatement})
 		if _, err = tx.Exec(dropUserStatement); err != nil {
