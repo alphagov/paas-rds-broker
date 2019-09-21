@@ -253,7 +253,7 @@ type PostgresUserBindParameters struct {
 	GrantPrivileges        *[]PostgresqlPrivilege `json:"grant_privileges"`
 }
 
-func (bp *PostgresUserBindParameters) Validate() error {
+func (bp *PostgresUserBindParameters) Validate(pgServerVersionNum int) error {
 	if bp.IsOwner != nil && !*bp.IsOwner {
 		switch strings.ToLower(bp.DefaultPrivilegePolicy) {
 			case "revoke":
@@ -268,6 +268,9 @@ func (bp *PostgresUserBindParameters) Validate() error {
 					}
 				}
 			case "grant":
+				if pgServerVersionNum < 100000 {
+					return fmt.Errorf("default_privilege_policy 'grant' not supported for PostgreSQL versions <10")
+				}
 				if bp.GrantPrivileges != nil {
 					return fmt.Errorf("grant_privileges makes no sense with default_privilege_policy 'grant' (%+v)", *bp)
 				}

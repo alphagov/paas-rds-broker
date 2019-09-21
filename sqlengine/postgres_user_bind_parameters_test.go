@@ -13,14 +13,14 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				GrantPrivileges: &[]PostgresqlPrivilege{},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(10000)
 			Expect(err).To(MatchError(ContainSubstring(`postgresql_user.grant_privileges makes no sense for owner`)))
 
 			bp = PostgresUserBindParameters {
 				RevokePrivileges: &[]PostgresqlPrivilege{},
 			}
 
-			err = bp.Validate()
+			err = bp.Validate(90501)
 			Expect(err).To(MatchError(ContainSubstring(`postgresql_user.revoke_privileges makes no sense for owner`)))
 
 			bp = PostgresUserBindParameters {
@@ -28,7 +28,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				DefaultPrivilegePolicy: "grant",
 			}
 
-			err = bp.Validate()
+			err = bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`postgresql_user.default_privilege_policy makes no sense for owner`)))
 		})
 
@@ -38,7 +38,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				DefaultPrivilegePolicy: "perhaps",
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(90501)
 			Expect(err).To(MatchError(ContainSubstring(`default_privilege_policy must be one of 'grant' or 'revoke'`)))
 		})
 
@@ -49,7 +49,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				GrantPrivileges: &[]PostgresqlPrivilege{},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`grant_privileges makes no sense with default_privilege_policy 'grant'`)))
 
 			bp = PostgresUserBindParameters {
@@ -58,8 +58,19 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				RevokePrivileges: &[]PostgresqlPrivilege{},
 			}
 
-			err = bp.Validate()
+			err = bp.Validate(90501)
 			Expect(err).To(MatchError(ContainSubstring(`revoke_privileges makes no sense with default_privilege_policy 'revoke'`)))
+		})
+
+		It("returns an error for for a grant default_privilege_policy on postgres 9.5", func() {
+			bp := PostgresUserBindParameters {
+				IsOwner: boolPointer(false),
+				DefaultPrivilegePolicy: "grant",
+				RevokePrivileges: &[]PostgresqlPrivilege{},
+			}
+
+			err := bp.Validate(90501)
+			Expect(err).To(MatchError(ContainSubstring(`PostgreSQL version`)))
 		})
 
 		It("returns an error for unknown privilege target_type", func() {
@@ -73,7 +84,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`Unknown postgresql privilege target_type: foo`)))
 		})
 
@@ -89,7 +100,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`Must provide a non-empty target_name for 'TABLE' postgresql privilege target_type`)))
 		})
 
@@ -106,7 +117,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`Non-ASCII characters in postgresql object names not (yet) supported`)))
 
 			bp = PostgresUserBindParameters {
@@ -122,7 +133,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err = bp.Validate()
+			err = bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`Non-ASCII characters in postgresql object names not (yet) supported`)))
 		})
 
@@ -143,7 +154,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`Non-ASCII characters in postgresql object names not (yet) supported: ✈`)))
 		})
 
@@ -163,7 +174,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(90501)
 			Expect(err).To(MatchError(ContainSubstring(`Unknown postgresql column privilege: delete`)))
 		})
 
@@ -181,7 +192,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`Non-ASCII characters in postgresql object names not (yet) supported: invalid✈`)))
 
 			bp = PostgresUserBindParameters {
@@ -199,7 +210,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err = bp.Validate()
+			err = bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`column_names makes no sense for 'SEQUENCE' postgresql privilege target_type`)))
 		})
 
@@ -216,7 +227,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`Unknown postgresql sequence privilege: INSERT`)))
 		})
 
@@ -233,7 +244,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`target_name makes no sense for 'DATABASE' postgresql privilege target_type`)))
 
 			bp = PostgresUserBindParameters {
@@ -248,7 +259,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err = bp.Validate()
+			err = bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`target_schema makes no sense for 'DATABASE' postgresql privilege target_type`)))
 
 			bp = PostgresUserBindParameters {
@@ -265,7 +276,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err = bp.Validate()
+			err = bp.Validate(90501)
 			Expect(err).To(MatchError(ContainSubstring(`column_names makes no sense for 'DATABASE' postgresql privilege target_type`)))
 		})
 
@@ -281,7 +292,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`Unknown postgresql database privilege: INSERT`)))
 		})
 
@@ -297,7 +308,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`Must provide a non-empty target_name for 'SCHEMA' postgresql privilege target_type`)))
 		})
 
@@ -314,7 +325,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`Non-ASCII characters in postgresql object names not (yet) supported: invalid✈`)))
 		})
 
@@ -332,7 +343,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`target_schema makes no sense for 'SCHEMA' postgresql privilege target_type (try target_name instead)`)))
 
 			bp = PostgresUserBindParameters {
@@ -350,7 +361,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err = bp.Validate()
+			err = bp.Validate(100000)
 			Expect(err).To(MatchError(ContainSubstring(`column_names makes no sense for 'SCHEMA' postgresql privilege target_type`)))
 		})
 
@@ -367,7 +378,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			err := bp.Validate()
+			err := bp.Validate(90501)
 			Expect(err).To(MatchError(ContainSubstring(`Unknown postgresql schema privilege: EXECUTE`)))
 		})
 	})
@@ -379,7 +390,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				DefaultPrivilegePolicy: "REVOKE",
 			}
 
-			Expect(bp.Validate()).ToNot(HaveOccurred())
+			Expect(bp.Validate(100000)).ToNot(HaveOccurred())
 
 			defaultPlPgSQL := bp.GetDefaultPrivilegePlPgSQL("someuser", "somedb")
 
@@ -399,7 +410,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				DefaultPrivilegePolicy: "GRANT",
 			}
 
-			Expect(bp.Validate()).ToNot(HaveOccurred())
+			Expect(bp.Validate(100000)).ToNot(HaveOccurred())
 
 			defaultPlPgSQL := bp.GetDefaultPrivilegePlPgSQL("someuser", "somedb")
 
@@ -443,7 +454,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			Expect(bp.Validate()).ToNot(HaveOccurred())
+			Expect(bp.Validate(100000)).ToNot(HaveOccurred())
 
 			assnPlPgSQL := bp.GetPrivilegeAssignmentPlPgSQL("someuser", "somedb")
 
@@ -476,7 +487,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			Expect(bp.Validate()).ToNot(HaveOccurred())
+			Expect(bp.Validate(100000)).ToNot(HaveOccurred())
 
 			assnPlPgSQL := bp.GetPrivilegeAssignmentPlPgSQL("someuser", "somedb")
 
@@ -507,7 +518,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			Expect(bp.Validate()).ToNot(HaveOccurred())
+			Expect(bp.Validate(100000)).ToNot(HaveOccurred())
 
 			assnPlPgSQL := bp.GetPrivilegeAssignmentPlPgSQL("someuser", "somedb")
 
@@ -539,7 +550,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			Expect(bp.Validate()).ToNot(HaveOccurred())
+			Expect(bp.Validate(100000)).ToNot(HaveOccurred())
 
 			assnPlPgSQL := bp.GetPrivilegeAssignmentPlPgSQL("someuser", "somedb")
 
@@ -572,7 +583,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			Expect(bp.Validate()).ToNot(HaveOccurred())
+			Expect(bp.Validate(100000)).ToNot(HaveOccurred())
 
 			assnPlPgSQL := bp.GetPrivilegeAssignmentPlPgSQL("someuser", "somedb")
 
@@ -628,7 +639,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				},
 			}
 
-			Expect(bp.Validate()).ToNot(HaveOccurred())
+			Expect(bp.Validate(100000)).ToNot(HaveOccurred())
 
 			assnPlPgSQL := bp.GetPrivilegeAssignmentPlPgSQL("someuser", "somedb")
 
@@ -671,7 +682,7 @@ var _ = Describe("PostgresUserBindParameters", func() {
 				DefaultPrivilegePolicy: "grant",
 			}
 
-			Expect(bp.Validate()).ToNot(HaveOccurred())
+			Expect(bp.Validate(100000)).ToNot(HaveOccurred())
 
 			assnPlPgSQL := bp.GetPrivilegeAssignmentPlPgSQL("someuser", "somedb")
 

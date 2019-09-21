@@ -151,6 +151,13 @@ func (d *PostgresEngine) createUser(bindingID, dbname string, userBindParameters
 }
 
 func (d *PostgresEngine) CreateUser(bindingID, dbname string, userBindParametersRaw *json.RawMessage) (username, password string, err error) {
+	var pgServerVersionNum int
+	err = d.db.QueryRow("SELECT current_setting('server_version_num')::integer").Scan(&pgServerVersionNum)
+	if err != nil {
+		d.logger.Error("sql-error", err)
+		return "", "", err
+	}
+
 	bindParameters := PostgresUserBindParameters{}
 	if userBindParametersRaw != nil && len(*userBindParametersRaw) > 0 {
 		decoder := json.NewDecoder(bytes.NewReader(*userBindParametersRaw))
@@ -158,7 +165,7 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string, userBindParameters
 		if err := decoder.Decode(&bindParameters); err != nil {
 			return "", "", err
 		}
-		if err := bindParameters.Validate(); err != nil {
+		if err := bindParameters.Validate(pgServerVersionNum); err != nil {
 			return "", "", err
 		}
 	}
@@ -456,7 +463,12 @@ const ensurePublicPrivilegesPattern = `
 		-- access to them in a more fine-grained way later
 		ALTER DEFAULT PRIVILEGES REVOKE ALL ON TABLES FROM PUBLIC;
 		ALTER DEFAULT PRIVILEGES REVOKE ALL ON SEQUENCES FROM PUBLIC;
-		ALTER DEFAULT PRIVILEGES REVOKE ALL ON SCHEMAS FROM PUBLIC;
+		IF current_setting('server_version_num')::integer >= 100000 THEN
+			-- only supported from pg 10 onwards, we must emulate support in our trigger otherwise.
+			-- we also have to disguise it in an EXECUTE to prevent it upsetting the plpgsql parser
+			-- on older servers
+			EXECUTE 'ALTER DEFAULT PRIVILEGES REVOKE ALL ON SCHEMAS FROM PUBLIC';
+		END IF;
 
 		REVOKE ALL ON DATABASE "{{.dbname}}" FROM PUBLIC;
 
@@ -528,7 +540,12 @@ const ensureGroupPrivilegesPattern = `
 
 		ALTER DEFAULT PRIVILEGES GRANT ALL ON TABLES TO "{{.rolename}}";
 		ALTER DEFAULT PRIVILEGES GRANT ALL ON SEQUENCES TO "{{.rolename}}";
-		ALTER DEFAULT PRIVILEGES GRANT ALL ON SCHEMAS TO "{{.rolename}}";
+		IF current_setting('server_version_num')::integer >= 100000 THEN
+			-- only supported from pg 10 onwards, we must emulate support in our trigger otherwise.
+			-- we also have to disguise it in an EXECUTE to prevent it upsetting the plpgsql parser
+			-- on older servers
+			EXECUTE 'ALTER DEFAULT PRIVILEGES GRANT ALL ON SCHEMAS TO "{{.rolename}}"';
+		END IF;
 	end
 	$body$
 	`
@@ -591,7 +608,18 @@ func (d *PostgresEngine) ensureNonOwnerRestrictions(tx *sql.Tx, username, dbname
 
 const ensureTriggerPattern = `
 	create or replace function reassign_owned() returns event_trigger language plpgsql as $$
+	declare
+		r record;
 	begin
+		-- first a slight detour: pg versions before 10 don't support default privileges for schemas, so
+		-- we have to emulate that support here, issuing equivalent commands if we detect CREATE SCHEMA
+		IF current_setting('server_version_num')::integer < 100000 THEN
+			FOR r IN SELECT object_identity FROM pg_event_trigger_ddl_commands() WHERE command_tag = 'CREATE SCHEMA' LOOP
+				EXECUTE 'GRANT ALL ON SCHEMA ' || r.object_identity || ' TO "{{.role}}"';
+				EXECUTE 'REVOKE ALL ON SCHEMA ' || r.object_identity || ' FROM PUBLIC';
+			END LOOP;
+		END IF;
+
 		-- do not execute if member of rds_superuser
 		IF EXISTS (select 1 from pg_catalog.pg_roles where rolname = 'rds_superuser')
 		AND pg_has_role(current_user, 'rds_superuser', 'member') THEN

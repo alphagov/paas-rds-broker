@@ -108,6 +108,17 @@ func accessAndDeleteObjects(connectionString, tableName string) {
 	Expect(err).ToNot(HaveOccurred())
 }
 
+func getPgServerVersionNum(connectionString string) int {
+	db, err := sql.Open("postgres", connectionString)
+	defer db.Close()
+
+	var col int
+	err = db.QueryRow("SELECT current_setting('server_version_num')::integer").Scan(&col)
+	Expect(err).ToNot(HaveOccurred())
+
+	return col
+}
+
 var _ = Describe("PostgresEngine", func() {
 	var (
 		postgresEngine *PostgresEngine
@@ -122,6 +133,8 @@ var _ = Describe("PostgresEngine", func() {
 		randomTestSuffix string
 
 		template1ConnectionString string
+
+		pgServerVersionNum int
 	)
 
 	BeforeEach(func() {
@@ -150,6 +163,8 @@ var _ = Describe("PostgresEngine", func() {
 
 		// Create the test DB
 		createDB(template1ConnectionString, dbname)
+
+		pgServerVersionNum = getPgServerVersionNum(template1ConnectionString)
 	})
 
 	AfterEach(func() {
@@ -240,7 +255,21 @@ var _ = Describe("PostgresEngine", func() {
 		Context("Without userBindParameters supplied", func() {
 			BeforeEach(func() {
 				var err error
+				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_before_user AS SELECT 123 AS x")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE SCHEMA sc_created_before_user")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE FUNCTION f_created_before_user() RETURNS integer AS 'BEGIN\nRETURN 321;\nEND;' LANGUAGE plpgsql")
+				Expect(err).ToNot(HaveOccurred())
+
 				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, nil)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_after_user AS SELECT 123 AS x")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE SCHEMA sc_created_after_user")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE FUNCTION f_created_after_user() RETURNS integer AS 'BEGIN\nRETURN 321;\nEND;' LANGUAGE plpgsql")
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -283,6 +312,24 @@ var _ = Describe("PostgresEngine", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				_, err = db.Exec("DROP SCHEMA bar CASCADE")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("SELECT * FROM t_created_before_user")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("SELECT * FROM t_created_after_user")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("CREATE TABLE sc_created_before_user.qux AS SELECT 123")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("CREATE TABLE sc_created_after_user.zap AS SELECT 123")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("SELECT f_created_before_user()")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("SELECT f_created_after_user()")
 				Expect(err).ToNot(HaveOccurred())
 
 			})
@@ -339,6 +386,15 @@ var _ = Describe("PostgresEngine", func() {
 				_, _, err := postgresEngine.CreateUser(bindingID, dbname, rawMessagePointer(`{"is_owner": false, "default_privilege_policy": "grunt"}`))
 				Expect(err).To(MatchError(ContainSubstring(`default_privilege_policy must be one of 'grant' or 'revoke'`)))
 			})
+
+			It("Returns an error when requesting a default-grant non-owner user on pg <10", func() {
+				if pgServerVersionNum >= 100000 {
+					Skip("can't test this with pg >=10")
+				}
+
+				_, _, err := postgresEngine.CreateUser(bindingID, dbname, rawMessagePointer(`{"is_owner": false, "default_privilege_policy": "grant"}`))
+				Expect(err).To(MatchError(ContainSubstring(`not supported for PostgreSQL version`)))
+			})
 		})
 
 		Context("With a default-revoke non-owner specified by userBindParameters", func() {
@@ -346,7 +402,7 @@ var _ = Describe("PostgresEngine", func() {
 				var err error
 				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_before_user AS SELECT 123 AS x")
 				Expect(err).ToNot(HaveOccurred())
-				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_before_user")
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE sq_created_before_user")
 				Expect(err).ToNot(HaveOccurred())
 				_, err = postgresEngine.db.Exec("CREATE FUNCTION f_created_before_user() RETURNS integer AS 'BEGIN\nRETURN 321;\nEND;' LANGUAGE plpgsql")
 				Expect(err).ToNot(HaveOccurred())
@@ -363,7 +419,7 @@ var _ = Describe("PostgresEngine", func() {
 
 				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_after_user AS SELECT 456 AS x")
 				Expect(err).ToNot(HaveOccurred())
-				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_after_user")
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE sq_created_after_user")
 				Expect(err).ToNot(HaveOccurred())
 				_, err = postgresEngine.db.Exec("CREATE FUNCTION f_created_after_user() RETURNS integer AS 'BEGIN\nRETURN 321;\nEND;' LANGUAGE plpgsql")
 				Expect(err).ToNot(HaveOccurred())
@@ -402,7 +458,7 @@ var _ = Describe("PostgresEngine", func() {
 				_, err = db.Exec("INSERT INTO t_created_before_user VALUES (111)")
 				Expect(err).To(MatchError(ContainSubstring(`permission`)))
 
-				_, err = db.Exec("SELECT nextval('s_created_before_user')")
+				_, err = db.Exec("SELECT nextval('sq_created_before_user')")
 				Expect(err).To(MatchError(ContainSubstring(`permission`)))
 			})
 
@@ -415,7 +471,7 @@ var _ = Describe("PostgresEngine", func() {
 				_, err = db.Exec("INSERT INTO t_created_after_user VALUES (111)")
 				Expect(err).To(MatchError(ContainSubstring(`permission`)))
 
-				_, err = db.Exec("SELECT nextval('s_created_after_user')")
+				_, err = db.Exec("SELECT nextval('sq_created_after_user')")
 				Expect(err).To(MatchError(ContainSubstring(`permission`)))
 			})
 
@@ -469,9 +525,14 @@ var _ = Describe("PostgresEngine", func() {
 		Context("With a default-grant non-owner specified by userBindParameters", func() {
 			BeforeEach(func() {
 				var err error
+
+				if pgServerVersionNum < 100000 {
+					Skip("default-grant non-owners not supported on pg <10")
+				}
+
 				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_before_user AS SELECT 123 AS x")
 				Expect(err).ToNot(HaveOccurred())
-				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_before_user")
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE sq_created_before_user")
 				Expect(err).ToNot(HaveOccurred())
 				_, err = postgresEngine.db.Exec("CREATE FUNCTION f_created_before_user() RETURNS integer AS 'BEGIN\nRETURN 321;\nEND;' LANGUAGE plpgsql")
 				Expect(err).ToNot(HaveOccurred())
@@ -487,7 +548,7 @@ var _ = Describe("PostgresEngine", func() {
 
 				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_after_user AS SELECT 456 AS x")
 				Expect(err).ToNot(HaveOccurred())
-				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_after_user")
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE sq_created_after_user")
 				Expect(err).ToNot(HaveOccurred())
 				_, err = postgresEngine.db.Exec("CREATE FUNCTION f_created_after_user() RETURNS integer AS 'BEGIN\nRETURN 321;\nEND;' LANGUAGE plpgsql")
 				Expect(err).ToNot(HaveOccurred())
@@ -526,7 +587,7 @@ var _ = Describe("PostgresEngine", func() {
 				_, err = db.Exec("INSERT INTO t_created_before_user VALUES (111)")
 				Expect(err).ToNot(HaveOccurred())
 
-				_, err = db.Exec("SELECT nextval('s_created_before_user')")
+				_, err = db.Exec("SELECT nextval('sq_created_before_user')")
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -539,7 +600,7 @@ var _ = Describe("PostgresEngine", func() {
 				_, err = db.Exec("INSERT INTO t_created_after_user VALUES (111)")
 				Expect(err).ToNot(HaveOccurred())
 
-				_, err = db.Exec("SELECT nextval('s_created_after_user')")
+				_, err = db.Exec("SELECT nextval('sq_created_after_user')")
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -597,7 +658,7 @@ var _ = Describe("PostgresEngine", func() {
 				Expect(err).ToNot(HaveOccurred())
 				_, err = postgresEngine.db.Exec(`CREATE TABLE "t_weirdly "" ; ' ,named " AS SELECT 123 AS x`)
 				Expect(err).ToNot(HaveOccurred())
-				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_before_user")
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE sq_created_before_user")
 				Expect(err).ToNot(HaveOccurred())
 
 				createdUser, createdPassword, err = postgresEngine.CreateUser(
@@ -610,8 +671,8 @@ var _ = Describe("PostgresEngine", func() {
 							{"target_type": "TABLE", "target_name": "t_created_after_user", "privilege": "SELECT"},
 							{"target_type": "TABLE", "target_name": "t_weirdly \" ; ' ,named ", "privilege": "INSERT"},
 							{"target_type": "TABLE", "target_name": "doesnt_exist", "privilege": "ALL"},
-							{"target_type": "SEQUENCE", "target_name": "s_created_before_user", "privilege": "SELECT"},
-							{"target_type": "SEQUENCE", "target_name": "s_created_after_user", "privilege": "ALL"},
+							{"target_type": "SEQUENCE", "target_name": "sq_created_before_user", "privilege": "SELECT"},
+							{"target_type": "SEQUENCE", "target_name": "sq_created_after_user", "privilege": "ALL"},
 							{"target_type": "DATABASE", "privilege": "ALL"}
 						]}`,
 					),
@@ -620,7 +681,7 @@ var _ = Describe("PostgresEngine", func() {
 
 				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_after_user AS SELECT 456 AS x")
 				Expect(err).ToNot(HaveOccurred())
-				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_after_user")
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE sq_created_after_user")
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -646,7 +707,7 @@ var _ = Describe("PostgresEngine", func() {
 				_, err = db.Exec(`INSERT INTO "t_weirdly "" ; ' ,named " VALUES (555)`)
 				Expect(err).ToNot(HaveOccurred())
 
-				_, err = db.Exec("SELECT last_value FROM s_created_before_user")
+				_, err = db.Exec("SELECT last_value FROM sq_created_before_user")
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -659,7 +720,7 @@ var _ = Describe("PostgresEngine", func() {
 				_, err = db.Exec("INSERT INTO t_created_before_user VALUES (111)")
 				Expect(err).To(MatchError(ContainSubstring(`permission`)))
 
-				_, err = db.Exec("SELECT nextval('s_created_before_user')")
+				_, err = db.Exec("SELECT nextval('sq_created_before_user')")
 				Expect(err).To(MatchError(ContainSubstring(`permission`)))
 			})
 
@@ -672,7 +733,7 @@ var _ = Describe("PostgresEngine", func() {
 				_, err = db.Exec("SELECT * FROM t_created_after_user")
 				Expect(err).To(MatchError(ContainSubstring(`permission`)))
 
-				_, err = db.Exec("SELECT last_value FROM s_created_after_user")
+				_, err = db.Exec("SELECT last_value FROM sq_created_after_user")
 				Expect(err).To(MatchError(ContainSubstring(`permission`)))
 			})
 
@@ -693,11 +754,16 @@ var _ = Describe("PostgresEngine", func() {
 		Context("With a default-grant non-owner with specific revocations specified by userBindParameters", func() {
 			BeforeEach(func() {
 				var err error
+
+				if pgServerVersionNum < 100000 {
+					Skip("default-grant non-owners not supported on pg <10")
+				}
+
 				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_before_user AS SELECT 123 AS x")
 				Expect(err).ToNot(HaveOccurred())
 				_, err = postgresEngine.db.Exec(`CREATE TABLE "t_weirdly "" ; ' ,named " AS SELECT 123 AS x`)
 				Expect(err).ToNot(HaveOccurred())
-				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_before_user")
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE sq_created_before_user")
 				Expect(err).ToNot(HaveOccurred())
 
 				createdUser, createdPassword, err = postgresEngine.CreateUser(
@@ -709,8 +775,8 @@ var _ = Describe("PostgresEngine", func() {
 							{"target_type": "TABLE", "target_name": "t_created_after_user", "privilege": "SELECT"},
 							{"target_type": "TABLE", "target_name": "t_weirdly \" ; ' ,named ", "privilege": "INSERT"},
 							{"target_type": "TABLE", "target_name": "doesnt_exist", "privilege": "ALL"},
-							{"target_type": "SEQUENCE", "target_name": "s_created_before_user", "privilege": "UPDATE"},
-							{"target_type": "SEQUENCE", "target_name": "s_created_after_user", "privilege": "SELECT"}
+							{"target_type": "SEQUENCE", "target_name": "sq_created_before_user", "privilege": "UPDATE"},
+							{"target_type": "SEQUENCE", "target_name": "sq_created_after_user", "privilege": "SELECT"}
 						]}`,
 					),
 				)
@@ -718,7 +784,7 @@ var _ = Describe("PostgresEngine", func() {
 
 				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_after_user AS SELECT 456 AS x")
 				Expect(err).ToNot(HaveOccurred())
-				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_after_user")
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE sq_created_after_user")
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -744,7 +810,7 @@ var _ = Describe("PostgresEngine", func() {
 				_, err = db.Exec(`INSERT INTO "t_weirdly "" ; ' ,named " VALUES (555)`)
 				Expect(err).To(MatchError(ContainSubstring(`permission`)))
 
-				_, err = db.Exec("SELECT setval('s_created_before_user', 101)")
+				_, err = db.Exec("SELECT setval('sq_created_before_user', 101)")
 				Expect(err).To(MatchError(ContainSubstring(`permission`)))
 			})
 
@@ -757,7 +823,7 @@ var _ = Describe("PostgresEngine", func() {
 				_, err = db.Exec("INSERT INTO t_created_before_user VALUES (111)")
 				Expect(err).ToNot(HaveOccurred())
 
-				_, err = db.Exec("SELECT last_value FROM s_created_before_user")
+				_, err = db.Exec("SELECT last_value FROM sq_created_before_user")
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -770,7 +836,7 @@ var _ = Describe("PostgresEngine", func() {
 				_, err = db.Exec("SELECT * FROM t_created_after_user")
 				Expect(err).ToNot(HaveOccurred())
 
-				_, err = db.Exec("SELECT last_value FROM s_created_after_user")
+				_, err = db.Exec("SELECT last_value FROM sq_created_after_user")
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -861,7 +927,7 @@ var _ = Describe("PostgresEngine", func() {
 
 				_, err = postgresEngine.db.Exec("CREATE TABLE t_created_before_user AS SELECT 123 AS x")
 				Expect(err).ToNot(HaveOccurred())
-				_, err = postgresEngine.db.Exec("CREATE SEQUENCE s_created_before_user")
+				_, err = postgresEngine.db.Exec("CREATE SEQUENCE sq_created_before_user")
 				Expect(err).ToNot(HaveOccurred())
 
 				createdUser, createdPassword, err = postgresEngine.CreateUser(
@@ -871,7 +937,7 @@ var _ = Describe("PostgresEngine", func() {
 						`{"is_owner": false, "default_privilege_policy": "revoke", "grant_privileges": [
 							{"target_type": "SCHEMA", "target_name": "public", "privilege": "USAGE"},
 							{"target_type": "TABLE", "target_name": "t_created_before_user", "privilege": "ALL"},
-							{"target_type": "SEQUENCE", "target_name": "s_created_before_user", "privilege": "ALL"}
+							{"target_type": "SEQUENCE", "target_name": "sq_created_before_user", "privilege": "ALL"}
 						]}`,
 					),
 				)
@@ -1011,8 +1077,32 @@ var _ = Describe("PostgresEngine", func() {
 				AssertState()
 			})
 
-			Describe("with non-owner userBindParameters", func() {
+			Describe("with non-owner default-revoke userBindParameters", func() {
 				BeforeEach(func() {
+					var err error
+					createdUser, createdPassword, err = postgresEngine.CreateUser(
+						bindingID,
+						dbname,
+						rawMessagePointer(
+							`{"is_owner": false, "default_privilege_policy": "revoke"}`,
+						),
+					)
+					Expect(err).ToNot(HaveOccurred())
+
+					err = postgresEngine.ResetState()
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				AssertState()
+			})
+
+			Describe("with non-owner default-grant userBindParameters", func() {
+				BeforeEach(func() {
+
+					if pgServerVersionNum < 100000 {
+						Skip("default-grant non-owners not supported on pg <10")
+					}
+
 					var err error
 					createdUser, createdPassword, err = postgresEngine.CreateUser(
 						bindingID,
