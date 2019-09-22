@@ -82,22 +82,32 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return value
 }
 
-func createObjects(connectionString, tableName string) {
+func createObjects(connectionString, baseName string) {
 	db, err := sql.Open("postgres", connectionString)
 	defer db.Close()
 	Expect(err).ToNot(HaveOccurred())
+
+	tableName := baseName + "_t"
+	schemaName := baseName + "_sc"
 
 	_, err = db.Exec("CREATE TABLE " + tableName + "(col CHAR(8))")
 	Expect(err).ToNot(HaveOccurred())
 
 	_, err = db.Exec("INSERT INTO " + tableName + " (col) VALUES ('value')")
 	Expect(err).ToNot(HaveOccurred())
+
+	_, err = db.Exec("CREATE SCHEMA " + schemaName)
+	Expect(err).ToNot(HaveOccurred())
 }
 
-func accessAndDeleteObjects(connectionString, tableName string) {
+func accessAndDeleteObjects(connectionString, baseName string) {
 	db, err := sql.Open("postgres", connectionString)
 	defer db.Close()
 	Expect(err).ToNot(HaveOccurred())
+
+	tableName := baseName + "_t"
+	schemaName := baseName + "_sc"
+	tableName2 := baseName + "_t2"
 
 	var col string
 	err = db.QueryRow("SELECT * FROM " + tableName + " WHERE col = 'value'").Scan(&col)
@@ -105,6 +115,12 @@ func accessAndDeleteObjects(connectionString, tableName string) {
 	Expect(strings.TrimSpace(col)).To(BeEquivalentTo("value"))
 
 	_, err = db.Exec("DROP TABLE " + tableName)
+	Expect(err).ToNot(HaveOccurred())
+
+	_, err = db.Exec("CREATE TABLE " + schemaName + "." + tableName2 + "(col CHAR(8))")
+	Expect(err).ToNot(HaveOccurred())
+
+	_, err = db.Exec("DROP SCHEMA " + schemaName + " CASCADE")
 	Expect(err).ToNot(HaveOccurred())
 }
 
@@ -360,14 +376,100 @@ var _ = Describe("PostgresEngine", func() {
 					Expect(otherCreatedPassword).ToNot(Equal(createdPassword))
 				})
 
-				It("Tables created by one binding can be accessed and deleted by other", func() {
+				It("Resources created by one binding can be accessed and deleted by other", func() {
 					connectionString1 := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
 					connectionString2 := postgresEngine.URI(address, port, dbname, otherCreatedUser, otherCreatedPassword)
-					createObjects(connectionString1, "table1")
-					accessAndDeleteObjects(connectionString2, "table1")
-					createObjects(connectionString2, "table2")
-					accessAndDeleteObjects(connectionString1, "table2")
+					createObjects(connectionString1, "foo")
+					accessAndDeleteObjects(connectionString2, "foo")
+					createObjects(connectionString2, "bar")
+					accessAndDeleteObjects(connectionString1, "bar")
 				})
+			})
+		})
+
+		Context("With an existing user created before non-owner user support", func() {
+			var (
+				oldBindingID string
+				oldUserUsername string
+				oldUserURI string
+			)
+
+			BeforeEach(func() {
+				// set up "old user", using the procedure that would have been followed in
+				// previous versions
+				groupName := postgresEngine.generatePostgresGroup(dbname)
+				oldBindingID = utils.RandomLowerAlphaNum(6)
+				oldUserUsername = postgresEngine.UsernameGenerator(oldBindingID)
+				_, err := postgresEngine.db.Exec("CREATE ROLE " + groupName)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec(fmt.Sprintf(`
+	create or replace function reassign_owned() returns event_trigger language plpgsql as $$
+	begin
+		-- do not execute if member of rds_superuser
+		IF EXISTS (select 1 from pg_catalog.pg_roles where rolname = 'rds_superuser')
+		AND pg_has_role(current_user, 'rds_superuser', 'member') THEN
+			RETURN;
+		END IF;
+		-- do not execute if not member of manager role
+		IF NOT pg_has_role(current_user, '%s', 'member') THEN
+			RETURN;
+		END IF;
+		-- do not execute if superuser
+		IF EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true) THEN
+			RETURN;
+		END IF;
+		EXECUTE 'reassign owned by "' || current_user || '" to "%s"';
+	end
+	$$;`, groupName, groupName))
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("create event trigger reassign_owned on ddl_command_end execute procedure reassign_owned();")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("CREATE USER " + oldUserUsername + " WITH PASSWORD 'mypass'")
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("GRANT " + groupName + " TO " + oldUserUsername)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = postgresEngine.db.Exec("GRANT ALL PRIVILEGES ON DATABASE " + dbname + " TO " + groupName)
+				Expect(err).ToNot(HaveOccurred())
+				oldUserURI = postgresEngine.URI(address, port, dbname, oldUserUsername, "mypass")
+			})
+
+			It("Old and new users are able to access resources created before non-owner user support", func() {
+				createObjects(oldUserURI, "foo")
+				createObjects(oldUserURI, "bar")
+
+				// ...and now we deploy non-owner user support for the first time
+				newUserUsername, newUserPassword, err := postgresEngine.CreateUser(bindingID, dbname, nil)
+				Expect(err).ToNot(HaveOccurred())
+				newUserURI := postgresEngine.URI(address, port, dbname, newUserUsername, newUserPassword)
+
+				accessAndDeleteObjects(oldUserURI, "foo")
+				accessAndDeleteObjects(newUserURI, "bar")
+
+				err = postgresEngine.DropUser(bindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
+				err = postgresEngine.DropUser(oldBindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Old users are able to access resources created by a new user", func() {
+				newUserUsername, newUserPassword, err := postgresEngine.CreateUser(bindingID, dbname, nil)
+				Expect(err).ToNot(HaveOccurred())
+				newUserURI := postgresEngine.URI(address, port, dbname, newUserUsername, newUserPassword)
+
+				createObjects(newUserURI, "foo")
+				accessAndDeleteObjects(oldUserURI, "foo")
+
+				err = postgresEngine.DropUser(bindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
+				err = postgresEngine.DropUser(oldBindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Old users can be cleanly dropped by the new DropUser() when a new CreateUser() has not yet run", func() {
+				createObjects(oldUserURI, "foo")
+
+				err := postgresEngine.DropUser(oldBindingID, dbname)
+				Expect(err).ToNot(HaveOccurred())
 			})
 		})
 
