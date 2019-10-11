@@ -142,10 +142,10 @@
                     "plan_updateable": true,
                     "plans": [
                         {
-                            "description": "Micro plan",
+                            "description": "Micro plan - mysql 5.7",
                             "free": false,
-                            "id": "mysql-micro",
-                            "name": "micro",
+                            "id": "mysql-5.7-micro",
+                            "name": "micro-5.7",
                             "rds_properties": {
                                 "allocated_storage": 10,
                                 "db_instance_class": "db.t2.micro",
@@ -160,10 +160,10 @@
                             }
                         },
                         {
-                            "description": "Micro plan without final snapshot",
+                            "description": "Micro plan mysql 5.7 without final snapshot",
                             "free": false,
-                            "id": "mysql-micro-without-snapshot",
-                            "name": "micro-without-snapshot",
+                            "id": "mysql-5.7-micro-without-snapshot",
+                            "name": "micro-5.7-without-snapshot",
                             "rds_properties": {
                                 "allocated_storage": 10,
                                 "auto_minor_version_upgrade": true,
@@ -172,6 +172,45 @@
                                 "engine": "mysql",
                                 "engine_version": "5.7",
                                 "engine_family": "mysql5.7",
+                                "skip_final_snapshot": true,
+                                "copy_tags_to_snapshot":true,
+                                "vpc_security_group_ids": [
+                                    "POPULATED_BY_TEST_SUITE"
+                                ]
+                            }
+                        },
+
+                        {
+                            "description": "Micro plan - mysql 8.0",
+                            "free": false,
+                            "id": "mysql-8.0-micro",
+                            "name": "micro-8.0",
+                            "rds_properties": {
+                                "allocated_storage": 10,
+                                "db_instance_class": "db.t3.micro",
+                                "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                                "engine": "mysql",
+                                "engine_version": "8.0",
+                                "engine_family": "mysql8.0",
+                                "copy_tags_to_snapshot":true,
+                                "vpc_security_group_ids": [
+                                    "POPULATED_BY_TEST_SUITE"
+                                ]
+                            }
+                        },
+                        {
+                            "description": "Micro plan mysql 8.0 without final snapshot",
+                            "free": false,
+                            "id": "mysql-8.0-micro-without-snapshot",
+                            "name": "micro-without-snapshot",
+                            "rds_properties": {
+                                "allocated_storage": 10,
+                                "auto_minor_version_upgrade": true,
+                                "db_instance_class": "db.t3.micro",
+                                "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                                "engine": "mysql",
+                                "engine_version": "8.0",
+                                "engine_family": "mysql8.0",
                                 "skip_final_snapshot": true,
                                 "copy_tags_to_snapshot":true,
                                 "vpc_security_group_ids": [
