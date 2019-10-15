@@ -80,7 +80,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service2.Description).To(Equal("AWS RDS PostgreSQL service"))
 			Expect(service2.Bindable).To(BeTrue())
 			Expect(service2.PlanUpdatable).To(BeTrue())
-			Expect(service2.Plans).To(HaveLen(4))
+			Expect(service2.Plans).To(HaveLen(6))
 		})
 	})
 
@@ -220,6 +220,10 @@ var _ = Describe("RDS Broker Daemon", func() {
 			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-10")
 		})
 
+		Describe("Postgres 11.5", func() {
+			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-11")
+		})
+
 		Describe("MySQL 5.7", func() {
 			TestProvisionBindDeprovision("mysql", "mysql-5.7-micro-without-snapshot")
 		})
@@ -279,6 +283,10 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 		Describe("Postgres 10.5", func() {
 			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-10")
+		})
+
+		Describe("Postgres 11.5", func() {
+			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-11")
 		})
 	})
 
@@ -383,6 +391,10 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 		Describe("Postgres 10.5", func() {
 			TestFinalSnapshot("postgres", "postgres-micro-10")
+		})
+
+		Describe("Postgres 11.5", func() {
+			TestFinalSnapshot("postgres", "postgres-micro-11")
 		})
 
 		Describe("MySQL 5.7", func() {
@@ -506,6 +518,10 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 		Describe("Postgres 10.5", func() {
 			TestRestoreFromSnapshot("postgres", "postgres-micro-10")
+		})
+
+		Describe("Postgres 11.5", func() {
+			TestRestoreFromSnapshot("postgres", "postgres-micro-11")
 		})
 
 		PDescribe("MySQL 5.7", func() {
