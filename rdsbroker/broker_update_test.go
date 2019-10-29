@@ -836,6 +836,39 @@ var _ = Describe("RDS Broker", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		Context("when the plan is changing", func() {
+			BeforeEach(func() {
+				rdsProperties1.EngineVersion = stringPointer("1.2.3")
+				rdsProperties2.EngineVersion = stringPointer("4.5.6")
+				newParamGroupName = "mockedOutReturnValueOfSelectParameterGroupIndicatingUseOfEngineVersion4.5.6"
+
+				updateDetails = brokerapi.UpdateDetails{
+					ServiceID: "Service-1",
+					PlanID:    "Plan-2",
+					PreviousValues: brokerapi.PreviousValues{
+						PlanID:    "Plan-1",
+						ServiceID: "Service-1",
+						OrgID:     "organization-id",
+						SpaceID:   "space-id",
+					},
+				}
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(paramGroupSelector.SelectParameterGroupCallCount()).To(Equal(1))
+				servicePlan, _ := paramGroupSelector.SelectParameterGroupArgsForCall(0)
+				Expect(servicePlan).To(Equal(plan2))
+
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.EngineVersion)).To(Equal("4.5.6"))
+				Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal(newParamGroupName))
+			})
+		})
+
 		Context("if an extension is in both enable_extensions and disable_enxtension", func() {
 			It("returns an error", func() {
 				updateDetails.RawParameters = json.RawMessage(`{"disable_extensions": ["postgres_super_extension"], "enable_extensions": ["postgres_super_extension"]}`)

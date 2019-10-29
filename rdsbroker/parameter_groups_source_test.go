@@ -164,7 +164,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 			rdsError := awserr.New(rds.ErrCodeDBClusterAlreadyExistsFault, "not found", nil)
 			rdsFake.GetParameterGroupReturns(nil, rdsError)
 
-			_, err := parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
+			_, _, err := parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -184,7 +184,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 			})
 
 			It("returns the group name", func() {
-				name, _ := parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
+				name, _, _ := parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 				Expect(name).To(Equal("rdsbroker-postgres10-envname"))
 			})
 		})

@@ -1263,6 +1263,8 @@ var _ = Describe("RDS Broker", func() {
 
 	})
 
+	// Describe("Update", [...]) is in a separate file: `broker_update_test.go`
+
 	Describe("Deprovision", func() {
 		var (
 			deprovisionDetails           brokerapi.DeprovisionDetails
