@@ -13,7 +13,7 @@ import (
 
 //go:generate counterfeiter -o fakes/fake_parameter_group_selector.go . ParameterGroupSelector
 type ParameterGroupSelector interface {
-	SelectParameterGroup(servicePlan ServicePlan, extensions []string) (string, error)
+	SelectParameterGroup(servicePlan ServicePlan, extensions []string) (string, bool, error)
 }
 
 type ParameterGroupSource struct {
@@ -27,7 +27,7 @@ func NewParameterGroupSource(config Config, rdsInstance awsrds.RDSInstance, supp
 	return &ParameterGroupSource{config, rdsInstance, logger, supportedPreloadExtensions}
 }
 
-func (pgs *ParameterGroupSource) SelectParameterGroup(servicePlan ServicePlan, extensions []string) (string, error) {
+func (pgs *ParameterGroupSource) SelectParameterGroup(servicePlan ServicePlan, extensions []string) (string, bool, error) {
 	pgs.logger.Debug("selecting a parameter group", lager.Data{
 		servicePlanLogKey: servicePlan,
 		extensionsLogKey:  extensions,
@@ -39,24 +39,24 @@ func (pgs *ParameterGroupSource) SelectParameterGroup(servicePlan ServicePlan, e
 
 	if err != nil {
 		if !isParameterGroupNotFoundError(err) {
-			return "", err
+			return "", false, err // TODO check the second return value
 		} else {
 			err := pgs.createParameterGroup(groupName, servicePlan)
 			if err != nil {
-				return "", err
+				return "", false, err // TODO check the second return value
 			}
 
 			err = pgs.setParameterGroupProperties(groupName, servicePlan, extensions)
 			if err != nil {
-				return "", err
+				return "", false, err // TODO check the second return value
 			}
 
-			return groupName, nil
+			return groupName, false, nil // TODO check the second return value
 		}
 	}
 
 	pgs.logger.Info(fmt.Sprintf("parameter group '%s' already existed", groupName))
-	return groupName, nil
+	return groupName, false, nil // TODO check the second return value
 }
 
 func (pgs *ParameterGroupSource) createParameterGroup(name string, servicePlan ServicePlan) error {

@@ -208,7 +208,7 @@ var _ = Describe("RDS Broker", func() {
 		logger.RegisterSink(testSink)
 
 		paramGroupSelector = fakes.FakeParameterGroupSelector{}
-		paramGroupSelector.SelectParameterGroupReturns(newParamGroupName, nil)
+		paramGroupSelector.SelectParameterGroupReturns(newParamGroupName, false, nil)
 
 		rdsBroker = New(config, rdsInstance, sqlProvider, &paramGroupSelector, logger)
 

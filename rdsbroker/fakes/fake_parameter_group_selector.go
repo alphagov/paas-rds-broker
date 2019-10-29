@@ -8,46 +8,47 @@ import (
 )
 
 type FakeParameterGroupSelector struct {
-	SelectParameterGroupStub        func(rdsbroker.ServicePlan, []string) (string, error)
+	SelectParameterGroupStub        func(servicePlan rdsbroker.ServicePlan, extensions []string) (string, bool, error)
 	selectParameterGroupMutex       sync.RWMutex
 	selectParameterGroupArgsForCall []struct {
-		arg1 rdsbroker.ServicePlan
-		arg2 []string
+		servicePlan rdsbroker.ServicePlan
+		extensions  []string
 	}
 	selectParameterGroupReturns struct {
 		result1 string
-		result2 error
+		result2 bool
+		result3 error
 	}
 	selectParameterGroupReturnsOnCall map[int]struct {
 		result1 string
-		result2 error
+		result2 bool
+		result3 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeParameterGroupSelector) SelectParameterGroup(arg1 rdsbroker.ServicePlan, arg2 []string) (string, error) {
-	var arg2Copy []string
-	if arg2 != nil {
-		arg2Copy = make([]string, len(arg2))
-		copy(arg2Copy, arg2)
+func (fake *FakeParameterGroupSelector) SelectParameterGroup(servicePlan rdsbroker.ServicePlan, extensions []string) (string, bool, error) {
+	var extensionsCopy []string
+	if extensions != nil {
+		extensionsCopy = make([]string, len(extensions))
+		copy(extensionsCopy, extensions)
 	}
 	fake.selectParameterGroupMutex.Lock()
 	ret, specificReturn := fake.selectParameterGroupReturnsOnCall[len(fake.selectParameterGroupArgsForCall)]
 	fake.selectParameterGroupArgsForCall = append(fake.selectParameterGroupArgsForCall, struct {
-		arg1 rdsbroker.ServicePlan
-		arg2 []string
-	}{arg1, arg2Copy})
-	fake.recordInvocation("SelectParameterGroup", []interface{}{arg1, arg2Copy})
+		servicePlan rdsbroker.ServicePlan
+		extensions  []string
+	}{servicePlan, extensionsCopy})
+	fake.recordInvocation("SelectParameterGroup", []interface{}{servicePlan, extensionsCopy})
 	fake.selectParameterGroupMutex.Unlock()
 	if fake.SelectParameterGroupStub != nil {
-		return fake.SelectParameterGroupStub(arg1, arg2)
+		return fake.SelectParameterGroupStub(servicePlan, extensions)
 	}
 	if specificReturn {
-		return ret.result1, ret.result2
+		return ret.result1, ret.result2, ret.result3
 	}
-	fakeReturns := fake.selectParameterGroupReturns
-	return fakeReturns.result1, fakeReturns.result2
+	return fake.selectParameterGroupReturns.result1, fake.selectParameterGroupReturns.result2, fake.selectParameterGroupReturns.result3
 }
 
 func (fake *FakeParameterGroupSelector) SelectParameterGroupCallCount() int {
@@ -56,43 +57,35 @@ func (fake *FakeParameterGroupSelector) SelectParameterGroupCallCount() int {
 	return len(fake.selectParameterGroupArgsForCall)
 }
 
-func (fake *FakeParameterGroupSelector) SelectParameterGroupCalls(stub func(rdsbroker.ServicePlan, []string) (string, error)) {
-	fake.selectParameterGroupMutex.Lock()
-	defer fake.selectParameterGroupMutex.Unlock()
-	fake.SelectParameterGroupStub = stub
-}
-
 func (fake *FakeParameterGroupSelector) SelectParameterGroupArgsForCall(i int) (rdsbroker.ServicePlan, []string) {
 	fake.selectParameterGroupMutex.RLock()
 	defer fake.selectParameterGroupMutex.RUnlock()
-	argsForCall := fake.selectParameterGroupArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return fake.selectParameterGroupArgsForCall[i].servicePlan, fake.selectParameterGroupArgsForCall[i].extensions
 }
 
-func (fake *FakeParameterGroupSelector) SelectParameterGroupReturns(result1 string, result2 error) {
-	fake.selectParameterGroupMutex.Lock()
-	defer fake.selectParameterGroupMutex.Unlock()
+func (fake *FakeParameterGroupSelector) SelectParameterGroupReturns(result1 string, result2 bool, result3 error) {
 	fake.SelectParameterGroupStub = nil
 	fake.selectParameterGroupReturns = struct {
 		result1 string
-		result2 error
-	}{result1, result2}
+		result2 bool
+		result3 error
+	}{result1, result2, result3}
 }
 
-func (fake *FakeParameterGroupSelector) SelectParameterGroupReturnsOnCall(i int, result1 string, result2 error) {
-	fake.selectParameterGroupMutex.Lock()
-	defer fake.selectParameterGroupMutex.Unlock()
+func (fake *FakeParameterGroupSelector) SelectParameterGroupReturnsOnCall(i int, result1 string, result2 bool, result3 error) {
 	fake.SelectParameterGroupStub = nil
 	if fake.selectParameterGroupReturnsOnCall == nil {
 		fake.selectParameterGroupReturnsOnCall = make(map[int]struct {
 			result1 string
-			result2 error
+			result2 bool
+			result3 error
 		})
 	}
 	fake.selectParameterGroupReturnsOnCall[i] = struct {
 		result1 string
-		result2 error
-	}{result1, result2}
+		result2 bool
+		result3 error
+	}{result1, result2, result3}
 }
 
 func (fake *FakeParameterGroupSelector) Invocations() map[string][][]interface{} {

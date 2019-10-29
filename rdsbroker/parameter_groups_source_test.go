@@ -219,7 +219,7 @@ var _ = Describe("ParameterGroupsSource", func() {
 				createError := awserr.New(rds.ErrCodeDBParameterGroupAlreadyExistsFault, "exists", nil)
 				rdsFake.CreateParameterGroupReturns(createError)
 
-				_, err := parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
+				_, _, err := parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 
 				Expect(err).To(HaveOccurred())
 			})

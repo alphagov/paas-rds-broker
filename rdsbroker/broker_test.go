@@ -219,7 +219,7 @@ var _ = Describe("RDS Broker", func() {
 		logger.RegisterSink(testSink)
 
 		paramGroupSelector = fakes.FakeParameterGroupSelector{}
-		paramGroupSelector.SelectParameterGroupReturns(dbPrefix+"-postgres10-"+brokerName, nil)
+		paramGroupSelector.SelectParameterGroupReturns(dbPrefix+"-postgres10-"+brokerName, false, nil)
 
 		rdsBroker = New(config, rdsInstance, sqlProvider, &paramGroupSelector, logger)
 
@@ -656,7 +656,7 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			It("sets the parameter group from the parameter groups selector", func() {
-				paramGroupSelector.SelectParameterGroupReturns("expected", nil)
+				paramGroupSelector.SelectParameterGroupReturns("expected", false, nil)
 				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 				Expect(err).ToNot(HaveOccurred())
 

@@ -999,7 +999,7 @@ func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan Serv
 		Extensions:        provisionParameters.Extensions,
 	}
 
-	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters.Extensions)
+	parameterGroupName, _, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters.Extensions)
 	if err != nil {
 		return nil, err
 	}
@@ -1053,7 +1053,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 	}
 	skipFinalSnapshotStr := strconv.FormatBool(skipFinalSnapshot)
 
-	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters.Extensions)
+	parameterGroupName, _, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters.Extensions)
 	if err != nil {
 		return nil, err
 	}
