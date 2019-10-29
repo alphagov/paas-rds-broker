@@ -46,18 +46,18 @@ var _ = Describe("ParameterGroupsSource", func() {
 		})
 
 		It("prepends the configured dbprefix", func() {
-			name := composeGroupName(config, servicePlan, extensions, map[string][]DBExtension{})
+			name, _ := composeGroupName(config, servicePlan, extensions, map[string][]DBExtension{})
 			Expect(name).To(HavePrefix(config.DBPrefix))
 		})
 
 		It("contains the normalised engine family", func() {
 			servicePlan.RDSProperties.EngineFamily = aws.String("test-db-engine-family")
-			name := composeGroupName(config, servicePlan, extensions, map[string][]DBExtension{})
+			name, _ := composeGroupName(config, servicePlan, extensions, map[string][]DBExtension{})
 			Expect(name).To(ContainSubstring("testdbenginefamily"))
 		})
 
 		It("contains the broker name", func() {
-			name := composeGroupName(config, servicePlan, extensions, map[string][]DBExtension{})
+			name, _ := composeGroupName(config, servicePlan, extensions, map[string][]DBExtension{})
 			Expect(name).To(ContainSubstring("envname"))
 		})
 
@@ -65,21 +65,24 @@ var _ = Describe("ParameterGroupsSource", func() {
 			It("only if the db engine is postgres", func() {
 				extensions = []string{"pg_stat_statements"}
 				servicePlan.RDSProperties.Engine = aws.String("database")
-				name := composeGroupName(config, servicePlan, extensions, map[string][]DBExtension{})
+				name, hasExtensionsNeedingPreload := composeGroupName(config, servicePlan, extensions, map[string][]DBExtension{})
 				Expect(name).ToNot(HaveSuffix("pgstatstatements"))
+				Expect(hasExtensionsNeedingPreload).To(BeFalse())
 			})
 
 			It("which have been normalised", func() {
 				extensions = []string{"pg_stat_statements"}
-				name := composeGroupName(config, servicePlan, extensions, supportedPreloads)
+				name, hasExtensionsNeedingPreload := composeGroupName(config, servicePlan, extensions, supportedPreloads)
 				Expect(name).To(HaveSuffix("pgstatstatements"))
+				Expect(hasExtensionsNeedingPreload).To(BeTrue())
 			})
 
 			It("which require a pre-load library for that engine version", func() {
 				extensions = []string{"pg_stat_statements", "notanext"}
-				name := composeGroupName(config, servicePlan, extensions, supportedPreloads)
+				name, hasExtensionsNeedingPreload := composeGroupName(config, servicePlan, extensions, supportedPreloads)
 				Expect(name).To(HaveSuffix("pgstatstatements"))
 				Expect(name).ToNot(ContainSubstring("notanext"))
+				Expect(hasExtensionsNeedingPreload).To(BeTrue())
 			})
 
 			It("dash-separates extension names", func() {
@@ -90,9 +93,10 @@ var _ = Describe("ParameterGroupsSource", func() {
 					RequiresPreloadLibrary: true,
 				})
 
-				name := composeGroupName(config, servicePlan, extensions, supportedPreloads)
+				name, hasExtensionsNeedingPreload := composeGroupName(config, servicePlan, extensions, supportedPreloads)
 
 				Expect(name).To(HaveSuffix("pgstatstatements-pgz"))
+				Expect(hasExtensionsNeedingPreload).To(BeTrue())
 			})
 
 			It("orders the extensions alphabetically", func() {
@@ -108,9 +112,10 @@ var _ = Describe("ParameterGroupsSource", func() {
 					RequiresPreloadLibrary: true,
 				})
 
-				name := composeGroupName(config, servicePlan, extensions, supportedPreloads)
+				name, hasExtensionsNeedingPreload := composeGroupName(config, servicePlan, extensions, supportedPreloads)
 
 				Expect(name).To(HaveSuffix("pga-pgstatstatements-pgz"))
+				Expect(hasExtensionsNeedingPreload).To(BeTrue())
 			})
 		})
 	})

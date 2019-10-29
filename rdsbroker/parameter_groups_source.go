@@ -33,25 +33,25 @@ func (pgs *ParameterGroupSource) SelectParameterGroup(servicePlan ServicePlan, e
 		extensionsLogKey:  extensions,
 	})
 
-	groupName := composeGroupName(pgs.config, servicePlan, extensions, pgs.supportedPreloadExtensions)
+	groupName, hasExtensionsNeedingPreload := composeGroupName(pgs.config, servicePlan, extensions, pgs.supportedPreloadExtensions)
 	pgs.logger.Info(fmt.Sprintf("database should be created with parameter group '%s'", groupName))
 	_, err := pgs.rdsInstance.GetParameterGroup(groupName)
 
 	if err != nil {
 		if !isParameterGroupNotFoundError(err) {
-			return "", false, err // TODO check the second return value
+			return "", false, err
 		} else {
 			err := pgs.createParameterGroup(groupName, servicePlan)
 			if err != nil {
-				return "", false, err // TODO check the second return value
+				return "", false, err
 			}
 
 			err = pgs.setParameterGroupProperties(groupName, servicePlan, extensions)
 			if err != nil {
-				return "", false, err // TODO check the second return value
+				return "", false, err
 			}
 
-			return groupName, false, nil // TODO check the second return value
+			return groupName, hasExtensionsNeedingPreload, nil
 		}
 	}
 
@@ -98,7 +98,7 @@ func (pgs *ParameterGroupSource) setParameterGroupProperties(name string, servic
 	return nil
 }
 
-func composeGroupName(config Config, servicePlan ServicePlan, extensions []string, supportedPreloadExtensions map[string][]DBExtension) string {
+func composeGroupName(config Config, servicePlan ServicePlan, extensions []string, supportedPreloadExtensions map[string][]DBExtension) (string, bool) {
 
 	normalisedFamily := normaliseIdentifier(aws.StringValue(servicePlan.RDSProperties.EngineFamily))
 	normalisedExtensions := []string{}
@@ -124,7 +124,9 @@ func composeGroupName(config Config, servicePlan ServicePlan, extensions []strin
 		identifier = fmt.Sprintf("%s-%s", identifier, strings.Join(normalisedExtensions, "-"))
 	}
 
-	return identifier
+	hasExtensionsNeedingPreloads := len(relevantExtensions) > 0
+
+	return identifier, hasExtensionsNeedingPreloads
 }
 
 func filterExtensionsNeedingPreloads(servicePlan ServicePlan, requestedExtensions []string, supportedPreloadExtensions map[string][]DBExtension) []string {

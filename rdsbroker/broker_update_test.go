@@ -52,14 +52,15 @@ var _ = Describe("RDS Broker", func() {
 
 		rdsBroker *RDSBroker
 
-		allowUserProvisionParameters bool
-		allowUserUpdateParameters    bool
-		allowUserBindParameters      bool
-		planUpdateable               bool
-		skipFinalSnapshot            bool
-		dbPrefix                     string
-		brokerName                   string
-		newParamGroupName            string
+		allowUserProvisionParameters      bool
+		allowUserUpdateParameters         bool
+		allowUserBindParameters           bool
+		planUpdateable                    bool
+		skipFinalSnapshot                 bool
+		dbPrefix                          string
+		brokerName                        string
+		newParamGroupName                 string
+		newParamGroupHasPreloadExtensions bool
 	)
 
 	const (
@@ -85,6 +86,7 @@ var _ = Describe("RDS Broker", func() {
 		dbPrefix = "cf"
 		brokerName = "mybroker"
 		newParamGroupName = "originalParameterGroupName"
+		newParamGroupHasPreloadExtensions = false
 
 		rdsInstance = &rdsfake.FakeRDSInstance{}
 
@@ -208,7 +210,7 @@ var _ = Describe("RDS Broker", func() {
 		logger.RegisterSink(testSink)
 
 		paramGroupSelector = fakes.FakeParameterGroupSelector{}
-		paramGroupSelector.SelectParameterGroupReturns(newParamGroupName, false, nil)
+		paramGroupSelector.SelectParameterGroupReturns(newParamGroupName, newParamGroupHasPreloadExtensions, nil)
 
 		rdsBroker = New(config, rdsInstance, sqlProvider, &paramGroupSelector, logger)
 
@@ -996,6 +998,7 @@ var _ = Describe("RDS Broker", func() {
 			Context("when the parameter group is updated", func() {
 				BeforeEach(func() {
 					newParamGroupName = "updatedParamGroupName"
+					newParamGroupHasPreloadExtensions = true
 				})
 
 				It("enables an extension successfully if reboot is set to true", func() {
@@ -1032,6 +1035,7 @@ var _ = Describe("RDS Broker", func() {
 				}
 				rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbTags), nil)
 				newParamGroupName = "updatedParamGroupName"
+				newParamGroupHasPreloadExtensions = true
 			})
 
 			It("successfully removes an extension", func() {
