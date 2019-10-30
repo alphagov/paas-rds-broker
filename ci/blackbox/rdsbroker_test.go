@@ -290,6 +290,55 @@ var _ = Describe("RDS Broker Daemon", func() {
 		})
 	})
 
+	Describe("update to a plan with a newer engine version", func() {
+		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID string) {
+			var (
+				instanceID string
+			)
+
+			BeforeEach(func() {
+				instanceID = uuid.NewV4().String()
+
+				brokerAPIClient.AcceptsIncomplete = true
+
+				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlanID, "{}")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
+				Expect(state).To(Equal("succeeded"))
+			})
+
+			AfterEach(func() {
+				brokerAPIClient.AcceptsIncomplete = true
+				code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, upgradeToPlanID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, upgradeToPlanID, operation)
+				Expect(state).To(Equal("gone"))
+			})
+
+			It("handles an update to a plan with a newer engine version", func() {
+				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				extensions := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, upgradeToPlanID, operation)
+				Expect(extensions).To(Equal("succeeded"))
+			})
+		}
+
+		Describe("Postgres 9.5 to 10", func() {
+			TestUpdatePlan("postgres", "postgres-micro-without-snapshot", "postgres-micro-without-snapshot-10")
+		})
+
+		Describe("Postgres 10 to 11", func() {
+			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-10", "postgres-micro-without-snapshot-11")
+		})
+
+		Describe("MySQL 5.7 to 8.0", func() {
+			TestUpdatePlan("mysql", "mysql-5.7-micro-without-snapshot", "mysql-8.0-micro-without-snapshot")
+		})
+	})
+
 	Describe("Final snapshot enable/disable", func() {
 		TestFinalSnapshot := func(serviceID, planID string) {
 			var (
