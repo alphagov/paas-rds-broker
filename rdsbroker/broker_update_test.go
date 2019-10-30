@@ -825,13 +825,13 @@ var _ = Describe("RDS Broker", func() {
 		})
 
 		It("accepts the enable_extensions parameter", func() {
-			updateDetails.RawParameters = json.RawMessage(`{"enable_extensions": []}`)
+			updateDetails.RawParameters = json.RawMessage(`{"enable_extensions": ["postgres_super_extension"]}`)
 			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("accepts the disable_extensions parameter", func() {
-			updateDetails.RawParameters = json.RawMessage(`{"disable_extensions": []}`)
+			updateDetails.RawParameters = json.RawMessage(`{"disable_extensions": ["postgres_super_extension"]}`)
 			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 			Expect(err).ToNot(HaveOccurred())
 		})
