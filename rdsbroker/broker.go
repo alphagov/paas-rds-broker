@@ -356,21 +356,18 @@ func (b *RDSBroker) Update(
 
 	deferReboot := false
 
-	if len(updateParameters.EnableExtensions) > 0 || len(updateParameters.DisableExtensions) > 0 {
-		var err error
-		newDbParamGroup, err = b.parameterGroupsSelector.SelectParameterGroup(servicePlan, extensions)
-		if err != nil {
-			return brokerapi.UpdateServiceSpec{}, err
-		}
+	newDbParamGroup, err = b.parameterGroupsSelector.SelectParameterGroup(servicePlan, extensions)
+	if err != nil {
+		return brokerapi.UpdateServiceSpec{}, err
+	}
 
-		if newDbParamGroup != previousDbParamGroup {
-			if updateParameters.Reboot == nil || !*updateParameters.Reboot {
-				return brokerapi.UpdateServiceSpec{}, errors.New("The requested extensions require the instance to be manually rebooted. Please re-run update service with reboot set to true")
-			}
-			// When updating the parameter group, the instance will be in a modifying state
-			// for a couple of mins. So we have to defer the reboot to the last operation call.
-			deferReboot = true
+	if (len(updateParameters.EnableExtensions) > 0 || len(updateParameters.DisableExtensions) > 0) && newDbParamGroup != previousDbParamGroup {
+		if updateParameters.Reboot == nil || !*updateParameters.Reboot {
+			return brokerapi.UpdateServiceSpec{}, errors.New("The requested extensions require the instance to be manually rebooted. Please re-run update service with reboot set to true")
 		}
+		// When updating the parameter group, the instance will be in a modifying state
+		// for a couple of mins. So we have to defer the reboot to the last operation call.
+		deferReboot = true
 	}
 
 	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, updateParameters, newDbParamGroup)
