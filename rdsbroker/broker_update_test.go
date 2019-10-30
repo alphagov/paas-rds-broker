@@ -824,16 +824,46 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
-		It("accepts the enable_extensions parameter", func() {
-			updateDetails.RawParameters = json.RawMessage(`{"enable_extensions": ["postgres_super_extension"]}`)
-			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-			Expect(err).ToNot(HaveOccurred())
+		Context("when enabling extensions", func() {
+			BeforeEach(func() {
+				updateDetails.RawParameters = json.RawMessage(`{"enable_extensions": ["postgres_super_extension"]}`)
+			})
+
+			It("accepts the enable_extensions parameter when there is no plan change", func() {
+				updateDetails.PlanID = "Plan-1"
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("fails if the request includes a plan change", func() {
+				updateDetails.PlanID = "Plan-2"
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(MatchError("Invalid to enable extensions and update plan in the same command"))
+				Expect(rdsInstance.RebootCallCount()).To(Equal(0))
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
+			})
 		})
 
-		It("accepts the disable_extensions parameter", func() {
-			updateDetails.RawParameters = json.RawMessage(`{"disable_extensions": ["postgres_super_extension"]}`)
-			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-			Expect(err).ToNot(HaveOccurred())
+		Context("when disabling extensions", func() {
+			BeforeEach(func() {
+				updateDetails.RawParameters = json.RawMessage(`{"disable_extensions": ["postgres_super_extension"]}`)
+			})
+
+			It("accepts the disable_extensions parameter when there is no plan change", func() {
+				updateDetails.PlanID = "Plan-1"
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("fails if the request includes a plan change", func() {
+				updateDetails.PlanID = "Plan-2"
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(MatchError("Invalid to disable extensions and update plan in the same command"))
+				Expect(rdsInstance.RebootCallCount()).To(Equal(0))
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
+			})
 		})
 
 		Context("if an extension is in both enable_extensions and disable_enxtension", func() {
@@ -887,7 +917,7 @@ var _ = Describe("RDS Broker", func() {
 
 			It("fails if the reboot include a plan change", func() {
 				updateDetails.RawParameters = json.RawMessage(`{ "reboot": true, "force_failover": true }`)
-				updateDetails.PlanID = "plan-2"
+				updateDetails.PlanID = "Plan-2"
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(MatchError("Invalid to reboot and update plan in the same command"))

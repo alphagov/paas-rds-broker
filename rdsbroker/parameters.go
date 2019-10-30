@@ -49,5 +49,11 @@ func (up *UpdateParameters) CheckForCompatibilityWithPlanChange() error {
 	if up.Reboot != nil && *up.Reboot {
 		return fmt.Errorf("Invalid to reboot and update plan in the same command")
 	}
+	if len(up.EnableExtensions) > 0 {
+		return fmt.Errorf("Invalid to enable extensions and update plan in the same command")
+	}
+	if len(up.DisableExtensions) > 0 {
+		return fmt.Errorf("Invalid to disable extensions and update plan in the same command")
+	}
 	return nil
 }
