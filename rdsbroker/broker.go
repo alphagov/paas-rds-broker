@@ -285,9 +285,10 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Service '%s' not found", details.ServiceID)
 	}
 
-	if updateParameters.Reboot != nil && *updateParameters.Reboot {
-		if details.PlanID != details.PreviousValues.PlanID {
-			return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Invalid to reboot and update plan in the same command")
+	if details.PlanID != details.PreviousValues.PlanID {
+		err := updateParameters.CheckForCompatibilityWithPlanChange()
+		if err != nil {
+			return brokerapi.UpdateServiceSpec{}, err
 		}
 	}
 

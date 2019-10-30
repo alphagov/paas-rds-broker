@@ -44,3 +44,10 @@ func (up *UpdateParameters) Validate() error {
 	}
 	return nil
 }
+
+func (up *UpdateParameters) CheckForCompatibilityWithPlanChange() error {
+	if up.Reboot != nil && *up.Reboot {
+		return fmt.Errorf("Invalid to reboot and update plan in the same command")
+	}
+	return nil
+}
