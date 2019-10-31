@@ -824,16 +824,79 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
-		It("accepts the enable_extensions parameter", func() {
-			updateDetails.RawParameters = json.RawMessage(`{"enable_extensions": []}`)
-			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-			Expect(err).ToNot(HaveOccurred())
+		Context("when enabling extensions", func() {
+			BeforeEach(func() {
+				updateDetails.RawParameters = json.RawMessage(`{"enable_extensions": ["postgres_super_extension"]}`)
+			})
+
+			It("accepts the enable_extensions parameter when there is no plan change", func() {
+				updateDetails.PlanID = "Plan-1"
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("fails if the request includes a plan change", func() {
+				updateDetails.PlanID = "Plan-2"
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(MatchError("Invalid to enable extensions and update plan in the same command"))
+				Expect(rdsInstance.RebootCallCount()).To(Equal(0))
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
+			})
 		})
 
-		It("accepts the disable_extensions parameter", func() {
-			updateDetails.RawParameters = json.RawMessage(`{"disable_extensions": []}`)
-			_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-			Expect(err).ToNot(HaveOccurred())
+		Context("when disabling extensions", func() {
+			BeforeEach(func() {
+				updateDetails.RawParameters = json.RawMessage(`{"disable_extensions": ["postgres_super_extension"]}`)
+			})
+
+			It("accepts the disable_extensions parameter when there is no plan change", func() {
+				updateDetails.PlanID = "Plan-1"
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("fails if the request includes a plan change", func() {
+				updateDetails.PlanID = "Plan-2"
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(MatchError("Invalid to disable extensions and update plan in the same command"))
+				Expect(rdsInstance.RebootCallCount()).To(Equal(0))
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
+			})
+		})
+
+		Context("when the plan is changing", func() {
+			BeforeEach(func() {
+				rdsProperties1.EngineVersion = stringPointer("1.2.3")
+				rdsProperties2.EngineVersion = stringPointer("4.5.6")
+				newParamGroupName = "mockedOutReturnValueOfSelectParameterGroupIndicatingUseOfEngineVersion4.5.6"
+
+				updateDetails = brokerapi.UpdateDetails{
+					ServiceID: "Service-1",
+					PlanID:    "Plan-2",
+					PreviousValues: brokerapi.PreviousValues{
+						PlanID:    "Plan-1",
+						ServiceID: "Service-1",
+						OrgID:     "organization-id",
+						SpaceID:   "space-id",
+					},
+				}
+			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(paramGroupSelector.SelectParameterGroupCallCount()).To(Equal(1))
+				servicePlan, _ := paramGroupSelector.SelectParameterGroupArgsForCall(0)
+				Expect(servicePlan).To(Equal(plan2))
+
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.EngineVersion)).To(Equal("4.5.6"))
+				Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal(newParamGroupName))
+			})
 		})
 
 		Context("if an extension is in both enable_extensions and disable_enxtension", func() {
@@ -887,7 +950,7 @@ var _ = Describe("RDS Broker", func() {
 
 			It("fails if the reboot include a plan change", func() {
 				updateDetails.RawParameters = json.RawMessage(`{ "reboot": true, "force_failover": true }`)
-				updateDetails.PlanID = "plan-2"
+				updateDetails.PlanID = "Plan-2"
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(MatchError("Invalid to reboot and update plan in the same command"))
@@ -1023,6 +1086,34 @@ var _ = Describe("RDS Broker", func() {
 					Value: aws.String("postgis:pg_stat_statements"),
 				}))
 				Expect(rdsInstance.RebootCallCount()).To(Equal(0))
+			})
+		})
+
+		Context("when the postgres version is being changed away from 9", func() {
+			BeforeEach(func() {
+				rdsProperties1.Engine = aws.String("postgres")
+				rdsProperties1.EngineVersion = aws.String("9.5")
+				rdsProperties2.Engine = aws.String("postgres")
+				rdsProperties2.EngineVersion = aws.String("10")
+			})
+
+			It("returns an error", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(MatchError("please contact support to upgrade from postgres 9"))
+			})
+		})
+
+		Context("when the postgres version is being changed from 9 to 9", func() {
+			BeforeEach(func() {
+				rdsProperties1.Engine = aws.String("postgres")
+				rdsProperties1.EngineVersion = aws.String("9.5")
+				rdsProperties2.Engine = aws.String("postgres")
+				rdsProperties2.EngineVersion = aws.String("9.6")
+			})
+
+			It("successfully upgrades the plan", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 	})

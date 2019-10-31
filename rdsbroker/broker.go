@@ -285,14 +285,14 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Service '%s' not found", details.ServiceID)
 	}
 
-	if updateParameters.Reboot != nil && *updateParameters.Reboot {
-		if details.PlanID != details.PreviousValues.PlanID {
-			return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Invalid to reboot and update plan in the same command")
+	if details.PlanID != details.PreviousValues.PlanID {
+		if !service.PlanUpdatable {
+			return brokerapi.UpdateServiceSpec{}, brokerapi.ErrPlanChangeNotSupported
 		}
-	}
-
-	if details.PlanID != details.PreviousValues.PlanID && !service.PlanUpdatable {
-		return brokerapi.UpdateServiceSpec{}, brokerapi.ErrPlanChangeNotSupported
+		err := updateParameters.CheckForCompatibilityWithPlanChange()
+		if err != nil {
+			return brokerapi.UpdateServiceSpec{}, err
+		}
 	}
 
 	servicePlan, ok := b.catalog.FindServicePlan(details.PlanID)
@@ -303,6 +303,14 @@ func (b *RDSBroker) Update(
 	previousServicePlan, ok := b.catalog.FindServicePlan(details.PreviousValues.PlanID)
 	if !ok {
 		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PreviousValues.PlanID)
+	}
+
+	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
+		previousVersion := aws.StringValue(previousServicePlan.RDSProperties.EngineVersion)
+		newVersion := aws.StringValue(servicePlan.RDSProperties.EngineVersion)
+		if strings.HasPrefix(previousVersion, "9.") && !strings.HasPrefix(newVersion, "9.") {
+			return brokerapi.UpdateServiceSpec{}, fmt.Errorf("please contact support to upgrade from postgres 9")
+		}
 	}
 
 	if !reflect.DeepEqual(servicePlan.RDSProperties.StorageEncrypted, previousServicePlan.RDSProperties.StorageEncrypted) {
@@ -355,21 +363,18 @@ func (b *RDSBroker) Update(
 
 	deferReboot := false
 
-	if len(updateParameters.EnableExtensions) > 0 || len(updateParameters.DisableExtensions) > 0 {
-		var err error
-		newDbParamGroup, err = b.parameterGroupsSelector.SelectParameterGroup(servicePlan, extensions)
-		if err != nil {
-			return brokerapi.UpdateServiceSpec{}, err
-		}
+	newDbParamGroup, err = b.parameterGroupsSelector.SelectParameterGroup(servicePlan, extensions)
+	if err != nil {
+		return brokerapi.UpdateServiceSpec{}, err
+	}
 
-		if newDbParamGroup != previousDbParamGroup {
-			if updateParameters.Reboot == nil || !*updateParameters.Reboot {
-				return brokerapi.UpdateServiceSpec{}, errors.New("The requested extensions require the instance to be manually rebooted. Please re-run update service with reboot set to true")
-			}
-			// When updating the parameter group, the instance will be in a modifying state
-			// for a couple of mins. So we have to defer the reboot to the last operation call.
-			deferReboot = true
+	if (len(updateParameters.EnableExtensions) > 0 || len(updateParameters.DisableExtensions) > 0) && newDbParamGroup != previousDbParamGroup {
+		if updateParameters.Reboot == nil || !*updateParameters.Reboot {
+			return brokerapi.UpdateServiceSpec{}, errors.New("The requested extensions require the instance to be manually rebooted. Please re-run update service with reboot set to true")
 		}
+		// When updating the parameter group, the instance will be in a modifying state
+		// for a couple of mins. So we have to defer the reboot to the last operation call.
+		deferReboot = true
 	}
 
 	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, updateParameters, newDbParamGroup)
