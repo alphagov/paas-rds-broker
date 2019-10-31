@@ -326,7 +326,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 9.5 to 10", func() {
+		XDescribe("Postgres 9.5 to 10 (disabled while postgres 9.5 upgrades are disabled)", func() {
 			TestUpdatePlan("postgres", "postgres-micro-without-snapshot", "postgres-micro-without-snapshot-10")
 		})
 

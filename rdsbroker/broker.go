@@ -286,14 +286,13 @@ func (b *RDSBroker) Update(
 	}
 
 	if details.PlanID != details.PreviousValues.PlanID {
+		if !service.PlanUpdatable {
+			return brokerapi.UpdateServiceSpec{}, brokerapi.ErrPlanChangeNotSupported
+		}
 		err := updateParameters.CheckForCompatibilityWithPlanChange()
 		if err != nil {
 			return brokerapi.UpdateServiceSpec{}, err
 		}
-	}
-
-	if details.PlanID != details.PreviousValues.PlanID && !service.PlanUpdatable {
-		return brokerapi.UpdateServiceSpec{}, brokerapi.ErrPlanChangeNotSupported
 	}
 
 	servicePlan, ok := b.catalog.FindServicePlan(details.PlanID)
@@ -304,6 +303,14 @@ func (b *RDSBroker) Update(
 	previousServicePlan, ok := b.catalog.FindServicePlan(details.PreviousValues.PlanID)
 	if !ok {
 		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PreviousValues.PlanID)
+	}
+
+	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
+		previousVersion := aws.StringValue(previousServicePlan.RDSProperties.EngineVersion)
+		newVersion := aws.StringValue(servicePlan.RDSProperties.EngineVersion)
+		if strings.HasPrefix(previousVersion, "9.") && !strings.HasPrefix(newVersion, "9.") {
+			return brokerapi.UpdateServiceSpec{}, fmt.Errorf("please contact support to upgrade from postgres 9")
+		}
 	}
 
 	if !reflect.DeepEqual(servicePlan.RDSProperties.StorageEncrypted, previousServicePlan.RDSProperties.StorageEncrypted) {

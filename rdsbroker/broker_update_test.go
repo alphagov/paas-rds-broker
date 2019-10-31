@@ -1088,5 +1088,33 @@ var _ = Describe("RDS Broker", func() {
 				Expect(rdsInstance.RebootCallCount()).To(Equal(0))
 			})
 		})
+
+		Context("when the postgres version is being changed away from 9", func() {
+			BeforeEach(func() {
+				rdsProperties1.Engine = aws.String("postgres")
+				rdsProperties1.EngineVersion = aws.String("9.5")
+				rdsProperties2.Engine = aws.String("postgres")
+				rdsProperties2.EngineVersion = aws.String("10")
+			})
+
+			It("returns an error", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(MatchError("please contact support to upgrade from postgres 9"))
+			})
+		})
+
+		Context("when the postgres version is being changed from 9 to 9", func() {
+			BeforeEach(func() {
+				rdsProperties1.Engine = aws.String("postgres")
+				rdsProperties1.EngineVersion = aws.String("9.5")
+				rdsProperties2.Engine = aws.String("postgres")
+				rdsProperties2.EngineVersion = aws.String("9.6")
+			})
+
+			It("successfully upgrades the plan", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
 	})
 })
