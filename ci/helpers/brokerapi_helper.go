@@ -149,7 +149,7 @@ func (b *BrokerAPIClient) DoUpdateRequest(instanceID, serviceID, planID string, 
 			},
 			"parameters": %s
 		}
-	`, serviceID, planID, newPlanID, paramJSON))
+	`, serviceID, newPlanID, planID, paramJSON))
 
 	return b.doRequest(
 		"PATCH",
