@@ -67,6 +67,7 @@ func (b *BrokerAPIClient) doRequest(action string, path string, body io.Reader, 
 		return nil, err
 	}
 
+	req.Header.Set("X-Broker-API-Version", "2.14")
 	req.SetBasicAuth(b.Username, b.Password)
 
 	q := req.URL.Query()
