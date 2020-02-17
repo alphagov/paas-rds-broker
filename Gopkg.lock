@@ -55,11 +55,32 @@
   version = "v1.16.34"
 
 [[projects]]
+  branch = "master"
+  digest = "1:2db6c6148652a9d8e9624335532f5100862c1ee12183863ddcff42193321ae04"
+  name = "github.com/denisenkom/go-mssqldb"
+  packages = [
+    ".",
+    "internal/cp",
+    "internal/decimal",
+    "internal/querytext",
+  ]
+  pruneopts = "UT"
+  revision = "bbfc9a55622eeb8e47808e0f7270efcf5ae3dce2"
+
+[[projects]]
   digest = "1:32aa2925b00f43b3455b46fca49fde5541749896358addb2ddb077359e17bfba"
   name = "github.com/go-sql-driver/mysql"
   packages = ["."]
   pruneopts = "UT"
   revision = "527bcd55aab2e53314f1a150922560174b493034"
+
+[[projects]]
+  branch = "master"
+  digest = "1:914bae0d7af57d7f9c2c8eff864071e57c3effebd78eeef26eff4afb0372ed2f"
+  name = "github.com/golang-sql/civil"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "cb61b32ac6fe84d34b81730175f91965e43d0f90"
 
 [[projects]]
   digest = "1:874ca00e54068a78ce555979489511ec62cd4682bf068134dc4355753827895c"
@@ -197,6 +218,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:100a36e16f77aaad7c9144ab26bcefb92c5b6ebed5b137f935fdc11f541fa5b8"
+  name = "golang.org/x/crypto"
+  packages = ["md4"]
+  pruneopts = "UT"
+  revision = "1d94cc7ab1c630336ab82ccb9c9cda72a875c382"
+
+[[projects]]
+  branch = "master"
   digest = "1:4939e20b972c22cd512abff0bf6ed8fc0e3e86aeb836d016be3323c6a901d99d"
   name = "golang.org/x/net"
   packages = [
@@ -277,6 +306,7 @@
     "github.com/aws/aws-sdk-go/aws/session",
     "github.com/aws/aws-sdk-go/service/ec2",
     "github.com/aws/aws-sdk-go/service/rds",
+    "github.com/denisenkom/go-mssqldb",
     "github.com/go-sql-driver/mysql",
     "github.com/lib/pq",
     "github.com/onsi/ginkgo",

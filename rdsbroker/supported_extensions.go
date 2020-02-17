@@ -91,4 +91,6 @@ var SupportedPreloadExtensions = map[string][]DBExtension{
 	},
 
 	"mysql5.7": []DBExtension{},
+
+	"mssql2017": []DBExtension{},
 }

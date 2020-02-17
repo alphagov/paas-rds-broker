@@ -163,6 +163,7 @@ func (rp RDSProperties) Validate(c Catalog) error {
 	case "mariadb":
 	case "mysql":
 	case "postgres":
+	case "sqlserver-se":
 	default:
 		return fmt.Errorf("This broker does not support RDS engine '%s'", *rp.Engine)
 	}

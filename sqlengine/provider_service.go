@@ -23,6 +23,8 @@ func (p *ProviderService) GetSQLEngine(engine string) (SQLEngine, error) {
 		return NewMySQLEngine(p.logger), nil
 	case "postgres", "postgresql":
 		return NewPostgresEngine(p.logger), nil
+	case "mssql":
+		return NewMSSQLEngine(p.logger), nil
 	}
 
 	return nil, fmt.Errorf("SQL Engine '%s' not supported", engine)
