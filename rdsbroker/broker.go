@@ -128,24 +128,24 @@ func New(
 	}
 }
 
-func (b *RDSBroker) Services(ctx context.Context) []brokerapi.Service {
+func (b *RDSBroker) Services(ctx context.Context) ([]brokerapi.Service, error) {
 	brokerCatalog, err := json.Marshal(b.catalog)
 	if err != nil {
 		b.logger.Error("marshal-error", err)
-		return []brokerapi.Service{}
+		return []brokerapi.Service{}, err
 	}
 
 	apiCatalog := CatalogExternal{}
 	if err = json.Unmarshal(brokerCatalog, &apiCatalog); err != nil {
 		b.logger.Error("unmarshal-error", err)
-		return []brokerapi.Service{}
+		return []brokerapi.Service{}, err
 	}
 
 	for i := range apiCatalog.Services {
 		apiCatalog.Services[i].Bindable = true
 	}
 
-	return apiCatalog.Services
+	return apiCatalog.Services, nil
 }
 
 func (b *RDSBroker) Provision(
@@ -247,6 +247,18 @@ func (b *RDSBroker) Provision(
 	}
 
 	return brokerapi.ProvisionedServiceSpec{IsAsync: true}, nil
+}
+
+func (b *RDSBroker) GetBinding(ctx context.Context, first, second string) (brokerapi.GetBindingSpec, error) {
+	return brokerapi.GetBindingSpec{}, fmt.Errorf("GetBinding method not implemented")
+}
+
+func (b *RDSBroker) GetInstance(ctx context.Context, first string) (brokerapi.GetInstanceDetailsSpec, error) {
+	return brokerapi.GetInstanceDetailsSpec{}, fmt.Errorf("GetInstance method not implemented")
+}
+
+func (b *RDSBroker) LastBindingOperation(ctx context.Context, first, second string, pollDetails brokerapi.PollDetails) (brokerapi.LastOperation, error) {
+	return brokerapi.LastOperation{}, fmt.Errorf("LastBindingOperation method not implemented")
 }
 
 func (b *RDSBroker) Update(
@@ -466,6 +478,7 @@ func (b *RDSBroker) Bind(
 	ctx context.Context,
 	instanceID, bindingID string,
 	details brokerapi.BindDetails,
+	asyncAllowed bool,
 ) (brokerapi.Binding, error) {
 	b.logger.Debug("bind", lager.Data{
 		instanceIDLogKey: instanceID,
@@ -543,7 +556,8 @@ func (b *RDSBroker) Unbind(
 	ctx context.Context,
 	instanceID, bindingID string,
 	details brokerapi.UnbindDetails,
-) error {
+	asyncAllowed bool,
+) (brokerapi.UnbindSpec, error) {
 	b.logger.Debug("unbind", lager.Data{
 		instanceIDLogKey: instanceID,
 		bindingIDLogKey:  bindingID,
@@ -552,34 +566,35 @@ func (b *RDSBroker) Unbind(
 
 	_, ok := b.catalog.FindServicePlan(details.PlanID)
 	if !ok {
-		return fmt.Errorf("Service Plan '%s' not found", details.PlanID)
+		return brokerapi.UnbindSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
 	dbInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
-			return brokerapi.ErrInstanceDoesNotExist
+			return brokerapi.UnbindSpec{}, brokerapi.ErrInstanceDoesNotExist
 		}
-		return err
+		return brokerapi.UnbindSpec{}, err
 	}
 
 	dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
 	sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
 	if err != nil {
-		return err
+		return brokerapi.UnbindSpec{}, err
 	}
 	defer sqlEngine.Close()
 
 	if err = sqlEngine.DropUser(bindingID); err != nil {
-		return err
+		return brokerapi.UnbindSpec{}, err
 	}
 
-	return nil
+	return brokerapi.UnbindSpec{}, nil
 }
 
 func (b *RDSBroker) LastOperation(
 	ctx context.Context,
-	instanceID, operationData string,
+	instanceID string,
+	pollDetails brokerapi.PollDetails,
 ) (brokerapi.LastOperation, error) {
 	b.logger.Debug("last-operation", lager.Data{
 		instanceIDLogKey: instanceID,

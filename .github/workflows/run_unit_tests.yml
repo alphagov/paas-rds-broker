@@ -42,8 +42,7 @@ jobs:
 
       - name: Install Ginkgo CLI
         run: |
-          cd vendor/github.com/onsi/ginkgo/ginkgo
-          go install
+          go get -u github.com/onsi/ginkgo/ginkgo
 
       - name: Run tests
         run: |

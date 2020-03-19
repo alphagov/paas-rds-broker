@@ -17,8 +17,7 @@ run:
       export GOPATH=$(pwd)
       export PATH="${GOPATH}/bin:${PATH}"
 
-      cd "${GOPATH}/src/github.com/alphagov/paas-rds-broker/vendor/github.com/onsi/ginkgo/ginkgo"
-      go install
+      go get -u github.com/onsi/ginkgo/ginkgo
 
       cd "${GOPATH}/src/github.com/alphagov/paas-rds-broker"
       make integration
