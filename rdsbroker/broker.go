@@ -237,6 +237,14 @@ func (b *RDSBroker) Provision(
 					prunedSnapshots = append(prunedSnapshots, snapshot)
 				}
 			}
+
+			b.logger.Info("pruned-snapshots", lager.Data{
+				"instanceIDLogKey":     instanceID,
+				"detailsLogKey":        details,
+				"allSnapshotsCount":    len(snapshots),
+				"prunedSnapshotsCount": len(prunedSnapshots),
+			})
+
 			snapshots = prunedSnapshots
 		}
 
@@ -245,6 +253,12 @@ func (b *RDSBroker) Provision(
 		}
 
 		snapshot := snapshots[0]
+
+		b.logger.Info("chose-snapshot", lager.Data{
+			"instanceIDLogKey":   instanceID,
+			"detailsLogKey":      details,
+			"snapshotIdentifier": snapshot.DBSnapshotIdentifier,
+		})
 
 		tags, err := b.dbInstance.GetResourceTags(aws.StringValue(snapshot.DBSnapshotArn))
 		if err != nil {
