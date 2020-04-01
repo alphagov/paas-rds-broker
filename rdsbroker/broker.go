@@ -24,6 +24,8 @@ import (
 const MasterUsernameLength = 16
 const MasterPasswordLength = 32
 
+const RestoreFromLatestSnapshotBeforeTimeFormat = "2006-01-02 15:04:05"
+
 const instanceIDLogKey = "instance-id"
 const bindingIDLogKey = "binding-id"
 const detailsLogKey = "details"
@@ -189,6 +191,10 @@ func (b *RDSBroker) Provision(
 		}
 	}
 
+	if provisionParameters.RestoreFromLatestSnapshotOf == nil && provisionParameters.RestoreFromLatestSnapshotBefore != nil {
+		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Parameter restore_from_latest_snapshot_before should be used with restore_from_latest_snapshot_of")
+	}
+
 	if provisionParameters.RestoreFromLatestSnapshotOf == nil {
 		createDBInstance, err := b.newCreateDBInstanceInput(instanceID, servicePlan, provisionParameters, details)
 		if err != nil {
@@ -209,9 +215,35 @@ func (b *RDSBroker) Provision(
 		if err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
+
+		if provisionParameters.RestoreFromLatestSnapshotBefore != nil {
+			if *provisionParameters.RestoreFromLatestSnapshotBefore == "" {
+				return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Parameter restore_from_latest_snapshot_before must not be empty")
+			}
+
+			restoreFromLatestSnapshotBeforeTime, err := time.ParseInLocation(
+				RestoreFromLatestSnapshotBeforeTimeFormat,
+				*provisionParameters.RestoreFromLatestSnapshotBefore,
+				time.UTC,
+			)
+			if err != nil {
+				return brokerapi.ProvisionedServiceSpec{},
+					fmt.Errorf("Parameter restore_from_latest_snapshot_before should be a date and a time: %s", err)
+			}
+
+			prunedSnapshots := make([]*rds.DBSnapshot, 0)
+			for _, snapshot := range snapshots {
+				if snapshot.SnapshotCreateTime.Before(restoreFromLatestSnapshotBeforeTime) {
+					prunedSnapshots = append(prunedSnapshots, snapshot)
+				}
+			}
+			snapshots = prunedSnapshots
+		}
+
 		if len(snapshots) == 0 {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("No snapshots found for guid '%s'", *provisionParameters.RestoreFromLatestSnapshotOf)
 		}
+
 		snapshot := snapshots[0]
 
 		tags, err := b.dbInstance.GetResourceTags(aws.StringValue(snapshot.DBSnapshotArn))
