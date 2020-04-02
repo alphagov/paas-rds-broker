@@ -401,19 +401,6 @@ var _ = Describe("RDS Broker", func() {
 				dbSnapshotTags                   map[string]string
 			)
 
-			BeforeEach(func() {
-				rdsProperties1.Engine = stringPointer("postgres")
-				restoreFromSnapshotInstanceGUID = "guid-of-origin-instance"
-				restoreFromSnapshotDBInstanceID = dbPrefix + "-" + restoreFromSnapshotInstanceGUID
-				restoreFromSnapshotDBSnapshotArn = "arn:aws:rds:rds-region:1234567890:snapshot:cf-instance-id"
-				provisionDetails.RawParameters = json.RawMessage(`{"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `"}`)
-				dbSnapshotTags = map[string]string{
-					"Space ID":        "space-id",
-					"Organization ID": "organization-id",
-					"Plan ID":         "Plan-1",
-				}
-			})
-
 			JustBeforeEach(func() {
 				rdsInstance.DescribeSnapshotsReturns([]*rds.DBSnapshot{
 					{
@@ -426,163 +413,165 @@ var _ = Describe("RDS Broker", func() {
 						DBSnapshotIdentifier: aws.String(restoreFromSnapshotDBInstanceID + "-2"),
 						DBSnapshotArn:        aws.String(restoreFromSnapshotDBSnapshotArn + "-2"),
 						DBInstanceIdentifier: aws.String(restoreFromSnapshotDBInstanceID),
-						SnapshotCreateTime:   aws.Time(time.Now()),
+						SnapshotCreateTime:   aws.Time(time.Now().Add(-1 * 24 * time.Hour)),
+					},
+					{
+						DBSnapshotIdentifier: aws.String(restoreFromSnapshotDBInstanceID + "-3"),
+						DBSnapshotArn:        aws.String(restoreFromSnapshotDBSnapshotArn + "-3"),
+						DBInstanceIdentifier: aws.String(restoreFromSnapshotDBInstanceID),
+						SnapshotCreateTime:   aws.Time(time.Now().Add(-1 * 3 * 24 * time.Hour)),
 					},
 				}, nil)
 
 				rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbSnapshotTags), nil)
 			})
 
-			It("makes the proper calls", func() {
-				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-				Expect(rdsInstance.DescribeSnapshotsCallCount()).To(Equal(1))
-				id := rdsInstance.DescribeSnapshotsArgsForCall(0)
-				Expect(id).To(Equal(restoreFromSnapshotDBInstanceID))
-
-				Expect(rdsInstance.RestoreCallCount()).To(Equal(1))
-				input := rdsInstance.RestoreArgsForCall(0)
-				Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
-				Expect(aws.StringValue(input.DBSnapshotIdentifier)).To(Equal(restoreFromSnapshotDBInstanceID + "-1"))
-				Expect(aws.StringValue(input.DBInstanceClass)).To(Equal("db.m1.test"))
-				Expect(aws.StringValue(input.Engine)).To(Equal("postgres"))
-				Expect(aws.StringValue(input.DBName)).To(BeEmpty())
-				Expect(err).ToNot(HaveOccurred())
-			})
-
-			It("sets the right tags", func() {
-				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-
-				Expect(err).ToNot(HaveOccurred())
-				Expect(rdsInstance.DescribeSnapshotsCallCount()).To(Equal(1))
-				id := rdsInstance.DescribeSnapshotsArgsForCall(0)
-				Expect(id).To(Equal(restoreFromSnapshotDBInstanceID))
-
-				Expect(rdsInstance.RestoreCallCount()).To(Equal(1))
-				input := rdsInstance.RestoreArgsForCall(0)
-
-				tagsByName := awsrds.RDSTagsValues(input.Tags)
-				Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
-				Expect(tagsByName["Restored by"]).To(Equal("AWS RDS Service Broker"))
-				Expect(tagsByName).To(HaveKey("Restored at"))
-				Expect(tagsByName["Service ID"]).To(Equal("Service-1"))
-				Expect(tagsByName["Plan ID"]).To(Equal("Plan-1"))
-				Expect(tagsByName["Organization ID"]).To(Equal("organization-id"))
-				Expect(tagsByName["Space ID"]).To(Equal("space-id"))
-				Expect(tagsByName["Restored From Snapshot"]).To(Equal(restoreFromSnapshotDBInstanceID + "-1"))
-				Expect(tagsByName["PendingResetUserPassword"]).To(Equal("true"))
-				Expect(tagsByName["PendingUpdateSettings"]).To(Equal("true"))
-			})
-
-			It("selects the latest snapshot", func() {
-				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-				Expect(rdsInstance.RestoreCallCount()).To(Equal(1))
-				input := rdsInstance.RestoreArgsForCall(0)
-				Expect(aws.StringValue(input.DBSnapshotIdentifier)).To(Equal(restoreFromSnapshotDBInstanceID + "-1"))
-				Expect(err).ToNot(HaveOccurred())
-			})
-
-			Context("when the snapshot is in a different space", func() {
+			Context("without a restore_from_latest_snapshot_before modifier", func() {
 				BeforeEach(func() {
-					dbSnapshotTags["Space ID"] = "different-space-id"
+					rdsProperties1.Engine = stringPointer("postgres")
+					restoreFromSnapshotInstanceGUID = "guid-of-origin-instance"
+					restoreFromSnapshotDBInstanceID = dbPrefix + "-" + restoreFromSnapshotInstanceGUID
+					restoreFromSnapshotDBSnapshotArn = "arn:aws:rds:rds-region:1234567890:snapshot:cf-instance-id"
+					provisionDetails.RawParameters = json.RawMessage(`{"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `"}`)
+					dbSnapshotTags = map[string]string{
+						"Space ID":        "space-id",
+						"Organization ID": "organization-id",
+						"Plan ID":         "Plan-1",
+					}
 				})
 
-				It("should fail to restore", func() {
+				It("makes the proper calls", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(err).To(HaveOccurred())
-				})
-			})
+					Expect(rdsInstance.DescribeSnapshotsCallCount()).To(Equal(1))
+					id := rdsInstance.DescribeSnapshotsArgsForCall(0)
+					Expect(id).To(Equal(restoreFromSnapshotDBInstanceID))
 
-			Context("when the snapshot is in a different org", func() {
-
-				BeforeEach(func() {
-					dbSnapshotTags["Organization ID"] = "different-organization-id"
-				})
-
-				It("should fail to restore", func() {
-					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(err).To(HaveOccurred())
-				})
-			})
-
-			Context("if it is using a different plan", func() {
-
-				BeforeEach(func() {
-					dbSnapshotTags["Plan ID"] = "different-plan-id"
+					Expect(rdsInstance.RestoreCallCount()).To(Equal(1))
+					input := rdsInstance.RestoreArgsForCall(0)
+					Expect(aws.StringValue(input.DBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
+					Expect(aws.StringValue(input.DBSnapshotIdentifier)).To(Equal(restoreFromSnapshotDBInstanceID + "-1"))
+					Expect(aws.StringValue(input.DBInstanceClass)).To(Equal("db.m1.test"))
+					Expect(aws.StringValue(input.Engine)).To(Equal("postgres"))
+					Expect(aws.StringValue(input.DBName)).To(BeEmpty())
+					Expect(err).ToNot(HaveOccurred())
 				})
 
-				It("should fail to restore", func() {
-					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(err).To(HaveOccurred())
-				})
-			})
-
-			Context("when restoring the DB Instance fails", func() {
-				BeforeEach(func() {
-					rdsInstance.RestoreReturns(errors.New("operation failed"))
-				})
-
-				It("returns the proper error", func() {
-					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).To(Equal("operation failed"))
-				})
-			})
-
-			Context("and no snapshots are found", func() {
-				JustBeforeEach(func() {
-					rdsInstance.DescribeSnapshotsReturns([]*rds.DBSnapshot{}, nil)
-				})
-
-				It("returns the correct error", func() {
-					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("No snapshots found"))
-				})
-			})
-
-			Context("when the engine is not 'postgres'", func() {
-				BeforeEach(func() {
-					rdsProperties1.Engine = stringPointer("some-other-engine")
-				})
-
-				It("returns the correct error", func() {
-					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("not supported for engine"))
-				})
-			})
-
-			Context("and the restore_from_latest_snapshot_of is an empty string", func() {
-				BeforeEach(func() {
-					provisionDetails.RawParameters = json.RawMessage(`{"restore_from_latest_snapshot_of": ""}`)
-				})
-				It("returns the correct error", func() {
-					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
-					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("Invalid guid"))
-				})
-			})
-
-			Context("when the snapshot had extensions enabled", func() {
-				It("sets the same extensions on the new database", func() {
-					dbSnapshotTags[awsrds.TagExtensions] = "foo:bar"
-					rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbSnapshotTags), nil)
-
+				It("sets the right tags", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 
 					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.DescribeSnapshotsCallCount()).To(Equal(1))
+					id := rdsInstance.DescribeSnapshotsArgsForCall(0)
+					Expect(id).To(Equal(restoreFromSnapshotDBInstanceID))
 
-					Expect(paramGroupSelector.SelectParameterGroupCallCount()).To(Equal(1))
-					_, extensions := paramGroupSelector.SelectParameterGroupArgsForCall(0)
-					Expect(extensions).To(ContainElement("foo"))
-					Expect(extensions).To(ContainElement("bar"))
+					Expect(rdsInstance.RestoreCallCount()).To(Equal(1))
+					input := rdsInstance.RestoreArgsForCall(0)
+
+					tagsByName := awsrds.RDSTagsValues(input.Tags)
+					Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
+					Expect(tagsByName["Restored by"]).To(Equal("AWS RDS Service Broker"))
+					Expect(tagsByName).To(HaveKey("Restored at"))
+					Expect(tagsByName["Service ID"]).To(Equal("Service-1"))
+					Expect(tagsByName["Plan ID"]).To(Equal("Plan-1"))
+					Expect(tagsByName["Organization ID"]).To(Equal("organization-id"))
+					Expect(tagsByName["Space ID"]).To(Equal("space-id"))
+					Expect(tagsByName["Restored From Snapshot"]).To(Equal(restoreFromSnapshotDBInstanceID + "-1"))
+					Expect(tagsByName["PendingResetUserPassword"]).To(Equal("true"))
+					Expect(tagsByName["PendingUpdateSettings"]).To(Equal("true"))
 				})
 
-				Context("when the user passes extensions to set", func() {
+				It("selects the latest snapshot", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(rdsInstance.RestoreCallCount()).To(Equal(1))
+					input := rdsInstance.RestoreArgsForCall(0)
+					Expect(aws.StringValue(input.DBSnapshotIdentifier)).To(Equal(restoreFromSnapshotDBInstanceID + "-1"))
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				Context("when the snapshot is in a different space", func() {
 					BeforeEach(func() {
-						provisionDetails.RawParameters = json.RawMessage(`{"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `", "enable_extensions": ["postgres_super_extension"]}`)
+						dbSnapshotTags["Space ID"] = "different-space-id"
 					})
-					It("adds those extensions to the set of extensions on the snapshot", func() {
+
+					It("should fail to restore", func() {
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).To(HaveOccurred())
+					})
+				})
+
+				Context("when the snapshot is in a different org", func() {
+
+					BeforeEach(func() {
+						dbSnapshotTags["Organization ID"] = "different-organization-id"
+					})
+
+					It("should fail to restore", func() {
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).To(HaveOccurred())
+					})
+				})
+
+				Context("if it is using a different plan", func() {
+
+					BeforeEach(func() {
+						dbSnapshotTags["Plan ID"] = "different-plan-id"
+					})
+
+					It("should fail to restore", func() {
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).To(HaveOccurred())
+					})
+				})
+
+				Context("when restoring the DB Instance fails", func() {
+					BeforeEach(func() {
+						rdsInstance.RestoreReturns(errors.New("operation failed"))
+					})
+
+					It("returns the proper error", func() {
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).To(Equal("operation failed"))
+					})
+				})
+
+				Context("and no snapshots are found", func() {
+					JustBeforeEach(func() {
+						rdsInstance.DescribeSnapshotsReturns([]*rds.DBSnapshot{}, nil)
+					})
+
+					It("returns the correct error", func() {
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).Should(ContainSubstring("No snapshots found"))
+					})
+				})
+
+				Context("when the engine is not 'postgres'", func() {
+					BeforeEach(func() {
+						rdsProperties1.Engine = stringPointer("some-other-engine")
+					})
+
+					It("returns the correct error", func() {
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).Should(ContainSubstring("not supported for engine"))
+					})
+				})
+
+				Context("and the restore_from_latest_snapshot_of is an empty string", func() {
+					BeforeEach(func() {
+						provisionDetails.RawParameters = json.RawMessage(`{"restore_from_latest_snapshot_of": ""}`)
+					})
+					It("returns the correct error", func() {
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).Should(ContainSubstring("Invalid guid"))
+					})
+				})
+
+				Context("when the snapshot had extensions enabled", func() {
+					It("sets the same extensions on the new database", func() {
 						dbSnapshotTags[awsrds.TagExtensions] = "foo:bar"
 						rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbSnapshotTags), nil)
 
@@ -594,7 +583,138 @@ var _ = Describe("RDS Broker", func() {
 						_, extensions := paramGroupSelector.SelectParameterGroupArgsForCall(0)
 						Expect(extensions).To(ContainElement("foo"))
 						Expect(extensions).To(ContainElement("bar"))
-						Expect(extensions).To(ContainElement("postgres_super_extension"))
+					})
+
+					Context("when the user passes extensions to set", func() {
+						BeforeEach(func() {
+							provisionDetails.RawParameters = json.RawMessage(`{"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `", "enable_extensions": ["postgres_super_extension"]}`)
+						})
+						It("adds those extensions to the set of extensions on the snapshot", func() {
+							dbSnapshotTags[awsrds.TagExtensions] = "foo:bar"
+							rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbSnapshotTags), nil)
+
+							_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+
+							Expect(err).ToNot(HaveOccurred())
+
+							Expect(paramGroupSelector.SelectParameterGroupCallCount()).To(Equal(1))
+							_, extensions := paramGroupSelector.SelectParameterGroupArgsForCall(0)
+							Expect(extensions).To(ContainElement("foo"))
+							Expect(extensions).To(ContainElement("bar"))
+							Expect(extensions).To(ContainElement("postgres_super_extension"))
+						})
+					})
+				})
+			})
+
+			Context("without a restore_from_latest_snapshot_before modifier", func() {
+				BeforeEach(func() {
+					rdsProperties1.Engine = stringPointer("postgres")
+					restoreFromSnapshotInstanceGUID = "guid-of-origin-instance"
+					restoreFromSnapshotDBInstanceID = dbPrefix + "-" + restoreFromSnapshotInstanceGUID
+					restoreFromSnapshotDBSnapshotArn = "arn:aws:rds:rds-region:1234567890:snapshot:cf-instance-id"
+					provisionDetails.RawParameters = json.RawMessage(
+						`{` +
+							`"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `",` +
+							`"restore_from_latest_snapshot_before": "` + time.Now().Add(-1*time.Hour).Format("2006-01-02 15:04:05") + `"` +
+							`}`,
+					)
+					dbSnapshotTags = map[string]string{
+						"Space ID":        "space-id",
+						"Organization ID": "organization-id",
+						"Plan ID":         "Plan-1",
+					}
+				})
+
+				It("does not select the latest snapshot", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(rdsInstance.RestoreCallCount()).To(Equal(1))
+					input := rdsInstance.RestoreArgsForCall(0)
+					Expect(aws.StringValue(input.DBSnapshotIdentifier)).To(Equal(restoreFromSnapshotDBInstanceID + "-2"))
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				Context("and the restore_from_latest_snapshot_before excludes all snapshots", func() {
+					BeforeEach(func() {
+						provisionDetails.RawParameters = json.RawMessage(
+							`{` +
+								`"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `",` +
+								`"restore_from_latest_snapshot_before": "` + time.Now().Add(-1*7*24*time.Hour).Format("2006-01-02 15:04:05") + `"` +
+								`}`,
+						)
+					})
+
+					It("returns the correct error", func() {
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).Should(ContainSubstring("No snapshots found"))
+					})
+				})
+
+				Context("and the restore_from_latest_snapshot_before is an empty string", func() {
+					BeforeEach(func() {
+						provisionDetails.RawParameters = json.RawMessage(
+							`{` +
+								`"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `",` +
+								`"restore_from_latest_snapshot_before": ""` +
+								`}`,
+						)
+					})
+
+					It("returns the correct error", func() {
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).Should(ContainSubstring("Parameter restore_from_latest_snapshot_before must not be empty"))
+					})
+				})
+
+				Context("and the restore_from_latest_snapshot_before is a date without a time", func() {
+					BeforeEach(func() {
+						provisionDetails.RawParameters = json.RawMessage(
+							`{` +
+								`"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `",` +
+								`"restore_from_latest_snapshot_before": "2006-02-01"` +
+								`}`,
+						)
+					})
+
+					It("returns the correct error", func() {
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).Should(ContainSubstring("Parameter restore_from_latest_snapshot_before should be a date and a time"))
+					})
+				})
+
+				Context("and the restore_from_latest_snapshot_before is a time without a date", func() {
+					BeforeEach(func() {
+						provisionDetails.RawParameters = json.RawMessage(
+							`{` +
+								`"restore_from_latest_snapshot_of": "` + restoreFromSnapshotInstanceGUID + `",` +
+								`"restore_from_latest_snapshot_before": "20:43:15"` +
+								`}`,
+						)
+					})
+
+					It("returns the correct error", func() {
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).Should(ContainSubstring("Parameter restore_from_latest_snapshot_before should be a date and a time"))
+					})
+				})
+
+				Context("and the restore_from_latest_snapshot_of is not set", func() {
+					BeforeEach(func() {
+						provisionDetails.RawParameters = json.RawMessage(
+							`{` +
+								`"restore_from_latest_snapshot_before": "20:43:15"` +
+								`}`,
+						)
+					})
+
+					It("returns the correct error", func() {
+						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).Should(ContainSubstring("Parameter restore_from_latest_snapshot_before should be used with restore_from_latest_snapshot_of"))
 					})
 				})
 			})
