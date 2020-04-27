@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
+	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
@@ -363,14 +365,6 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PreviousValues.PlanID)
 	}
 
-	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
-		previousVersion := aws.StringValue(previousServicePlan.RDSProperties.EngineVersion)
-		newVersion := aws.StringValue(servicePlan.RDSProperties.EngineVersion)
-		if strings.HasPrefix(previousVersion, "9.") && !strings.HasPrefix(newVersion, "9.") {
-			return brokerapi.UpdateServiceSpec{}, fmt.Errorf("please contact support to upgrade from postgres 9")
-		}
-	}
-
 	if !reflect.DeepEqual(servicePlan.RDSProperties.StorageEncrypted, previousServicePlan.RDSProperties.StorageEncrypted) {
 		return brokerapi.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
 	}
@@ -406,6 +400,22 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, err
 	}
 	tagsByName := awsrds.RDSTagsValues(tags)
+
+	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
+		previousVersion := aws.StringValue(previousServicePlan.RDSProperties.EngineVersion)
+		newVersion := aws.StringValue(servicePlan.RDSProperties.EngineVersion)
+		if strings.HasPrefix(previousVersion, "9.") && !strings.HasPrefix(newVersion, "9.") {
+
+			if postgisIsEnabled(tagsByName) {
+				return brokerapi.UpdateServiceSpec{},
+					apiresponses.NewFailureResponse(
+						fmt.Errorf("Cannot upgrade from postgres 9 when the postgis extension is enabled. Disable the extension, or contact support."),
+						http.StatusBadRequest,
+						"upgrade",
+					)
+			}
+		}
+	}
 
 	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
 		if extensionsTag != "" {
@@ -473,6 +483,14 @@ func (b *RDSBroker) Update(
 	}
 
 	return brokerapi.UpdateServiceSpec{IsAsync: true}, nil
+}
+
+func postgisIsEnabled(tagsByName map[string]string) bool {
+	if extsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
+		exts := strings.Split(extsTag, ":")
+		return searchExtension(exts, "postgis")
+	}
+	return false
 }
 
 func (b *RDSBroker) Deprovision(
