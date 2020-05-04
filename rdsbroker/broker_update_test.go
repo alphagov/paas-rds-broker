@@ -1095,11 +1095,33 @@ var _ = Describe("RDS Broker", func() {
 				rdsProperties1.EngineVersion = aws.String("9.5")
 				rdsProperties2.Engine = aws.String("postgres")
 				rdsProperties2.EngineVersion = aws.String("10")
+
+				rdsInstance.GetResourceTagsCalls(func(resourceArn string, opts ...awsrds.DescribeOption) ([]*rds.Tag, error) {
+					if resourceArn == "arn:aws:rds::i-have-postgis-enabled" {
+						return []*rds.Tag{
+							&rds.Tag{
+								Key:   aws.String("Extensions"),
+								Value: aws.String("postgis:someother"),
+							},
+						}, nil
+					}
+
+					return []*rds.Tag{}, nil
+				})
 			})
 
-			It("returns an error", func() {
+			It("when the postgis extension is enabled, returns an error", func() {
+				existingDbInstance.DBInstanceArn = aws.String("arn:aws:rds::i-have-postgis-enabled")
+
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(err).To(MatchError("please contact support to upgrade from postgres 9"))
+				Expect(err).To(MatchError("Cannot upgrade from postgres 9 when the postgis extension is enabled. Disable the extension, or contact support."))
+			})
+
+			It("when the postgis extension is not enabled, does not return an error", func() {
+				existingDbInstance.DBInstanceArn = aws.String("arn:aws:rds::i-do-not-have-postgis-enabled")
+
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
 			})
 		})
 

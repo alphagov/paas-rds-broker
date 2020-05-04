@@ -34,8 +34,7 @@
                                     "POPULATED_BY_TEST_SUITE"
                                 ],
                                 "default_extensions": [
-                                    "uuid-ossp",
-                                    "postgis"
+                                    "uuid-ossp"
                                 ],
                                 "allowed_extensions": [
                                     "uuid-ossp",
@@ -63,8 +62,7 @@
                                     "POPULATED_BY_TEST_SUITE"
                                 ],
                                 "default_extensions": [
-                                    "uuid-ossp",
-                                    "postgis"
+                                    "uuid-ossp"
                                 ],
                                 "allowed_extensions": [
                                     "uuid-ossp",
