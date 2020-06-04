@@ -2394,6 +2394,7 @@ var _ = Describe("RDS Broker", func() {
 
 		successStatuses := []string{
 			"available",
+			"storage-optimization",
 		}
 		for _, instanceStatus := range successStatuses {
 			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.Succeeded))
@@ -2413,7 +2414,6 @@ var _ = Describe("RDS Broker", func() {
 			"stopping",
 			"stopped",
 			"storage-full",
-			"storage-optimization",
 			"upgrading",
 		}
 		for _, instanceStatus := range inProgressStatuses {

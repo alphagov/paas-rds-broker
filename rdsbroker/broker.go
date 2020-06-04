@@ -44,6 +44,7 @@ var (
 
 var rdsStatus2State = map[string]brokerapi.LastOperationState{
 	"available":                           brokerapi.Succeeded,
+	"storage-optimization":                brokerapi.Succeeded,
 	"backing-up":                          brokerapi.InProgress,
 	"creating":                            brokerapi.InProgress,
 	"deleting":                            brokerapi.InProgress,
@@ -58,7 +59,6 @@ var rdsStatus2State = map[string]brokerapi.LastOperationState{
 	"stopping":                            brokerapi.InProgress,
 	"stopped":                             brokerapi.InProgress,
 	"storage-full":                        brokerapi.InProgress,
-	"storage-optimization":                brokerapi.InProgress,
 	"failed":                              brokerapi.Failed,
 	"incompatible-credentials":            brokerapi.Failed,
 	"incompatible-network":                brokerapi.Failed,
