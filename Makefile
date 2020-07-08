@@ -1,5 +1,9 @@
 POSTGRESQL_PASSWORD=abc123
 MYSQL_PASSWORD=toor
+POSTGRESQL_MASTER_USERNAME=UpCHB6aPJ9VVRBsn
+POSTGRESQL_MASTER_PASSWORD=secret
+POSTGRESQL_RDSADMIN_USERNAME=rdsadmin
+POSTGRESQL_RDSADMIN_PASSWORD=secret
 
 .PHONY: integration
 integration:
@@ -29,17 +33,29 @@ run_postgres_sql_tests:
 .PHONY: start_postgres_9
 start_postgres_9:
 	docker run -p 5432:5432 --name postgres-9 -e POSTGRES_PASSWORD=$(POSTGRESQL_PASSWORD) -d postgres:9.5; \
-	sleep 5
+	sleep 10; \
+	PGPASSWORD=$(POSTGRESQL_PASSWORD) psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE pgdb;"; \
+	PGPASSWORD=$(POSTGRESQL_PASSWORD) psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE rdsadmin;"; \
+	PGPASSWORD=$(POSTGRESQL_PASSWORD) psql -h localhost -p 5432 -U postgres pgdb -f  globals.sql; \
+	PGPASSWORD=$(POSTGRESQL_PASSWORD) psql -h localhost -p 5432 -U postgres pgdb -f db.sql;
 
 .PHONY: start_postgres_10
 start_postgres_10:
 	docker run -p 5432:5432 --name postgres-10 -e POSTGRES_PASSWORD=$(POSTGRESQL_PASSWORD) -d postgres:10.5; \
-	sleep 5
+	sleep 10; \
+	PGPASSWORD=$(POSTGRESQL_PASSWORD) psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE pgdb;"; \
+	PGPASSWORD=$(POSTGRESQL_PASSWORD) psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE rdsadmin;"; \
+	PGPASSWORD=$(POSTGRESQL_PASSWORD) psql -h localhost -p 5432 -U postgres pgdb -f globals.sql; \
+	PGPASSWORD=$(POSTGRESQL_PASSWORD) psql -h localhost -p 5432 -U postgres pgdb -f db.sql; 
 
 .PHONY: start_postgres_11
 start_postgres_11:
 	docker run -p 5432:5432 --name postgres-11 -e POSTGRES_PASSWORD=$(POSTGRESQL_PASSWORD) -d postgres:11.5; \
-	sleep 5
+	sleep 10; \
+	PGPASSWORD=$(POSTGRESQL_PASSWORD) psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE pgdb;"; \
+	PGPASSWORD=$(POSTGRESQL_PASSWORD) psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE rdsadmin;"; \
+	PGPASSWORD=$(POSTGRESQL_PASSWORD) psql -h localhost -p 5432 -U postgres pgdb -f globals.sql; \
+	PGPASSWORD=$(POSTGRESQL_PASSWORD) psql -h localhost -p 5432 -U postgres pgdb -f db.sql;
 
 .PHONY: stop_postgres_9
 stop_postgres_9:
@@ -59,7 +75,7 @@ start_mysql_57:
 	until docker exec mysql-57 mysqladmin ping --silent; do \
 	    printf "."; sleep 1;                             \
 	done; \
-	sleep 5
+	sleep 10
 
 .PHONY: start_mysql_80
 start_mysql_80:
@@ -68,7 +84,7 @@ start_mysql_80:
 	until docker exec mysql-80 mysqladmin ping --silent; do \
 		printf "."; sleep 1;                             \
 	done; \
-	sleep 5
+	sleep 10
 
 .PHONY: stop_mysql_57
 stop_mysql_57:

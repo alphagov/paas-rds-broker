@@ -62,7 +62,7 @@ func (d *MySQLEngine) Close() {
 	}
 }
 
-func (d *MySQLEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
+func (d *MySQLEngine) CreateUser(bindingID, dbname, masterUsername string, readOnly *bool) (username, password string, err error) {
 	username = d.UsernameGenerator(bindingID)
 	password = generatePassword()
 	options := []string{

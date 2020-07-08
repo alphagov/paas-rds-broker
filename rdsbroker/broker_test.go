@@ -1503,6 +1503,7 @@ var _ = Describe("RDS Broker", func() {
 				},
 				DBName:         aws.String("test-db"),
 				MasterUsername: aws.String("master-username"),
+				Engine:         aws.String("postgres"),
 			}, nil)
 
 			sqlEngine.CreateUserUsername = dbUsername
@@ -1634,6 +1635,43 @@ var _ = Describe("RDS Broker", func() {
 					_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails, false)
 					Expect(err).ToNot(HaveOccurred())
 				})
+			})
+		})
+
+		Context("when using 'read_only' custom parameters", func() {
+			BeforeEach(func() {
+				allowUserBindParameters = true
+			})
+
+			It("when database engine is 'postgres'", func() {
+				bindDetails.RawParameters = json.RawMessage(`{"read_only": true}`)
+				_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails, false)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			Context("when database engine is 'mysql'", func() {
+				BeforeEach(func() {
+					rdsInstance.DescribeReturns(
+						&rds.DBInstance{
+							Engine: aws.String("mysql"),
+						},
+						nil,
+					)
+				})
+
+				It("read_only eq true", func() {
+					bindDetails.RawParameters = json.RawMessage(`{"read_only": true}`)
+					_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails, false)
+					Expect(err).To(HaveOccurred())
+					Expect(sqlProvider.GetSQLEngineCalled).To(BeFalse())
+				})
+
+				It("read_only eq false", func() {
+					bindDetails.RawParameters = json.RawMessage(`{"read_only": false}`)
+					_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails, false)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
 			})
 		})
 

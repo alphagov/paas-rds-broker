@@ -6,12 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/pivotal-cf/brokerapi"
@@ -579,6 +580,12 @@ func (b *RDSBroker) Bind(
 		return bindingResponse, err
 	}
 
+	//Currently, we do not support 'read_only' binding param for 'mysql' db
+	//We will fail the binding request if someone is trying to create read-only user - e.g. "-c '{"read_only": true}'"
+	if aws.StringValue(dbInstance.Engine) == "mysql" && bindParameters.ReadOnly != nil && *bindParameters.ReadOnly {
+		return bindingResponse, errors.New("read-only binding is not supported for mysql database.")
+	}
+
 	dbAddress := awsrds.GetDBAddress(dbInstance.Endpoint)
 	dbPort := awsrds.GetDBPort(dbInstance.Endpoint)
 	masterUsername := aws.StringValue(dbInstance.MasterUsername)
@@ -598,7 +605,7 @@ func (b *RDSBroker) Bind(
 	}
 	defer sqlEngine.Close()
 
-	dbUsername, dbPassword, err := sqlEngine.CreateUser(bindingID, dbName)
+	dbUsername, dbPassword, err := sqlEngine.CreateUser(bindingID, dbName, masterUsername, bindParameters.ReadOnly)
 	if err != nil {
 		return bindingResponse, err
 	}
@@ -750,7 +757,6 @@ func (b *RDSBroker) LastOperation(
 			return brokerapi.LastOperation{State: brokerapi.Failed}, err
 		}
 	}
-
 	return lastOperationResponse, nil
 }
 

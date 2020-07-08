@@ -122,6 +122,8 @@ var _ = Describe("PostgresEngine", func() {
 		randomTestSuffix string
 
 		template1ConnectionString string
+
+		readOnlyUser bool
 	)
 
 	BeforeEach(func() {
@@ -139,23 +141,28 @@ var _ = Describe("PostgresEngine", func() {
 		Expect(err).ToNot(HaveOccurred())
 		port = int64(p)
 
-		dbname = "mydb" + randomTestSuffix
+		dbname = "pgdb"
 
-		rootUsername := getEnvOrDefault("POSTGRESQL_USERNAME", "postgres")
-		rootPassword := getEnvOrDefault("POSTGRESQL_PASSWORD", "")
+		rootUsername := getEnvOrDefault("POSTGRESQL_RDSADMIN_USERNAME", "rdsadmin")
+		rootPassword := getEnvOrDefault("POSTGRESQL_RDSADMIN_PASSWORD", "secret")
 
-		template1ConnectionString = postgresEngine.URI(address, port, "template1", rootUsername, rootPassword)
+		template1ConnectionString = postgresEngine.URI(address, port, "pgdb", rootUsername, rootPassword)
 
-		masterUsername, masterPassword = createMasterUser(template1ConnectionString)
+		masterUsername = rootUsername
+		masterPassword = rootPassword
 
-		// Create the test DB
-		createDB(template1ConnectionString, dbname)
+		logger.Debug("PostgresEngine:BeforeEach()===", lager.Data{
+			"masterUsername":            masterUsername,
+			"masterPassword":            masterPassword,
+			"dbname":                    dbname,
+			"template1ConnectionString": template1ConnectionString,
+		})
+
+		readOnlyUser = false
 	})
 
 	AfterEach(func() {
 		postgresEngine.Close() // Ensure the DB is closed
-		dropDB(template1ConnectionString, dbname)
-		dropTestUser(template1ConnectionString, masterUsername)
 	})
 
 	Context("can construct JDBC URI", func() {
@@ -210,7 +217,7 @@ var _ = Describe("PostgresEngine", func() {
 					Expect(err).ToNot(HaveOccurred())
 					defer postgresEngine.Close()
 
-					_, _, err = postgresEngine.CreateUser(bindingID, dbname)
+					_, _, err = postgresEngine.CreateUser(bindingID, dbname, masterUsername, &readOnlyUser)
 					Expect(err).ToNot(HaveOccurred())
 
 					err = postgresEngine.DropUser(bindingID)
@@ -225,87 +232,256 @@ var _ = Describe("PostgresEngine", func() {
 	})
 
 	Describe("CreateUser", func() {
-		var (
-			bindingID       string
-			createdUser     string
-			createdPassword string
-		)
+		Context("When we have a read-write user", func() {
+			var (
+				bindingID       string
+				createdUser     string
+				createdPassword string
+			)
+			BeforeEach(func() {
+				bindingID = "binding-id" + randomTestSuffix
+				err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
+				Expect(err).ToNot(HaveOccurred())
 
-		BeforeEach(func() {
-			bindingID = "binding-id" + randomTestSuffix
-			err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
-			Expect(err).ToNot(HaveOccurred())
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, masterUsername, &readOnlyUser)
+				Expect(err).ToNot(HaveOccurred())
+			})
 
-			createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
-			Expect(err).ToNot(HaveOccurred())
+			AfterEach(func() {
+				err := postgresEngine.DropUser(bindingID)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("CreateUser() returns valid credentials", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+				err = db.Ping()
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("creates a user with the necessary permissions on the database", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("CREATE TABLE foo (col CHAR(8))")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("INSERT INTO foo (col) VALUES ('value')")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("DROP TABLE foo")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("CREATE SCHEMA bar")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("CREATE TABLE bar.baz (col CHAR(8))")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("INSERT INTO bar.baz (col) VALUES ('other')")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("DROP TABLE bar.baz")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("DROP SCHEMA bar CASCADE")
+				Expect(err).ToNot(HaveOccurred())
+			})
 		})
 
-		AfterEach(func() {
-			err := postgresEngine.DropUser(bindingID)
-			Expect(err).ToNot(HaveOccurred())
+		Context("When we have a read-only user", func() {
+			var (
+				bindingID       string
+				createdUser     string
+				createdPassword string
+			)
+			BeforeEach(func() {
+				bindingID = "ro-binding-id" + randomTestSuffix
+				err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
+				Expect(err).ToNot(HaveOccurred())
+
+				readOnlyUser = true
+
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, masterUsername, &readOnlyUser)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				err := postgresEngine.DropUser(bindingID)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("CreateUser(Read-Only:true) returns valid credentials", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+				err = db.Ping()
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("creates a read-only user which should not be able to change the database", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("CREATE TABLE foo (col CHAR(8))")
+				Expect(err).To(HaveOccurred())
+
+				_, err = db.Exec("INSERT INTO foo (col) VALUES ('value')")
+				Expect(err).To(HaveOccurred())
+
+				_, err = db.Exec("CREATE SCHEMA bar")
+				Expect(err).To(HaveOccurred())
+
+				_, err = db.Exec("CREATE TABLE bar.baz (col CHAR(8))")
+				Expect(err).To(HaveOccurred())
+
+				_, err = db.Exec("INSERT INTO bar.baz (col) VALUES ('other')")
+				Expect(err).To(HaveOccurred())
+			})
 		})
 
-		It("CreateUser() returns valid credentials", func() {
-			connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
-			db, err := sql.Open("postgres", connectionString)
-			Expect(err).ToNot(HaveOccurred())
-			defer db.Close()
-			err = db.Ping()
-			Expect(err).ToNot(HaveOccurred())
-		})
+		Context("working with two users - read-write and read-only", func() {
+			var (
+				rwbindingID       string
+				rwCreatedUser     string
+				rwCreatedPassword string
+				robindingID       string
+				roCreatedUser     string
+				roCreatedPassword string
+			)
 
-		It("creates a user with the necessary permissions on the database", func() {
-			connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
-			db, err := sql.Open("postgres", connectionString)
-			Expect(err).ToNot(HaveOccurred())
-			defer db.Close()
+			BeforeEach(func() {
 
-			_, err = db.Exec("CREATE TABLE foo (col CHAR(8))")
-			Expect(err).ToNot(HaveOccurred())
+				err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
+				Expect(err).ToNot(HaveOccurred())
 
-			_, err = db.Exec("INSERT INTO foo (col) VALUES ('value')")
-			Expect(err).ToNot(HaveOccurred())
+				readOnlyUser = false
 
-			_, err = db.Exec("CREATE SCHEMA bar")
-			Expect(err).ToNot(HaveOccurred())
+				rwbindingID = "rw-binding-id" + randomTestSuffix
 
-			_, err = db.Exec("CREATE TABLE bar.baz (col CHAR(8))")
-			Expect(err).ToNot(HaveOccurred())
+				rwCreatedUser, rwCreatedPassword, err = postgresEngine.CreateUser(rwbindingID, dbname, masterUsername, &readOnlyUser)
+				Expect(err).ToNot(HaveOccurred())
 
-			_, err = db.Exec("INSERT INTO bar.baz (col) VALUES ('other')")
-			Expect(err).ToNot(HaveOccurred())
+				//connect to DB as rwUser and create objects
+				rwConnectionString := postgresEngine.URI(address, port, dbname, rwCreatedUser, rwCreatedPassword)
+				rwdb, err := sql.Open("postgres", rwConnectionString)
+				Expect(err).ToNot(HaveOccurred())
 
-			_, err = db.Exec("DROP TABLE bar.baz")
-			Expect(err).ToNot(HaveOccurred())
+				_, err = rwdb.Exec("CREATE TABLE foo (col CHAR(8))")
+				Expect(err).ToNot(HaveOccurred())
 
-			_, err = db.Exec("DROP SCHEMA bar CASCADE")
-			Expect(err).ToNot(HaveOccurred())
+				_, err = rwdb.Exec("INSERT INTO foo (col) VALUES ('value')")
+				Expect(err).ToNot(HaveOccurred())
 
+				_, err = rwdb.Exec("CREATE SCHEMA bar")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = rwdb.Exec("CREATE TABLE bar.baz (col CHAR(8))")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = rwdb.Exec("INSERT INTO bar.baz (col) VALUES ('other')")
+				Expect(err).ToNot(HaveOccurred())
+
+				rwdb.Close()
+
+				robindingID = "ro-binding-id" + randomTestSuffix
+
+				readOnlyUser = true
+
+				logger.Debug("CreateUser:BeforeEach():CreateReadOnlyUser###", lager.Data{
+					"readOnlyUser": readOnlyUser,
+					"bindingID":    robindingID,
+					"dbname":       dbname,
+				})
+
+				roCreatedUser, roCreatedPassword, err = postgresEngine.CreateUser(robindingID, dbname, masterUsername, &readOnlyUser)
+				Expect(err).ToNot(HaveOccurred())
+
+			})
+
+			AfterEach(func() {
+
+				rwConnectionString := postgresEngine.URI(address, port, dbname, rwCreatedUser, rwCreatedPassword)
+				rwdb, err := sql.Open("postgres", rwConnectionString)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = rwdb.Exec("DROP TABLE foo")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = rwdb.Exec("DROP TABLE bar.baz")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = rwdb.Exec("DROP SCHEMA bar CASCADE")
+				Expect(err).ToNot(HaveOccurred())
+
+				rwdb.Close()
+
+				err = postgresEngine.DropUser(rwbindingID)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = postgresEngine.DropUser(robindingID)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Read the database objects with roUser that were created by rwUser", func() {
+				//connect to DB as roUser and query objects
+				roConnectionString := postgresEngine.URI(address, port, dbname, roCreatedUser, roCreatedPassword)
+				rodb, err := sql.Open("postgres", roConnectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer rodb.Close()
+
+				var col string
+				err = rodb.QueryRow("SELECT * FROM foo WHERE col = 'value'").Scan(&col)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strings.TrimSpace(col)).To(BeEquivalentTo("value"))
+
+				err = rodb.QueryRow("SELECT * FROM bar.baz WHERE col = 'other'").Scan(&col)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strings.TrimSpace(col)).To(BeEquivalentTo("other"))
+
+			})
 		})
 
 		Context("When there are two different bindings", func() {
 			var (
+				bindingID            string
+				createdUser          string
+				createdPassword      string
 				otherBindingID       string
 				otherCreatedUser     string
 				otherCreatedPassword string
 			)
 
 			BeforeEach(func() {
-				var err error
+				bindingID = "binding-id" + randomTestSuffix
+				err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
+				Expect(err).ToNot(HaveOccurred())
+
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, masterUsername, &readOnlyUser)
+				Expect(err).ToNot(HaveOccurred())
+
 				otherBindingID = "other-binding-id" + randomTestSuffix
-				otherCreatedUser, otherCreatedPassword, err = postgresEngine.CreateUser(otherBindingID, dbname)
+				otherCreatedUser, otherCreatedPassword, err = postgresEngine.CreateUser(otherBindingID, dbname, masterUsername, &readOnlyUser)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
 			AfterEach(func() {
-				err := postgresEngine.DropUser(otherBindingID)
+				err := postgresEngine.DropUser(bindingID)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = postgresEngine.DropUser(otherBindingID)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("CreateUser() returns different user and password", func() {
-				fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
 				Expect(otherCreatedUser).ToNot(Equal(createdUser))
-				fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
 				Expect(otherCreatedPassword).ToNot(Equal(createdPassword))
 			})
 
@@ -335,9 +511,13 @@ var _ = Describe("PostgresEngine", func() {
 
 		Context("A user exists", func() {
 
+			//ToDo - this test should be changed to reflect the fact that we are now using rds_superuser
+			// as masterUser and we can't/don't want to change this user.
+			// We could create two readwrite users and try with userA to remove userB - that shouldn't be possible
+
 			BeforeEach(func() {
 				var err error
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, masterUsername, &readOnlyUser)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -364,23 +544,24 @@ var _ = Describe("PostgresEngine", func() {
 				))
 			})
 
-			It("Errors dropping the user are returned", func() {
-				// other than 'role does not exist' - see below
+			//since we are re-using the masterUser now, we can't remove it.
+			//we can probably rework this test with a regular user (created by our API)
+			// It("Errors dropping the user are returned", func() {
+			// 	// other than 'role does not exist' - see below
+			// 	rootConnection, err := sql.Open("postgres", template1ConnectionString)
+			// 	defer rootConnection.Close()
+			// 	Expect(err).ToNot(HaveOccurred())
+			// 	revoke := "ALTER USER " + masterUsername + " NOSUPERUSER"
+			// 	_, err = rootConnection.Exec(revoke)
+			// 	Expect(err).ToNot(HaveOccurred())
 
-				rootConnection, err := sql.Open("postgres", template1ConnectionString)
-				defer rootConnection.Close()
-				Expect(err).ToNot(HaveOccurred())
-				revoke := "ALTER USER " + masterUsername + " NOSUPERUSER"
-				_, err = rootConnection.Exec(revoke)
-				Expect(err).ToNot(HaveOccurred())
-
-				err = postgresEngine.DropUser(bindingID)
-				Expect(err).To(HaveOccurred())
-				pqErr, ok := err.(*pq.Error)
-				Expect(ok).To(BeTrue())
-				Expect(pqErr.Code).To(BeEquivalentTo("42501"))
-				Expect(pqErr.Message).To(MatchRegexp("permission denied to drop role"))
-			})
+			// 	err = postgresEngine.DropUser(bindingID)
+			// 	Expect(err).To(HaveOccurred())
+			// 	pqErr, ok := err.(*pq.Error)
+			// 	Expect(ok).To(BeTrue())
+			// 	Expect(pqErr.Code).To(BeEquivalentTo("42501"))
+			// 	Expect(pqErr.Message).To(MatchRegexp("permission denied to drop role"))
+			// })
 		})
 
 		Context("A user doesn't exist", func() {
@@ -395,7 +576,7 @@ var _ = Describe("PostgresEngine", func() {
 			BeforeEach(func() {
 				var err error
 				postgresEngine.UsernameGenerator = generateUsernameOld
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, masterUsername, &readOnlyUser)
 				postgresEngine.UsernameGenerator = generateUsername
 				Expect(err).ToNot(HaveOccurred())
 			})
@@ -429,22 +610,40 @@ var _ = Describe("PostgresEngine", func() {
 
 	Describe("ResetState", func() {
 		var (
-			bindingID       string
-			createdUser     string
-			createdPassword string
+			bindingID              string
+			createdUser            string
+			createdPassword        string
+			postgresEngineRdsAdmin *PostgresEngine
+			rdsadminUsername       string
 		)
 
 		BeforeEach(func() {
 			bindingID = "binding-id" + randomTestSuffix
-			err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
+			masterUsername := getEnvOrDefault("POSTGRESQL_MASTER_USERNAME", "UpCHB6aPJ9VVRBsn")
+			masterUserPassword := getEnvOrDefault("POSTGRESQL_MASTER_PASSWORD", "secret")
+
+			err := postgresEngine.Open(address, port, dbname, masterUsername, masterUserPassword)
 			Expect(err).ToNot(HaveOccurred())
+
+			//we need rdsadmin for CreateUser, since we are creating trigger
+			rdsadminUsername = getEnvOrDefault("POSTGRESQL_RDSADMIN_USERNAME", "rdsadmin")
+			rdsadminPassword := getEnvOrDefault("POSTGRESQL_RDSADMIN_PASSWORD", "secret")
+			postgresEngineRdsAdmin = NewPostgresEngine(logger)
+			postgresEngineRdsAdmin.requireSSL = false
+			err = postgresEngineRdsAdmin.Open(address, port, dbname, rdsadminUsername, rdsadminPassword)
+			Expect(err).ToNot(HaveOccurred())
+
+		})
+
+		AfterEach(func() {
+			postgresEngineRdsAdmin.Close() // Ensure the DB is closed
 		})
 
 		Describe("when there was no user created", func() {
 			It("CreateUser() can be called after ResetState()", func() {
 				err := postgresEngine.ResetState()
 				Expect(err).ToNot(HaveOccurred())
-				_, _, err = postgresEngine.CreateUser(bindingID, dbname)
+				_, _, err = postgresEngineRdsAdmin.CreateUser(bindingID, dbname, rdsadminUsername, &readOnlyUser)
 				Expect(err).ToNot(HaveOccurred())
 			})
 		})
@@ -452,10 +651,15 @@ var _ = Describe("PostgresEngine", func() {
 		Describe("when there was already a user created", func() {
 			BeforeEach(func() {
 				var err error
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngineRdsAdmin.CreateUser(bindingID, dbname, rdsadminUsername, &readOnlyUser)
 				Expect(err).ToNot(HaveOccurred())
 
 				err = postgresEngine.ResetState()
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				err := postgresEngineRdsAdmin.DropUser(bindingID)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -480,7 +684,7 @@ var _ = Describe("PostgresEngine", func() {
 			})
 
 			It("CreateUser() returns the same user and different password", func() {
-				user, password, err := postgresEngine.CreateUser(bindingID, dbname)
+				user, password, err := postgresEngineRdsAdmin.CreateUser(bindingID, dbname, rdsadminUsername, &readOnlyUser)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(user).To(Equal(createdUser))
 				Expect(password).ToNot(Equal(createdPassword))
@@ -490,9 +694,17 @@ var _ = Describe("PostgresEngine", func() {
 	})
 
 	Describe("Extensions", func() {
+		//since we changed to use the database with the roles as in RDS
+		//our master user role - `rds_superuser`, not exactly the same as in real RDS Postgres DB
+		//to save time on finding the appropriate privileges that are missing in our local db,
+		//the workaround will be to create extensions with a real super user, which in our case is `rdsadmin`
+		// once we will be logged in with rdsadmin - the creation of the extension should pass.
 		It("can create and drop extensions", func() {
+			rdsadminUser := getEnvOrDefault("POSTGRESQL_RDSADMIN_USERNAME", "rdsadmin")
+			rdsadminPassword := getEnvOrDefault("POSTGRESQL_RDSADMIN_PASSWORD", "secret")
 			By("creating the extensions")
-			err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
+			//Connect to db with rdsadmin
+			err := postgresEngine.Open(address, port, dbname, rdsadminUser, rdsadminPassword)
 			defer postgresEngine.Close()
 			Expect(err).ToNot(HaveOccurred())
 			err = postgresEngine.CreateExtensions([]string{"uuid-ossp", "pgcrypto"})
