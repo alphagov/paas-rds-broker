@@ -3,6 +3,7 @@ package awsrds
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -261,6 +262,13 @@ func (r *RDSDBInstance) Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput)
 		return nil, err
 	}
 
+	if modifyDBInstanceInput.EngineVersion != nil {
+		updatedModifyDBInstanceInput.EngineVersion, err = r.selectEngineVersion(oldDbInstance.Engine, oldDbInstance.EngineVersion, modifyDBInstanceInput.EngineVersion)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if modifyDBInstanceInput.AllowMajorVersionUpgrade == nil {
 		updatedModifyDBInstanceInput.AllowMajorVersionUpgrade = aws.Bool(true)
 	}
@@ -427,4 +435,33 @@ func (r *RDSDBInstance) cachedListTagsForResource(arn string, refresh bool) ([]*
 		r.cachedTagsLock.Unlock()
 	}
 	return tags, err
+}
+
+func (r *RDSDBInstance) selectEngineVersion(engine *string, oldEngineVersion *string, planEngineVersion *string) (newEngineVersion *string, err error) {
+	keepEngineVersion := false
+
+	oldEngineVersionSlice := strings.Split(aws.StringValue(oldEngineVersion), ".")
+	planEngineVersionSlice := strings.Split(aws.StringValue(planEngineVersion), ".")
+
+	if len(planEngineVersionSlice) == 1 {
+		if oldEngineVersionSlice[0] == planEngineVersionSlice[0] {
+			keepEngineVersion = true
+		}
+	}
+	if len(planEngineVersionSlice) >= 2 {
+		if oldEngineVersionSlice[0] == planEngineVersionSlice[0] &&
+			oldEngineVersionSlice[1] == planEngineVersionSlice[1] {
+			keepEngineVersion = true
+		}
+	}
+
+	if keepEngineVersion {
+		newEngineVersion = oldEngineVersion
+		r.logger.Info("modify-db-instance.select-engine-version", lager.Data{"EngineVersion kept:": oldEngineVersion})
+	} else {
+		newEngineVersion = planEngineVersion
+		r.logger.Info("modify-db-instance.select-engine-version", lager.Data{"EngineVersion updated:": newEngineVersion})
+	}
+
+	return newEngineVersion, err
 }
