@@ -20,6 +20,7 @@ const (
 	TagRestoredFromSnapshot = "Restored From Snapshot"
 	TagBrokerName           = "Broker Name"
 	TagExtensions           = "Extensions"
+	TagReplicaOf            = "Replica of ARN"
 )
 
 type RDSDBInstance struct {
@@ -233,6 +234,19 @@ func (r *RDSDBInstance) Create(createDBInstanceInput *rds.CreateDBInstanceInput)
 		return HandleAWSError(err, r.logger)
 	}
 	r.logger.Debug("create-db-instance", lager.Data{"output": createDBInstanceOutput})
+
+	return nil
+}
+
+func (r *RDSDBInstance) CreateReadReplica(createDBInstanceInput *rds.CreateDBInstanceReadReplicaInput) error {
+	sanitizedDBInstanceInput := *createDBInstanceInput
+	r.logger.Debug("create-db-instance-read-replica", lager.Data{"input": &sanitizedDBInstanceInput})
+
+	createDBInstanceOutput, err := r.rdssvc.CreateDBInstanceReadReplica(createDBInstanceInput)
+	if err != nil {
+		return HandleAWSError(err, r.logger)
+	}
+	r.logger.Debug("create-db-instance-read-replica", lager.Data{"output": createDBInstanceOutput})
 
 	return nil
 }

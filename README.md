@@ -58,6 +58,7 @@ Provision calls support the following optional [arbitrary parameters](https://do
 | `dbname`                       | String   | The name of the Database to be provisioned. If it does not exists, the broker will create it, otherwise, it will reuse the existing one. If this parameter is not set, the broker will use a random Database name
 | `preferred_backup_window`      | String   | The daily time range during which automated backups are created if automated backups are enabled (*)
 | `preferred_maintenance_window` | String   | The weekly time range during which system maintenance can occur (*)
+| `replica_source_db_arn`        | String   | An ARN for an existing RDS instance that you would like to use as a source for a Read Replica instance
 | `enable_extensions`           | []String | The names of the extensions which should be enabled. Supported extensions are specified by the plan, and the supplied list is combined with the set of default extensions defined by the plan. If this parameter isn't provided, the plan's default extensions will be enabled. (*\*)
 
 (\*) Refer to the [Amazon Relational Database Service Documentation](https://aws.amazon.com/documentation/rds/) for more details about how to set these properties

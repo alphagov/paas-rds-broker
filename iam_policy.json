@@ -3,12 +3,26 @@
   "Statement": [
     {
       "Action": [
-        "rds:DescribeDBInstances",
-        "rds:CreateDBInstance",
+        "rds:RebootDBInstance",
+        "rds:ModifyDBParameterGroup",
         "rds:ModifyDBInstance",
+        "rds:ListTagsForResource",
+        "rds:Describe*",
+        "rds:DeleteDBParameterGroup",
         "rds:DeleteDBInstance",
+        "rds:CreateDBParameterGroup",
+        "rds:CreateDBInstance",
+        "rds:CreateDBInstanceReadReplica",
+        "rds:PromoteReadReplica",
         "rds:AddTagsToResource",
-        "rds:ListTagsForResource"
+        "kms:RevokeGrant",
+        "kms:ReEncrypt*",
+        "kms:ListGrants",
+        "kms:GenerateDataKey*",
+        "kms:Encrypt",
+        "kms:DescribeKey",
+        "kms:Decrypt",
+        "kms:CreateGrant"
       ],
       "Effect": "Allow",
       "Resource": "*"
