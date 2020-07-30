@@ -417,3 +417,65 @@ func (d *PostgresEngine) ensureUser(tx *sql.Tx, dbname string, username string, 
 
 	return nil
 }
+
+func (d *PostgresEngine) CreateSchema(schemaname string) error {
+	const createSchemaStatement = `CREATE SCHEMA IF NOT EXISTS {{.name}};`
+	var createSchemaTemplate = template.Must(template.New("createSchemaTemplate").Parse(createSchemaStatement))
+
+	var ensureStatement bytes.Buffer
+	err := createSchemaTemplate.Execute(&ensureStatement, map[string]string{"name": schemaname});
+	if err != nil {
+		d.logger.Error("validation-error", err)
+		return err
+	}
+	d.logger.Debug("ensure-create-schema", lager.Data{"statement": ensureStatement.String()})
+
+	// todo: wrap in retries
+	tx, err := d.db.Begin()
+	if err != nil {
+		d.logger.Error("sql-error", err)
+		return err
+	}
+
+	d.logger.Debug("create-schema-statement", lager.Data{"statement": ensureStatement})
+
+	_, err = tx.Exec(ensureStatement.String())
+	if err != nil {
+		d.logger.Error("create-schema-sql-error", err)
+		_ = tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (d *PostgresEngine) DropSchema(schemaname string) error {
+	const dropSchemaStatement = `DROP SCHEMA IF EXISTS {{.name}};`
+	var dropSchemaTemplate = template.Must(template.New("dropSchemaTemplate").Parse(dropSchemaStatement))
+
+	var ensureStatement bytes.Buffer
+	err := dropSchemaTemplate.Execute(&ensureStatement, map[string]string{"name": schemaname});
+	if err != nil {
+		d.logger.Error("validation-error", err)
+		return err
+	}
+	d.logger.Debug("ensure-drop-schema", lager.Data{"statement": ensureStatement.String()})
+
+	// todo: wrap in retries
+	tx, err := d.db.Begin()
+	if err != nil {
+		d.logger.Error("sql-error", err)
+		return err
+	}
+
+	d.logger.Debug("drop-schema-statement", lager.Data{"statement": ensureStatement})
+
+	_, err = tx.Exec(ensureStatement.String())
+	if err != nil {
+		d.logger.Error("drop-schema-sql-error", err)
+		_ = tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
+}

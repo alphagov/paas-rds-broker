@@ -164,3 +164,11 @@ func (d *MySQLEngine) CreateExtensions(extensions []string) error {
 func (d *MySQLEngine) DropExtensions(extensions []string) error {
 	return nil
 }
+
+func (d *MySQLEngine) CreateSchema(schemaname string) error {
+	return nil
+}
+
+func (d *MySQLEngine) DropSchema(schemaname string) error {
+	return nil
+}

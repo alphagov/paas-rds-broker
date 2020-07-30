@@ -15,15 +15,25 @@ type ProvisionParameters struct {
 }
 
 type UpdateParameters struct {
-	ApplyAtMaintenanceWindow   bool     `json:"apply_at_maintenance_window"`
-	BackupRetentionPeriod      int64    `json:"backup_retention_period"`
-	PreferredBackupWindow      string   `json:"preferred_backup_window"`
-	PreferredMaintenanceWindow string   `json:"preferred_maintenance_window"`
-	SkipFinalSnapshot          *bool    `json:"skip_final_snapshot"`
-	Reboot                     *bool    `json:"reboot"`
-	ForceFailover              *bool    `json:"force_failover"`
-	EnableExtensions           []string `json:"enable_extensions"`
-	DisableExtensions          []string `json:"disable_extensions"`
+	ApplyAtMaintenanceWindow   		bool     `json:"apply_at_maintenance_window"`
+	BackupRetentionPeriod      		int64    `json:"backup_retention_period"`
+	PreferredBackupWindow      		string   `json:"preferred_backup_window"`
+	PreferredMaintenanceWindow 		string   `json:"preferred_maintenance_window"`
+	SkipFinalSnapshot          		*bool    `json:"skip_final_snapshot"`
+	Reboot                     		*bool    `json:"reboot"`
+	ForceFailover              		*bool    `json:"force_failover"`
+	EnableExtensions           		[]string `json:"enable_extensions"`
+	DisableExtensions          		[]string `json:"disable_extensions"`
+	CreateSchema									string   `json:"create_schema"`
+	DropSchema										string	 `json:"drop_schema"`
+	AlterPrivileges								string	 `json:"alter_privileges"` // todo
+	CreateTable										string   `json:"create_table"` // todo
+	DropTable 										string   `json:"drop_table"` // todo
+	AlterTable										string   `json:"alter_table"` // todo
+	CreateReplaceFunction					string   `json:"create_replace_function"` // todo
+	AlterFunction									string   `json:"alter_function"` // todo
+	CreateReplicationSlot					string   `json:"create_replication_slot"` // todo
+	DropReplicationSlot           string   `json:drop_replication_slot"` // todo
 }
 
 type BindParameters struct {

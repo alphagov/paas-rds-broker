@@ -22,6 +22,16 @@ type SQLEngine interface {
 	JDBCURI(address string, port int64, dbname string, username string, password string) string
 	CreateExtensions(extensions []string) error
 	DropExtensions(extensions []string) error
+	CreateSchema(name string) error
+	DropSchema(name string) error
+	// AlterPrivileges
+	// CreateTable
+	// DropTable
+	// AlterTable
+	// CreateReplaceFunction
+	// AlterFunction
+	// CreateReplicationSlot
+	// DropReplicationSlot
 }
 
 var LoginFailedError = errors.New("Login failed")
