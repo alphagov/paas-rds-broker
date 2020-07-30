@@ -429,6 +429,39 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, err
 	}
 
+	dbInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
+	if err != nil {
+		if err == awsrds.ErrDBInstanceDoesNotExist {
+			return brokerapi.UpdateServiceSpec{}, err
+		}
+		return brokerapi.UpdateServiceSpec{}, err
+	}
+
+	if updateParameters.ExecuteStatement != "" {
+		dbAddress := awsrds.GetDBAddress(dbInstance.Endpoint)
+		dbPort := awsrds.GetDBPort(dbInstance.Endpoint)
+		masterUsername := aws.StringValue(dbInstance.MasterUsername)
+		dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
+
+		var engine string
+		if servicePlan.RDSProperties.Engine != nil {
+			engine = *servicePlan.RDSProperties.Engine
+		}
+		sqlEngine, err := b.sqlProvider.GetSQLEngine(engine)
+		if err != nil {
+			return brokerapi.UpdateServiceSpec{}, err
+		}
+
+		if err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, b.generateMasterPassword(instanceID)); err != nil {
+			return brokerapi.UpdateServiceSpec{}, err
+		}
+		defer sqlEngine.Close()
+
+		if err := sqlEngine.ExecuteStatement(updateParameters.ExecuteStatement); err != nil {
+			return brokerapi.UpdateServiceSpec{}, err
+		}
+	}
+
 	deferReboot := false
 
 	newDbParamGroup, err = b.parameterGroupsSelector.SelectParameterGroup(servicePlan, extensions)

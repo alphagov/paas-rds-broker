@@ -533,4 +533,36 @@ var _ = Describe("PostgresEngine", func() {
 			Expect(extensions).ToNot(ContainElement("pgcrypto"))
 		})
 	})
+
+	Describe("Executor", func() {
+		var (
+			bindingID       string
+			createdUser     string
+			createdPassword string
+		)
+
+		BeforeEach(func() {
+			bindingID = "binding-id" + randomTestSuffix
+			err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
+			Expect(err).ToNot(HaveOccurred())
+
+			createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			err := postgresEngine.DropUser(bindingID)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("executes SQL", func() {
+			connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+			db, err := sql.Open("postgres", connectionString)
+			Expect(err).ToNot(HaveOccurred())
+			defer db.Close()
+
+			err = postgresEngine.ExecuteStatement("SELECT 1;")
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
 })
