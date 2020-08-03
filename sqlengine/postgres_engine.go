@@ -479,3 +479,70 @@ func (d *PostgresEngine) DropSchema(schemaname string) error {
 
 	return tx.Commit()
 }
+
+func (d *PostgresEngine) GrantPrivileges(
+	alterPrivileges bool,
+	schemaName string,
+	grantType string,
+	grantOn string,
+	roleName string) error {
+	var ensureStatement bytes.Buffer
+
+	if !alterPrivileges {
+		const grantStatement = `GRANT {{.grantType}} ON {{.schemaName}} TO {{.roleName}};`
+		var grantTemplate = template.Must(template.New("grantTemplate").Parse(grantStatement))
+		err := grantTemplate.Execute(&ensureStatement, map[string]string{"grantType": grantType, "schemaName": schemaName, "roleName": roleName})
+		if err != nil {
+			d.logger.Error("validation-error", err)
+			return err
+		}
+  } else {
+		const alterStatement = `ALTER DEFAULT PRIVILEGES IN SCHEMA {{.schemaName}} GRANT {{.grantType}} ON {{.grantOn}} TO {{.roleName}};`
+		var alterTemplate = template.Must(template.New("alterTemplate").Parse(alterStatement))
+		err := alterTemplate.Execute(&ensureStatement, map[string]string{"schemaName": schemaName, "grantType": grantType, "grantOn": grantOn, "roleName": roleName})
+		if err != nil {
+			d.logger.Error("validation-error", err)
+			return err
+		}
+	}
+
+	d.logger.Debug("grant-privileges-statement", lager.Data{"statement": ensureStatement.String()})
+
+
+	return execStatement(d, ensureStatement.String())
+}
+
+func (d *PostgresEngine) RevokePrivileges(
+	alterPrivileges bool,
+	schemaName string,
+	grantType string,
+	grantOn string,
+	roleName string) error {
+	return nil
+}
+
+func (d *PostgresEngine) ExecuteStatement(statement string) error {
+	// todo: sanitize / validate
+	return execStatement(d, statement)
+}
+
+func execStatement(d *PostgresEngine, statement string) error {
+	// todo: wrap in retries
+	d.logger.Debug("begin-transaction")
+	tx, err := d.db.Begin()
+	if err != nil {
+		d.logger.Error("sql-db-error", err)
+		return err
+	}
+
+	d.logger.Debug("exec-transaction")
+	_, err = tx.Exec(statement)
+	if err != nil {
+		d.logger.Error("sql-exec-error", err)
+		_ = tx.Rollback()
+		return err
+	}
+
+	d.logger.Debug("end-transaction")
+	return tx.Commit()
+}

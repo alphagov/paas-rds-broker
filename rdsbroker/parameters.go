@@ -24,16 +24,30 @@ type UpdateParameters struct {
 	ForceFailover              		*bool    `json:"force_failover"`
 	EnableExtensions           		[]string `json:"enable_extensions"`
 	DisableExtensions          		[]string `json:"disable_extensions"`
-	CreateSchema									string   `json:"create_schema"`
-	DropSchema										string	 `json:"drop_schema"`
-	AlterPrivileges								string	 `json:"alter_privileges"` // todo
-	CreateTable										string   `json:"create_table"` // todo
-	DropTable 										string   `json:"drop_table"` // todo
-	AlterTable										string   `json:"alter_table"` // todo
-	CreateReplaceFunction					string   `json:"create_replace_function"` // todo
-	AlterFunction									string   `json:"alter_function"` // todo
-	CreateReplicationSlot					string   `json:"create_replication_slot"` // todo
-	DropReplicationSlot           string   `json:drop_replication_slot"` // todo
+	ExecuteStatement              string   `json:"execute_statement"`
+	CreateSchema                  string   `json:"create_schema"`
+	DropSchema                    string	 `json:"drop_schema"`
+	GrantPrivileges               struct {
+                                  AlterDefaultPrivileges bool `json:"alter_default_privileges"`
+																	SchemaName  string `json:"schema_name"`
+																	GrantType   string `json:"grant_type"` // e.g. SELECT
+																	GrantOn     string `json:"grant_on"` // e.g. TABLES
+																	RoleName    string `json:"role_name"`
+		                            }	 `json:"grant_privileges"`
+	RevokePrivileges              struct {
+                                  AlterDefaultPrivileges bool `json:"alter_default_privileges"`
+																	SchemaName  string `json:"schema_name"`
+																	GrantType   string `json:"grant_type"` // e.g. SELECT
+																	GrantOn     string `json:"grant_on"` // e.g. TABLES
+																	RoleName    string `json:"role_name"`
+		                            }	 `json:"revoke_privileges"`
+	// CreateTable                   string   `json:"create_table"` // todo
+	// DropTable                     string   `json:"drop_table"` // todo
+	// AlterTable                    string   `json:"alter_table"` // todo
+	// CreateReplaceFunction         string   `json:"create_replace_function"` // todo
+	// AlterFunction                 string   `json:"alter_function"` // todo
+	// CreateReplicationSlot         string   `json:"create_replication_slot"` // todo
+	// DropReplicationSlot           string   `json:drop_replication_slot"` // todo
 }
 
 type BindParameters struct {

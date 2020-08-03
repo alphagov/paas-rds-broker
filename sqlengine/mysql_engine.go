@@ -165,10 +165,22 @@ func (d *MySQLEngine) DropExtensions(extensions []string) error {
 	return nil
 }
 
+func (d *MySQLEngine) ExecuteStatement(statement string) error {
+	return nil
+}
+
 func (d *MySQLEngine) CreateSchema(schemaname string) error {
 	return nil
 }
 
 func (d *MySQLEngine) DropSchema(schemaname string) error {
+	return nil
+}
+
+func (d *MySQLEngine) GrantPrivileges(alterPrivileges bool, schemaName string, grantType string, grantOn string, roleName string) error {
+	return nil
+}
+
+func (d *MySQLEngine) RevokePrivileges(alterPrivileges bool, schemaName string, grantType string, grantOn string, roleName string) error {
 	return nil
 }

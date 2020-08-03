@@ -437,8 +437,11 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, err
 	}
 
-	if updateParameters.CreateSchema != "" ||
-	   updateParameters.DropSchema != "" {
+	if updateParameters.ExecuteStatement != "" ||
+	   updateParameters.CreateSchema != "" ||
+	   updateParameters.DropSchema != "" ||
+		 updateParameters.GrantPrivileges.GrantType != "" ||
+		 updateParameters.RevokePrivileges.GrantType != "" {
 		dbAddress := awsrds.GetDBAddress(dbInstance.Endpoint)
 		dbPort := awsrds.GetDBPort(dbInstance.Endpoint)
 		masterUsername := aws.StringValue(dbInstance.MasterUsername)
@@ -458,6 +461,12 @@ func (b *RDSBroker) Update(
 		}
 		defer sqlEngine.Close()
 
+		if updateParameters.ExecuteStatement != "" {
+			if err := sqlEngine.ExecuteStatement(updateParameters.ExecuteStatement); err != nil {
+				return brokerapi.UpdateServiceSpec{}, err
+			}
+		}
+
 		if updateParameters.CreateSchema != "" {
 			if err := sqlEngine.CreateSchema(updateParameters.CreateSchema); err != nil {
 				return brokerapi.UpdateServiceSpec{}, err
@@ -466,6 +475,18 @@ func (b *RDSBroker) Update(
 
 		if updateParameters.DropSchema != "" {
 			if err := sqlEngine.DropSchema(updateParameters.DropSchema); err != nil {
+				return brokerapi.UpdateServiceSpec{}, err
+			}
+		}
+
+		if updateParameters.GrantPrivileges.GrantType != "" {
+			if err := sqlEngine.GrantPrivileges(updateParameters.GrantPrivileges.AlterDefaultPrivileges, updateParameters.GrantPrivileges.SchemaName, updateParameters.GrantPrivileges.GrantType, updateParameters.GrantPrivileges.GrantOn, updateParameters.GrantPrivileges.RoleName); err != nil {
+				return brokerapi.UpdateServiceSpec{}, err
+			}
+		}
+
+		if updateParameters.RevokePrivileges.GrantType != "" {
+			if err := sqlEngine.RevokePrivileges(updateParameters.RevokePrivileges.AlterDefaultPrivileges, updateParameters.RevokePrivileges.SchemaName, updateParameters.RevokePrivileges.GrantType, updateParameters.RevokePrivileges.GrantOn, updateParameters.RevokePrivileges.RoleName); err != nil {
 				return brokerapi.UpdateServiceSpec{}, err
 			}
 		}
