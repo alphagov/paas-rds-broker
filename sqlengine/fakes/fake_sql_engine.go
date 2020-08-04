@@ -36,6 +36,8 @@ type FakeSQLEngine struct {
 	ResetStateError  error
 
 	CorrectPassword string
+
+	ExecuteCalled bool
 }
 
 func (f *FakeSQLEngine) Open(address string, port int64, dbname string, username string, password string) error {
@@ -96,5 +98,10 @@ func (f *FakeSQLEngine) CreateExtensions(extensions []string) error {
 func (f *FakeSQLEngine) DropExtensions(extensions []string) error {
 	f.DropExtensionsCalled = true
 
+	return nil
+}
+
+func (f *FakeSQLEngine) ExecuteStatement(statement string) error {
+	f.ExecuteCalled = true
 	return nil
 }

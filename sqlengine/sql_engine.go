@@ -23,17 +23,6 @@ type SQLEngine interface {
 	CreateExtensions(extensions []string) error
 	DropExtensions(extensions []string) error
 	ExecuteStatement(statement string) error
-	CreateSchema(name string) error
-	DropSchema(name string) error
-	GrantPrivileges(alterPrivileges bool, schemaName string, grantType string, grantOn string, roleName string) error
-	RevokePrivileges(alterPrivileges bool, schemaName string, grantType string, grantOn string, roleName string) error
-	// CreateTable
-	// DropTable
-	// AlterTable
-	// CreateReplaceFunction
-	// AlterFunction
-	// CreateReplicationSlot
-	// DropReplicationSlot
 }
 
 var LoginFailedError = errors.New("Login failed")
