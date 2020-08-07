@@ -686,6 +686,39 @@ var _ = Describe("RDS DB Instance", func() {
 			Expect(aws.StringValue(updatedDBInstance.DBInstanceStatus)).To(Equal("updated"))
 		})
 
+		It("keeps EngineVersion if new major and minor version match", func() {
+			modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				EngineVersion:        aws.String("1.2.1"),
+			}
+
+			_, err := rdsDBInstance.Modify(modifyDBInstanceInput)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(receivedModifyDBInstanceInput.EngineVersion).To(Equal(aws.String("1.2.3")))
+		})
+
+		It("sets EngineVersion if new major version differs", func() {
+			modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				EngineVersion:        aws.String("2.2.1"),
+			}
+
+			_, err := rdsDBInstance.Modify(modifyDBInstanceInput)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(receivedModifyDBInstanceInput.EngineVersion).To(Equal(aws.String("2.2.1")))
+		})
+
+		It("sets EngineVersion if new minor version differs", func() {
+			modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				EngineVersion:        aws.String("1.3.1"),
+			}
+
+			_, err := rdsDBInstance.Modify(modifyDBInstanceInput)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(receivedModifyDBInstanceInput.EngineVersion).To(Equal(aws.String("1.3.1")))
+		})
+
 		It("sets AllowMajorVersionUpgrade to true by default", func() {
 			modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
 				DBInstanceIdentifier:     aws.String(dbInstanceIdentifier),
