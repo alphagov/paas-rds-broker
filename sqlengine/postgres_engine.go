@@ -417,3 +417,21 @@ func (d *PostgresEngine) ensureUser(tx *sql.Tx, dbname string, username string, 
 
 	return nil
 }
+
+func (d *PostgresEngine) ExecuteStatement(statement string) error {
+	tx, err := d.db.Begin()
+	d.logger.Info("sql-txn-begin")
+	if err != nil {
+		d.logger.Error("sql-error", err)
+		return err
+	}
+
+	_, err = tx.Exec(statement)
+	if err != nil {
+		d.logger.Error("sql-txn-rollback", err)
+		_ = tx.Rollback()
+		return err
+	}
+  d.logger.Info("sql-txn-commit")
+	return tx.Commit()
+}

@@ -79,6 +79,7 @@ Update calls support the following optional [arbitrary parameters](https://docs.
 | `force_failover`               | Boolean | For HA failover during reboot. Only valid when used with `reboot` and for HA plans. See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RebootInstance.html for detais.
 | `enable_extensions`           | []String | The names of the extensions which should be enabled. Supported extensions are specified by the plan, and the supplied list is combined with the set of default extensions defined by the plan. (*\*)
 | `disable_extensions`           | []String | The names of the extensions which should be disabled. Supported extensions are specified by the plan, and default extensions cannot be disabled. (*\*)
+| `execute_statement`            | String   | A SQL statement to execute in a transaction, rolling back upon failure (nothing is returned, see logs for results). (\*\*)
 
 (*) Refer to the [Amazon Relational Database Service Documentation](https://aws.amazon.com/documentation/rds/) for more details about how to set these properties
 

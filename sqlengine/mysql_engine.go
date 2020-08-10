@@ -164,3 +164,7 @@ func (d *MySQLEngine) CreateExtensions(extensions []string) error {
 func (d *MySQLEngine) DropExtensions(extensions []string) error {
 	return nil
 }
+
+func (d *MySQLEngine) ExecuteStatement(statement string) error {
+	return errors.New("Not implemented")
+}
