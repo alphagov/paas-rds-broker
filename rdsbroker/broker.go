@@ -828,14 +828,16 @@ func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstance *rds.DB
 	})
 
 	if aws.StringValue(dbInstance.Engine) == "postgres" {
-		dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
-		sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
-		if err != nil {
-			return err
-		}
-		defer sqlEngine.Close()
 
 		if extensions, exists := tagsByName[awsrds.TagExtensions]; exists {
+
+			dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
+			sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
+			if err != nil {
+				return err
+			}
+			defer sqlEngine.Close()
+			
 			postgresExtensionsString := strings.Split(extensions, ":")
 
 			if err = sqlEngine.CreateExtensions(postgresExtensionsString); err != nil {
