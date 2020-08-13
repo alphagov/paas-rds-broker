@@ -70,7 +70,7 @@ func (d *PostgresEngine) Close() {
 	}
 }
 
-func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, grantReplication bool) (username, password string, err error) {
 	groupname := d.generatePostgresGroup(dbname)
 
 	if err = d.ensureGroup(tx, dbname, groupname); err != nil {
@@ -84,7 +84,7 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 	username = d.UsernameGenerator(bindingID)
 	password = generatePassword()
 
-	if err = d.ensureUser(tx, dbname, username, password); err != nil {
+	if err = d.ensureUser(tx, dbname, username, password, grantReplication); err != nil {
 		return "", "", err
 	}
 
@@ -107,13 +107,13 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 	return username, password, nil
 }
 
-func (d *PostgresEngine) createUser(bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) createUser(bindingID, dbname string, grantReplication bool) (username, password string, err error) {
 	tx, err := d.db.Begin()
 	if err != nil {
 		d.logger.Error("sql-error", err)
 		return "", "", err
 	}
-	username, password, err = d.execCreateUser(tx, bindingID, dbname)
+	username, password, err = d.execCreateUser(tx, bindingID, dbname, grantReplication)
 	if err != nil {
 		_ = tx.Rollback()
 		return "", "", err
@@ -121,12 +121,12 @@ func (d *PostgresEngine) createUser(bindingID, dbname string) (username, passwor
 	return username, password, tx.Commit()
 }
 
-func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) CreateUser(bindingID, dbname string, grantReplication bool) (username, password string, err error) {
 	var pqErr *pq.Error
 	tries := 0
 	for tries < 10 {
 		tries++
-		username, password, err := d.createUser(bindingID, dbname)
+		username, password, err := d.createUser(bindingID, dbname, grantReplication)
 		if err != nil {
 			var ok bool
 			pqErr, ok = err.(*pq.Error)
@@ -393,7 +393,11 @@ const ensureCreateUserPattern = `
 
 var ensureCreateUserTemplate = template.Must(template.New("ensureUser").Parse(ensureCreateUserPattern))
 
-func (d *PostgresEngine) ensureUser(tx *sql.Tx, dbname string, username string, password string) error {
+const grantReplicationPattern = `GRANT rds_replication TO {{.user}};`
+
+var grantReplicationTemplate = template.Must(template.New("ensureGrant").Parse(grantReplicationPattern))
+
+func (d *PostgresEngine) ensureUser(tx *sql.Tx, dbname string, username string, password string, grantReplication bool) error {
 	var ensureUserStatement bytes.Buffer
 	if err := ensureCreateUserTemplate.Execute(&ensureUserStatement, map[string]string{
 		"password": password,
@@ -413,6 +417,21 @@ func (d *PostgresEngine) ensureUser(tx *sql.Tx, dbname string, username string, 
 	if _, err := tx.Exec(ensureUserStatement.String()); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
+	}
+
+	if grantReplication {
+		var grantReplicationStatement bytes.Buffer
+		if err := grantReplicationTemplate.Execute(&grantReplicationStatement, map[string]string{
+			"user": username,
+		}); err != nil {
+			d.logger.Error("template-error-grant-replication", err)
+			return err
+		}
+		d.logger.Debug("sql-grant-replication", lager.Data{"statement": grantReplicationStatement.String()})
+		if _, err := tx.Exec(grantReplicationStatement.String()); err != nil {
+			d.logger.Error("sql-error-grant-replication", err)
+			return err
+		}
 	}
 
 	return nil
