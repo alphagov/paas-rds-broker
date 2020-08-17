@@ -777,6 +777,18 @@ var _ = Describe("RDS Broker", func() {
 				Expect(tagsByName).ToNot(HaveKey("Restored From Snapshot"))
 			})
 
+			It("does not set a 'Replica of ARN' tag", func() {
+				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+				input := rdsInstance.CreateArgsForCall(0)
+				Expect(input).ToNot(BeNil())
+
+				tagsByName := awsrds.RDSTagsValues(input.Tags)
+				Expect(tagsByName).ToNot(HaveKey("Replica of ARN"))
+			})
+
 			It("sets the parameter group from the parameter groups selector", func() {
 				paramGroupSelector.SelectParameterGroupReturns("expected", nil)
 				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
@@ -1248,6 +1260,46 @@ var _ = Describe("RDS Broker", func() {
 					Expect(input.VpcSecurityGroupIds).To(Equal(
 						[]*string{stringPointer("test-vpc-security-group-ids")},
 					))
+				})
+			})
+
+			Context("when has SourceDBInstanceIdentifier", func() {
+				BeforeEach(func() {
+					provisionDetails.RawParameters = json.RawMessage(`{"replica_source_db_arn": "arn:aws:rds:us-west-1:11111111111:db:test-db"}`)
+				})
+
+				It("makes the proper calls", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateReadReplicaCallCount()).To(Equal(1))
+					input := rdsInstance.CreateReadReplicaArgsForCall(0)
+					Expect(aws.StringValue(input.SourceDBInstanceIdentifier)).To(Equal("arn:aws:rds:us-west-1:11111111111:db:test-db"))
+				})
+
+				It("sets a 'Replica of ARN' tag", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(rdsInstance.CreateReadReplicaCallCount()).To(Equal(1))
+					input := rdsInstance.CreateReadReplicaArgsForCall(0)
+					Expect(input).ToNot(BeNil())
+
+					tagsByName := awsrds.RDSTagsValues(input.Tags)
+					Expect(tagsByName).To(HaveKey("Replica of ARN"))
+				})
+
+				It("returns an error when ARN is invalid", func() {
+					provisionDetails.RawParameters = json.RawMessage(`{"replica_source_db_arn": "not_an_arn"}`)
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(errors.New("arn: invalid prefix")))
+				})
+
+				It("returns an error when ARN is doesn't contain a region", func() {
+					provisionDetails.RawParameters = json.RawMessage(`{"replica_source_db_arn": "arn:aws:rds::::test-db"}`)
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(errors.New("arn: region empty")))
 				})
 			})
 

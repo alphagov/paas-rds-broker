@@ -550,6 +550,56 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 	})
 
+	var _ = Describe("CreateReadReplica", func() {
+		var (
+			createDBInstanceReadReplicaInput *rds.CreateDBInstanceReadReplicaInput
+
+			receivedCreateDBInstanceReadReplicaInput *rds.CreateDBInstanceReadReplicaInput
+			createDBInstanceReadReplicaError         error
+		)
+
+		BeforeEach(func() {
+			createDBInstanceReadReplicaInput = &rds.CreateDBInstanceReadReplicaInput{
+				DBInstanceIdentifier:    aws.String(dbInstanceIdentifier),
+				SourceDBInstanceIdentifier: aws.String("arn:aws:rds:aws-region:awsaccount:db:my-source-rds-instance"),
+				AutoMinorVersionUpgrade: aws.Bool(true),
+				AvailabilityZone:        aws.String("test-az"),
+				CopyTagsToSnapshot:      aws.Bool(false),
+				MultiAZ:                 aws.Bool(false),
+				PubliclyAccessible:      aws.Bool(false),
+				Tags: []*rds.Tag{
+					&rds.Tag{Key: aws.String("Owner"), Value: aws.String("Cloud Foundry")},
+				},
+			}
+			createDBInstanceReadReplicaError = nil
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("CreateDBInstanceReadReplica"))
+				Expect(r.Params).To(BeAssignableToTypeOf(&rds.CreateDBInstanceReadReplicaInput{}))
+				receivedCreateDBInstanceReadReplicaInput = r.Params.(*rds.CreateDBInstanceReadReplicaInput)
+				r.Error = createDBInstanceReadReplicaError
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		It("calls CreateDBInstance with the same value and does not return error", func() {
+			err := rdsDBInstance.CreateReadReplica(createDBInstanceReadReplicaInput)
+			Expect(receivedCreateDBInstanceReadReplicaInput).To(Equal(createDBInstanceReadReplicaInput))
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("returns the error when creating the DB Instance fails", func() {
+			createDBInstanceReadReplicaError = errors.New("operation failed")
+			err := rdsDBInstance.CreateReadReplica(createDBInstanceReadReplicaInput)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("operation failed"))
+		})
+	})
+
 	var _ = Describe("Restore", func() {
 		var (
 			snapshotIdentifier string

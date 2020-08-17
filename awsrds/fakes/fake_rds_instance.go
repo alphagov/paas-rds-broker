@@ -32,6 +32,17 @@ type FakeRDSInstance struct {
 	createReturnsOnCall map[int]struct {
 		result1 error
 	}
+	CreateReadReplicaStub           func(*rds.CreateDBInstanceReadReplicaInput) error
+	createReadReplicaMutex       sync.RWMutex
+	createReadReplicaArgsForCall    []struct {
+		arg1 *rds.CreateDBInstanceReadReplicaInput
+	}
+	createReadReplicaReturns struct {
+		result1 error
+	}
+	createReadReplicaReturnsOnCall map[int]struct {
+		result1 error
+	}
 	CreateParameterGroupStub        func(*rds.CreateDBParameterGroupInput) error
 	createParameterGroupMutex       sync.RWMutex
 	createParameterGroupArgsForCall []struct {
@@ -295,16 +306,46 @@ func (fake *FakeRDSInstance) Create(arg1 *rds.CreateDBInstanceInput) error {
 	return fakeReturns.result1
 }
 
+func (fake *FakeRDSInstance) CreateReadReplica(arg1 *rds.CreateDBInstanceReadReplicaInput) error {
+	fake.createReadReplicaMutex.Lock()
+	ret, specificReturn := fake.createReadReplicaReturnsOnCall[len(fake.createReadReplicaArgsForCall)]
+	fake.createReadReplicaArgsForCall = append(fake.createReadReplicaArgsForCall, struct {
+		arg1 *rds.CreateDBInstanceReadReplicaInput
+	}{arg1})
+	fake.recordInvocation("CreateReadReplica", []interface{}{arg1})
+	fake.createReadReplicaMutex.Unlock()
+	if fake.CreateReadReplicaStub != nil {
+		return fake.CreateReadReplicaStub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.createReadReplicaReturns
+	return fakeReturns.result1
+}
+
 func (fake *FakeRDSInstance) CreateCallCount() int {
 	fake.createMutex.RLock()
 	defer fake.createMutex.RUnlock()
 	return len(fake.createArgsForCall)
 }
 
+func (fake *FakeRDSInstance) CreateReadReplicaCallCount() int {
+	fake.createReadReplicaMutex.RLock()
+	defer fake.createReadReplicaMutex.RUnlock()
+	return len(fake.createReadReplicaArgsForCall)
+}
+
 func (fake *FakeRDSInstance) CreateCalls(stub func(*rds.CreateDBInstanceInput) error) {
 	fake.createMutex.Lock()
 	defer fake.createMutex.Unlock()
 	fake.CreateStub = stub
+}
+
+func (fake *FakeRDSInstance) CreateReadReplicaCalls(stub func(*rds.CreateDBInstanceReadReplicaInput) error) {
+	fake.createReadReplicaMutex.Lock()
+	defer fake.createReadReplicaMutex.Unlock()
+	fake.CreateReadReplicaStub = stub
 }
 
 func (fake *FakeRDSInstance) CreateArgsForCall(i int) *rds.CreateDBInstanceInput {
@@ -314,11 +355,27 @@ func (fake *FakeRDSInstance) CreateArgsForCall(i int) *rds.CreateDBInstanceInput
 	return argsForCall.arg1
 }
 
+func (fake *FakeRDSInstance) CreateReadReplicaArgsForCall(i int) *rds.CreateDBInstanceReadReplicaInput {
+	fake.createReadReplicaMutex.RLock()
+	defer fake.createReadReplicaMutex.RUnlock()
+	argsForCall := fake.createReadReplicaArgsForCall[i]
+	return argsForCall.arg1
+}
+
 func (fake *FakeRDSInstance) CreateReturns(result1 error) {
 	fake.createMutex.Lock()
 	defer fake.createMutex.Unlock()
 	fake.CreateStub = nil
 	fake.createReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) CreateReadReplicaReturns(result1 error) {
+	fake.createReadReplicaMutex.Lock()
+	defer fake.createReadReplicaMutex.Unlock()
+	fake.CreateReadReplicaStub = nil
+	fake.createReadReplicaReturns = struct {
 		result1 error
 	}{result1}
 }
@@ -333,6 +390,20 @@ func (fake *FakeRDSInstance) CreateReturnsOnCall(i int, result1 error) {
 		})
 	}
 	fake.createReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) CreateReadReplicaReturnsOnCall(i int, result1 error) {
+	fake.createReadReplicaMutex.Lock()
+	defer fake.createReadReplicaMutex.Unlock()
+	fake.CreateReadReplicaStub = nil
+	if fake.createReadReplicaReturnsOnCall == nil {
+		fake.createReadReplicaReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.createReadReplicaReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }

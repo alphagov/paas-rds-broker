@@ -20,6 +20,7 @@ import (
 	"github.com/alphagov/paas-rds-broker/sqlengine"
 	"github.com/alphagov/paas-rds-broker/utils"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/rds"
 )
 
@@ -108,6 +109,7 @@ type RDSInstanceTags struct {
 	SkipFinalSnapshot        string
 	OriginSnapshotIdentifier string
 	Extensions               []string
+	ReplicaOf                string
 }
 
 func New(
@@ -198,12 +200,22 @@ func (b *RDSBroker) Provision(
 	}
 
 	if provisionParameters.RestoreFromLatestSnapshotOf == nil {
-		createDBInstance, err := b.newCreateDBInstanceInput(instanceID, servicePlan, provisionParameters, details)
-		if err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, err
-		}
-		if err := b.dbInstance.Create(createDBInstance); err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, err
+		if provisionParameters.ReplicaSourceDbArn != "" {
+			createDBInstance, err := b.newCreateDBInstanceReadReplicaInput(instanceID, servicePlan, provisionParameters, details)
+			if err != nil {
+				return brokerapi.ProvisionedServiceSpec{}, err
+			}
+			if err := b.dbInstance.CreateReadReplica(createDBInstance); err != nil {
+				return brokerapi.ProvisionedServiceSpec{}, err
+			}
+		} else {
+			createDBInstance, err := b.newCreateDBInstanceInput(instanceID, servicePlan, provisionParameters, details)
+			if err != nil {
+				return brokerapi.ProvisionedServiceSpec{}, err
+			}
+			if err := b.dbInstance.Create(createDBInstance); err != nil {
+				return brokerapi.ProvisionedServiceSpec{}, err
+			}
 		}
 	} else {
 		if *provisionParameters.RestoreFromLatestSnapshotOf == "" {
@@ -849,14 +861,16 @@ func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstance *rds.DB
 	})
 
 	if aws.StringValue(dbInstance.Engine) == "postgres" {
-		dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
-		sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
-		if err != nil {
-			return err
-		}
-		defer sqlEngine.Close()
 
 		if extensions, exists := tagsByName[awsrds.TagExtensions]; exists {
+
+			dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
+			sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
+			if err != nil {
+				return err
+			}
+			defer sqlEngine.Close()
+			
 			postgresExtensionsString := strings.Split(extensions, ":")
 
 			if err = sqlEngine.CreateExtensions(postgresExtensionsString); err != nil {
@@ -1167,6 +1181,52 @@ func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan Serv
 	return createDBInstanceInput, nil
 }
 
+func (b *RDSBroker) newCreateDBInstanceReadReplicaInput(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.CreateDBInstanceReadReplicaInput, error) {
+	replicaOf := provisionParameters.ReplicaSourceDbArn
+	replicaArn, err := arn.Parse(replicaOf)
+	if err != nil {
+		b.logger.Error("Replica Source DB ARN is not valid", err)
+		return nil, err
+	}
+
+	if replicaArn.Region == "" {
+		err := errors.New("arn: region empty")
+		b.logger.Error("Replica Source DB ARN must contain a valid region", err)
+		return nil, err
+	}
+
+	tags := RDSInstanceTags{
+		Action:            "Created",
+		ServiceID:         details.ServiceID,
+		PlanID:            details.PlanID,
+		OrganizationID:    details.OrganizationGUID,
+		SpaceID:           details.SpaceGUID,
+		ReplicaOf:         replicaOf,
+	}
+
+	createDBInstanceInput := &rds.CreateDBInstanceReadReplicaInput{
+			DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
+			DBInstanceClass:            servicePlan.RDSProperties.DBInstanceClass,
+			AutoMinorVersionUpgrade:    servicePlan.RDSProperties.AutoMinorVersionUpgrade,
+			AvailabilityZone:           servicePlan.RDSProperties.AvailabilityZone,
+			CopyTagsToSnapshot:         servicePlan.RDSProperties.CopyTagsToSnapshot,
+			DBSubnetGroupName:          servicePlan.RDSProperties.DBSubnetGroupName,
+			OptionGroupName:            servicePlan.RDSProperties.OptionGroupName,
+			PubliclyAccessible:         servicePlan.RDSProperties.PubliclyAccessible,
+			Iops:                       servicePlan.RDSProperties.Iops,
+			KmsKeyId:                   servicePlan.RDSProperties.KmsKeyID,
+			MultiAZ:                    servicePlan.RDSProperties.MultiAZ,
+			Port:                       servicePlan.RDSProperties.Port,
+			SourceDBInstanceIdentifier: aws.String(replicaOf),
+			SourceRegion:               aws.String(replicaArn.Region),
+			StorageType:                servicePlan.RDSProperties.StorageType,
+			VpcSecurityGroupIds:        servicePlan.RDSProperties.VpcSecurityGroupIds,
+			Tags:                       awsrds.BuilRDSTags(b.dbTags(tags)),
+	}
+
+	return createDBInstanceInput, nil
+}
+
 func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.RestoreDBInstanceFromDBSnapshotInput, error) {
 	skipFinalSnapshot := false
 	if provisionParameters.SkipFinalSnapshot != nil {
@@ -1294,6 +1354,10 @@ func (b *RDSBroker) dbTags(instanceTags RDSInstanceTags) map[string]string {
 
 	if len(instanceTags.Extensions) > 0 {
 		tags[awsrds.TagExtensions] = strings.Join(instanceTags.Extensions, ":")
+	}
+
+	if instanceTags.ReplicaOf != "" {
+		tags[awsrds.TagReplicaOf] = instanceTags.ReplicaOf
 	}
 
 	return tags

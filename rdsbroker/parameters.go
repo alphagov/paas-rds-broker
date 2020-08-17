@@ -9,6 +9,7 @@ type ProvisionParameters struct {
 	PreferredBackupWindow           string   `json:"preferred_backup_window"`
 	PreferredMaintenanceWindow      string   `json:"preferred_maintenance_window"`
 	SkipFinalSnapshot               *bool    `json:"skip_final_snapshot"`
+	ReplicaSourceDbArn              string   `json:"replica_source_db_arn"`
 	RestoreFromLatestSnapshotOf     *string  `json:"restore_from_latest_snapshot_of"`
 	RestoreFromLatestSnapshotBefore *string  `json:"restore_from_latest_snapshot_before"`
 	Extensions                      []string `json:"enable_extensions"`
