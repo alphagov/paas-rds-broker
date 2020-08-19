@@ -210,7 +210,7 @@ var _ = Describe("PostgresEngine", func() {
 					Expect(err).ToNot(HaveOccurred())
 					defer postgresEngine.Close()
 
-					_, _, err = postgresEngine.CreateUser(bindingID, dbname)
+					_, _, err = postgresEngine.CreateUser(bindingID, dbname, false)
 					Expect(err).ToNot(HaveOccurred())
 
 					err = postgresEngine.DropUser(bindingID)
@@ -236,7 +236,7 @@ var _ = Describe("PostgresEngine", func() {
 			err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
 			Expect(err).ToNot(HaveOccurred())
 
-			createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+			createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, false)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -293,7 +293,7 @@ var _ = Describe("PostgresEngine", func() {
 			BeforeEach(func() {
 				var err error
 				otherBindingID = "other-binding-id" + randomTestSuffix
-				otherCreatedUser, otherCreatedPassword, err = postgresEngine.CreateUser(otherBindingID, dbname)
+				otherCreatedUser, otherCreatedPassword, err = postgresEngine.CreateUser(otherBindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -318,6 +318,44 @@ var _ = Describe("PostgresEngine", func() {
 				accessAndDeleteObjects(connectionString1, "table2")
 			})
 		})
+
+		It("Creates a user with RDS replication privileges", func() {
+
+			// set up a mock rds_replication role
+			// we also don't care if this errors out because it already exists
+			postgresEngine.db.Exec("CREATE ROLE rds_replication")
+
+			By("Creating a new replication enabled user")
+			replicaBindingID := bindingID + "-replication"
+			replicationUser, replicationPassword, err := postgresEngine.CreateUser(replicaBindingID, dbname, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Connecting and checking if that user has the rds_replication role")
+			connectionString := postgresEngine.URI(address, port, dbname, replicationUser, replicationPassword)
+			db, err := sql.Open("postgres", connectionString)
+			Expect(err).ToNot(HaveOccurred())
+			defer db.Close()
+
+			rows, err := postgresEngine.db.Query("SELECT pg_has_role('" + replicationUser +"', 'rds_replication', 'member')")
+			Expect(err).ToNot(HaveOccurred())
+			rows.Next()
+
+			// our newly created replication user should have the rds_replication role
+			var result string
+			err = rows.Scan(&result)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result).To(Equal("true"))
+			defer rows.Close()
+
+			// clean up
+			err = postgresEngine.DropUser(replicaBindingID)
+			Expect(err).ToNot(HaveOccurred())
+
+			// clean up rds_replication role
+			postgresEngine.db.Exec("DROP ROLE rds_replication")
+
+		})
+
 	})
 
 	Describe("DropUser", func() {
@@ -337,7 +375,7 @@ var _ = Describe("PostgresEngine", func() {
 
 			BeforeEach(func() {
 				var err error
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -395,7 +433,7 @@ var _ = Describe("PostgresEngine", func() {
 			BeforeEach(func() {
 				var err error
 				postgresEngine.UsernameGenerator = generateUsernameOld
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, false)
 				postgresEngine.UsernameGenerator = generateUsername
 				Expect(err).ToNot(HaveOccurred())
 			})
@@ -444,7 +482,7 @@ var _ = Describe("PostgresEngine", func() {
 			It("CreateUser() can be called after ResetState()", func() {
 				err := postgresEngine.ResetState()
 				Expect(err).ToNot(HaveOccurred())
-				_, _, err = postgresEngine.CreateUser(bindingID, dbname)
+				_, _, err = postgresEngine.CreateUser(bindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 			})
 		})
@@ -452,7 +490,7 @@ var _ = Describe("PostgresEngine", func() {
 		Describe("when there was already a user created", func() {
 			BeforeEach(func() {
 				var err error
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 
 				err = postgresEngine.ResetState()
@@ -480,7 +518,7 @@ var _ = Describe("PostgresEngine", func() {
 			})
 
 			It("CreateUser() returns the same user and different password", func() {
-				user, password, err := postgresEngine.CreateUser(bindingID, dbname)
+				user, password, err := postgresEngine.CreateUser(bindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(user).To(Equal(createdUser))
 				Expect(password).ToNot(Equal(createdPassword))
