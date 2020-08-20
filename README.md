@@ -84,6 +84,16 @@ Update calls support the following optional [arbitrary parameters](https://docs.
 
 (\*\*) Postgres only
 
+#### Bind
+
+Bind calls support the following optional [arbitrary parameters](https://docs.cloudfoundry.org/devguide/services/managing-services.html#arbitrary-params-update):
+
+| Option                         | Type    | Description
+|:-------------------------------|:------- |:-----------
+| `grant_replication`            | Boolean | Specifies whether the newly created user should be granted the `rds_replication` role (*\*)
+
+(\*\*) Postgres only
+
 #### Reboot
 
 Reboot is performed by passing the custom parameter `{ "reboot": true }` in an update. Pass `{ "reboot": true, "force_failover": true }` to force failover in a HA instance.
