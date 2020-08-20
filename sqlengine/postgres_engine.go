@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/url"
+	"strings"
 	"text/template"
 	"time"
 
@@ -71,11 +72,17 @@ func (d *PostgresEngine) Close() {
 }
 
 func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, grantReplication bool) (username, password string, err error) {
+
+	userRoles := []string{}
+
 	groupname := d.generatePostgresGroup(dbname)
 
 	if err = d.ensureGroup(tx, dbname, groupname); err != nil {
 		return "", "", err
 	}
+
+	// Add the new group to roles for this user
+	userRoles = append(userRoles, groupname)
 
 	if err = d.ensureTrigger(tx, groupname); err != nil {
 		return "", "", err
@@ -84,11 +91,16 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, gr
 	username = d.UsernameGenerator(bindingID)
 	password = generatePassword()
 
-	if err = d.ensureUser(tx, dbname, username, password, grantReplication); err != nil {
+	if err = d.ensureUser(tx, dbname, username, password); err != nil {
 		return "", "", err
 	}
 
-	grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, username)
+	// Add rds_replication to this users granted roles
+	if grantReplication {
+		userRoles = append(userRoles, "rds_replication")
+	}
+
+	grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, strings.Join(userRoles, "\", \""), username)
 	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 	if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
@@ -393,11 +405,7 @@ const ensureCreateUserPattern = `
 
 var ensureCreateUserTemplate = template.Must(template.New("ensureUser").Parse(ensureCreateUserPattern))
 
-const grantReplicationPattern = `GRANT rds_replication TO {{.user}};`
-
-var grantReplicationTemplate = template.Must(template.New("ensureGrant").Parse(grantReplicationPattern))
-
-func (d *PostgresEngine) ensureUser(tx *sql.Tx, dbname string, username string, password string, grantReplication bool) error {
+func (d *PostgresEngine) ensureUser(tx *sql.Tx, dbname string, username string, password string) error {
 	var ensureUserStatement bytes.Buffer
 	if err := ensureCreateUserTemplate.Execute(&ensureUserStatement, map[string]string{
 		"password": password,
@@ -417,21 +425,6 @@ func (d *PostgresEngine) ensureUser(tx *sql.Tx, dbname string, username string, 
 	if _, err := tx.Exec(ensureUserStatement.String()); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
-	}
-
-	if grantReplication {
-		var grantReplicationStatement bytes.Buffer
-		if err := grantReplicationTemplate.Execute(&grantReplicationStatement, map[string]string{
-			"user": username,
-		}); err != nil {
-			d.logger.Error("template-error-grant-replication", err)
-			return err
-		}
-		d.logger.Debug("sql-grant-replication", lager.Data{"statement": grantReplicationStatement.String()})
-		if _, err := tx.Exec(grantReplicationStatement.String()); err != nil {
-			d.logger.Error("sql-error-grant-replication", err)
-			return err
-		}
 	}
 
 	return nil
