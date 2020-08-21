@@ -77,6 +77,15 @@ func (pgs *ParameterGroupSource) setParameterGroupProperties(name string, servic
 		dbParams = append(dbParams, rdsParameter("rds.force_ssl", "1", "pending-reboot"))
 		dbParams = append(dbParams, rdsParameter("rds.log_retention_period", "10080", "immediate"))
 
+		/* I would really like to make this configurable. Why isn't this configurable? Because the current pattern in this broker is to
+		   create a shared parameter group per prefix-engine family-broker name-enabled extensions. So barring me refactoring the existing extensions
+		   code entirely and creating strictly one parameter group per service instance, the only other way to make this configurable would be to
+		   start tacking on something like '-replication' onto the parameter group name. Then what happens when we need to change another PG
+		   property? yuck.
+
+		   Is there any downside to just forcing this on since we're probably not sending this back upstream? Probably not. */
+		dbParams = append(dbParams, rdsParameter("rds.logical_replication", "1", "immediate"))
+
 		preloadLibs := filterExtensionsNeedingPreloads(servicePlan, extensions, pgs.supportedPreloadExtensions)
 
 		if len(preloadLibs) > 0 {

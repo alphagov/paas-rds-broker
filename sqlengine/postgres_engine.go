@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/url"
+	"strings"
 	"text/template"
 	"time"
 
@@ -70,12 +71,18 @@ func (d *PostgresEngine) Close() {
 	}
 }
 
-func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, grantReplication bool) (username, password string, err error) {
+
+	userRoles := []string{}
+
 	groupname := d.generatePostgresGroup(dbname)
 
 	if err = d.ensureGroup(tx, dbname, groupname); err != nil {
 		return "", "", err
 	}
+
+	// Add the new group to roles for this user
+	userRoles = append(userRoles, groupname)
 
 	if err = d.ensureTrigger(tx, groupname); err != nil {
 		return "", "", err
@@ -88,7 +95,12 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 		return "", "", err
 	}
 
-	grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, username)
+	// Add rds_replication to this users granted roles
+	if grantReplication {
+		userRoles = append(userRoles, "rds_replication")
+	}
+
+	grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, strings.Join(userRoles, "\", \""), username)
 	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 	if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
@@ -107,13 +119,13 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 	return username, password, nil
 }
 
-func (d *PostgresEngine) createUser(bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) createUser(bindingID, dbname string, grantReplication bool) (username, password string, err error) {
 	tx, err := d.db.Begin()
 	if err != nil {
 		d.logger.Error("sql-error", err)
 		return "", "", err
 	}
-	username, password, err = d.execCreateUser(tx, bindingID, dbname)
+	username, password, err = d.execCreateUser(tx, bindingID, dbname, grantReplication)
 	if err != nil {
 		_ = tx.Rollback()
 		return "", "", err
@@ -121,12 +133,12 @@ func (d *PostgresEngine) createUser(bindingID, dbname string) (username, passwor
 	return username, password, tx.Commit()
 }
 
-func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) CreateUser(bindingID, dbname string, grantReplication bool) (username, password string, err error) {
 	var pqErr *pq.Error
 	tries := 0
 	for tries < 10 {
 		tries++
-		username, password, err := d.createUser(bindingID, dbname)
+		username, password, err := d.createUser(bindingID, dbname, grantReplication)
 		if err != nil {
 			var ok bool
 			pqErr, ok = err.(*pq.Error)

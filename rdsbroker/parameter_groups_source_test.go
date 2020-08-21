@@ -276,6 +276,26 @@ var _ = Describe("ParameterGroupsSource", func() {
 					Expect(aws.StringValue(relevantParam.ParameterValue)).To(Equal("10080"))
 					Expect(aws.StringValue(relevantParam.ApplyMethod)).To(Equal("immediate"))
 				})
+
+				It("and enabled logical replication", func() {
+					rdsFake.ModifyParameterGroupReturns(nil)
+
+					parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
+					Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
+
+					modifyInput := rdsFake.ModifyParameterGroupArgsForCall(0)
+
+					var relevantParam *rds.Parameter = nil
+					for _, param := range modifyInput.Parameters {
+						if aws.StringValue(param.ParameterName) == "rds.logical_replication" {
+							relevantParam = param
+						}
+					}
+
+					Expect(relevantParam).ToNot(BeNil())
+					Expect(aws.StringValue(relevantParam.ParameterValue)).To(Equal("1"))
+					Expect(aws.StringValue(relevantParam.ApplyMethod)).To(Equal("immediate"))
+				})
 			})
 
 			It("when an extension requires a preload library, it modifies the parameter group to add it", func() {

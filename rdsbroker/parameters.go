@@ -29,8 +29,7 @@ type UpdateParameters struct {
 }
 
 type BindParameters struct {
-	// This is currently empty, but preserved to make it easier to add
-	// bind-time parameters in future.
+	GrantReplication	bool	`json:"grant_replication"`
 }
 
 func (pp *ProvisionParameters) Validate() error {
@@ -58,5 +57,9 @@ func (up *UpdateParameters) CheckForCompatibilityWithPlanChange() error {
 	if len(up.DisableExtensions) > 0 {
 		return fmt.Errorf("Invalid to disable extensions and update plan in the same command")
 	}
+	return nil
+}
+
+func (bp *BindParameters) Validate() error {
 	return nil
 }

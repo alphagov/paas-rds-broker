@@ -15,7 +15,7 @@ const (
 type SQLEngine interface {
 	Open(address string, port int64, dbname string, username string, password string) error
 	Close()
-	CreateUser(bindingID, dbname string) (string, string, error)
+	CreateUser(bindingID, dbname string, grantReplication bool) (string, string, error)
 	DropUser(bindingID string) error
 	ResetState() error
 	URI(address string, port int64, dbname string, username string, password string) string
