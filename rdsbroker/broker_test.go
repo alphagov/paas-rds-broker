@@ -1537,6 +1537,15 @@ var _ = Describe("RDS Broker", func() {
 	Describe("Bind", func() {
 		var (
 			bindDetails brokerapi.BindDetails
+
+			defaultDBInstanceTags = []*rds.Tag{
+				{Key: aws.String("Owner"), Value: aws.String("Cloud Foundry")},
+				{Key: aws.String("Broker Name"), Value: aws.String("mybroker")},
+				{Key: aws.String("Created by"), Value: aws.String("AWS RDS Service Broker")},
+				{Key: aws.String("Service ID"), Value: aws.String("Service-1")},
+				{Key: aws.String("Plan ID"), Value: aws.String("Plan-1")},
+				{Key: aws.String("Extensions"), Value: aws.String("postgis:pg-stat-statements")},
+			}
 		)
 
 		BeforeEach(func() {
@@ -1800,6 +1809,24 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("Failed to create user"))
 				Expect(sqlEngine.CloseCalled).To(BeTrue())
+			})
+		})
+
+		Context("when binding to a replica instance", func() {
+			JustBeforeEach(func() {
+				rdsInstance.GetResourceTagsReturns(
+					append(
+						defaultDBInstanceTags,
+						&rds.Tag{Key: aws.String("Replica of ARN"), Value: aws.String("arn:aws:rds:us-west-1:11111111111:db:test-db")},
+					),
+					nil,
+				)
+			})
+
+			It("returns the proper error", func() {
+				_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails, false)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("Binding of read replicas not supported. Create a User Provided Service instead.\nEndpoint: endpoint-address:3306\nUse same credentials as arn:aws:rds:us-west-1:11111111111:db:test-db"))
 			})
 		})
 	})

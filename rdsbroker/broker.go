@@ -608,6 +608,25 @@ func (b *RDSBroker) Bind(
 		return bindingResponse, err
 	}
 
+	tags, err := b.dbInstance.GetResourceTags(
+		aws.StringValue(dbInstance.DBInstanceArn),
+		awsrds.DescribeRefreshCacheOption,
+	)
+	if err != nil {
+		if err == awsrds.ErrDBInstanceDoesNotExist {
+			return bindingResponse, brokerapi.ErrInstanceDoesNotExist
+		}
+		return bindingResponse, err
+	}
+
+	tagsByName := awsrds.RDSTagsValues(tags)
+
+	replicaARN, replicaTag := tagsByName[awsrds.TagReplicaOf]
+	if replicaTag {
+		err := fmt.Errorf("Binding of read replicas not supported. Create a User Provided Service instead.\nEndpoint: %s:%d\nUse same credentials as %s", dbAddress, dbPort, replicaARN)
+		return bindingResponse, err
+	}
+
 	if err = sqlEngine.Open(dbAddress, dbPort, dbName, masterUsername, b.generateMasterPassword(instanceID)); err != nil {
 		return bindingResponse, err
 	}
@@ -840,7 +859,7 @@ func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstance *rds.DB
 				return err
 			}
 			defer sqlEngine.Close()
-			
+
 			postgresExtensionsString := strings.Split(extensions, ":")
 
 			if err = sqlEngine.CreateExtensions(postgresExtensionsString); err != nil {
