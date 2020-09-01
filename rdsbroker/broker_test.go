@@ -1107,6 +1107,20 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 
+			Context("when has MaxAllocatedStorage", func() {
+				BeforeEach(func() {
+					provisionDetails.RawParameters = json.RawMessage(`{"max_allocated_storage": 200}`)
+				})
+
+				It("makes the proper calls", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.CreateCallCount()).To(Equal(1))
+					input := rdsInstance.CreateArgsForCall(0)
+					Expect(aws.Int64Value(input.MaxAllocatedStorage)).To(Equal(int64(200)))
+				})
+			})
+
 			Context("when has MultiAZ", func() {
 				BeforeEach(func() {
 					rdsProperties1.MultiAZ = boolPointer(true)
@@ -2642,6 +2656,67 @@ var _ = Describe("RDS Broker", func() {
 				Expect(sqlEngine.OpenCalled).To(BeTrue())
 
 				Expect(sqlEngine.OpenPassword).To(BeEquivalentTo(expectedMasterPassword))
+			})
+		})
+	})
+
+	Describe("Update", func() {
+		var (
+			updateDetails     brokerapi.UpdateDetails
+			acceptsIncomplete bool
+			defaultDBInstance = &rds.DBInstance{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBInstanceArn:        aws.String(dbInstanceArn),
+				Engine:               aws.String("test-engine"),
+				Endpoint: &rds.Endpoint{
+					Address: aws.String("endpoint-address"),
+					Port:    aws.Int64(3306),
+				},
+				DBName:         aws.String("test-db"),
+				MasterUsername: aws.String("master-username"),
+				DBParameterGroups: []*rds.DBParameterGroupStatus{
+					&rds.DBParameterGroupStatus{
+						DBParameterGroupName: aws.String("rdsbroker-testengine10"),
+					},
+				},
+			}
+		)
+
+		BeforeEach(func() {
+			updateDetails = brokerapi.UpdateDetails{
+				ServiceID:     "Service-1",
+				PlanID:        "Plan-1",
+				PreviousValues: brokerapi.PreviousValues{
+					ServiceID:     "Service-1",
+					PlanID:        "Plan-1",
+					OrgID:         "organization-id",
+					SpaceID:       "space-id",
+				},
+				RawParameters: json.RawMessage{},
+			}
+
+			acceptsIncomplete = true
+
+			rdsInstance.DescribeReturns(defaultDBInstance, nil)
+			rdsInstance.ModifyReturns(defaultDBInstance, nil)
+			rdsInstance.AddTagsToResourceReturns(nil)
+
+		})
+
+		Context("when updating a service instance", func() {
+
+			Context("when has MaxAllocatedStorage", func() {
+				BeforeEach(func() {
+					updateDetails.RawParameters = json.RawMessage(`{"max_allocated_storage": 200}`)
+				})
+
+				It("makes the proper calls", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+					input := rdsInstance.ModifyArgsForCall(0)
+					Expect(aws.Int64Value(input.MaxAllocatedStorage)).To(Equal(int64(200)))
+				})
 			})
 		})
 	})

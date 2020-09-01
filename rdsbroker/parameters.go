@@ -13,6 +13,7 @@ type ProvisionParameters struct {
 	RestoreFromLatestSnapshotOf     *string  `json:"restore_from_latest_snapshot_of"`
 	RestoreFromLatestSnapshotBefore *string  `json:"restore_from_latest_snapshot_before"`
 	Extensions                      []string `json:"enable_extensions"`
+	MaxAllocatedStorage             int64    `json:"max_allocated_storage"`
 }
 
 type UpdateParameters struct {
@@ -25,6 +26,7 @@ type UpdateParameters struct {
 	ForceFailover              *bool    `json:"force_failover"`
 	EnableExtensions           []string `json:"enable_extensions"`
 	DisableExtensions          []string `json:"disable_extensions"`
+	MaxAllocatedStorage        int64    `json:"max_allocated_storage"`
 }
 
 type BindParameters struct {

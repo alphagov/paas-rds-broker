@@ -60,6 +60,7 @@ Provision calls support the following optional [arbitrary parameters](https://do
 | `preferred_maintenance_window` | String   | The weekly time range during which system maintenance can occur (*)
 | `replica_source_db_arn`        | String   | An ARN for an existing RDS instance that you would like to use as a source for a Read Replica instance
 | `enable_extensions`           | []String | The names of the extensions which should be enabled. Supported extensions are specified by the plan, and the supplied list is combined with the set of default extensions defined by the plan. If this parameter isn't provided, the plan's default extensions will be enabled. (*\*)
+| `max_allocated_storage`        | Integer | The maximum amount of storage (in Gb) allowed for this RDS instance. If provided and larger than the amount of allocated storage defined by the service plan, then storage autoscaling will be enabled.
 
 (\*) Refer to the [Amazon Relational Database Service Documentation](https://aws.amazon.com/documentation/rds/) for more details about how to set these properties
 
@@ -80,6 +81,7 @@ Update calls support the following optional [arbitrary parameters](https://docs.
 | `force_failover`               | Boolean | For HA failover during reboot. Only valid when used with `reboot` and for HA plans. See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RebootInstance.html for detais.
 | `enable_extensions`           | []String | The names of the extensions which should be enabled. Supported extensions are specified by the plan, and the supplied list is combined with the set of default extensions defined by the plan. (*\*)
 | `disable_extensions`           | []String | The names of the extensions which should be disabled. Supported extensions are specified by the plan, and default extensions cannot be disabled. (*\*)
+| `max_allocated_storage`        | Integer | The maximum amount of storage (in Gb) allowed for this RDS instance. If provided and larger than the amount of allocated storage already configured for this instance, then storage autoscaling will be enabled. Note: if the instance has already been scaled up from the service plan, you will need to provide the currently allocated storage amount to disable autoscaling.
 
 (*) Refer to the [Amazon Relational Database Service Documentation](https://aws.amazon.com/documentation/rds/) for more details about how to set these properties
 

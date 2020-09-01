@@ -1167,6 +1167,9 @@ func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan Serv
 	if provisionParameters.PreferredMaintenanceWindow != "" {
 		createDBInstanceInput.PreferredMaintenanceWindow = aws.String(provisionParameters.PreferredMaintenanceWindow)
 	}
+	if provisionParameters.MaxAllocatedStorage != 0 && provisionParameters.MaxAllocatedStorage > *servicePlan.RDSProperties.AllocatedStorage {
+		createDBInstanceInput.MaxAllocatedStorage = aws.Int64(provisionParameters.MaxAllocatedStorage)
+	}
 	return createDBInstanceInput, nil
 }
 
@@ -1291,6 +1294,9 @@ func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan Serv
 	}
 	if updateParameters.PreferredMaintenanceWindow != "" {
 		modifyDBInstanceInput.PreferredMaintenanceWindow = aws.String(updateParameters.PreferredMaintenanceWindow)
+	}
+	if updateParameters.MaxAllocatedStorage != 0 {
+		modifyDBInstanceInput.MaxAllocatedStorage = aws.Int64(updateParameters.MaxAllocatedStorage)
 	}
 
 	b.logger.Debug("newModifyDBInstanceInputAndTags", lager.Data{

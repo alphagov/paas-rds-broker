@@ -59,6 +59,7 @@ type RDSProperties struct {
 	DBSecurityGroups           []*string `json:"db_security_groups,omitempty"`
 	DBSubnetGroupName          *string   `json:"db_subnet_group_name,omitempty"`
 	LicenseModel               *string   `json:"license_model,omitempty"`
+	MaxAllocatedStorage        *int64    `json:"max_allocated_storage,omitempty"`
 	MultiAZ                    *bool     `json:"multi_az,omitempty"`
 	OptionGroupName            *string   `json:"option_group_name,omitempty"`
 	Port                       *int64    `json:"port,omitempty"`
