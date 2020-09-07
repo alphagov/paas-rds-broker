@@ -210,7 +210,7 @@ var _ = Describe("PostgresEngine", func() {
 					Expect(err).ToNot(HaveOccurred())
 					defer postgresEngine.Close()
 
-					_, _, err = postgresEngine.CreateUser(bindingID, dbname)
+					_, _, err = postgresEngine.CreateUser(bindingID, dbname, false)
 					Expect(err).ToNot(HaveOccurred())
 
 					err = postgresEngine.DropUser(bindingID)
@@ -236,7 +236,7 @@ var _ = Describe("PostgresEngine", func() {
 			err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
 			Expect(err).ToNot(HaveOccurred())
 
-			createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+			createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, false)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -293,7 +293,7 @@ var _ = Describe("PostgresEngine", func() {
 			BeforeEach(func() {
 				var err error
 				otherBindingID = "other-binding-id" + randomTestSuffix
-				otherCreatedUser, otherCreatedPassword, err = postgresEngine.CreateUser(otherBindingID, dbname)
+				otherCreatedUser, otherCreatedPassword, err = postgresEngine.CreateUser(otherBindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -337,7 +337,7 @@ var _ = Describe("PostgresEngine", func() {
 
 			BeforeEach(func() {
 				var err error
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -395,7 +395,7 @@ var _ = Describe("PostgresEngine", func() {
 			BeforeEach(func() {
 				var err error
 				postgresEngine.UsernameGenerator = generateUsernameOld
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, false)
 				postgresEngine.UsernameGenerator = generateUsername
 				Expect(err).ToNot(HaveOccurred())
 			})
@@ -444,7 +444,7 @@ var _ = Describe("PostgresEngine", func() {
 			It("CreateUser() can be called after ResetState()", func() {
 				err := postgresEngine.ResetState()
 				Expect(err).ToNot(HaveOccurred())
-				_, _, err = postgresEngine.CreateUser(bindingID, dbname)
+				_, _, err = postgresEngine.CreateUser(bindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 			})
 		})
@@ -452,7 +452,7 @@ var _ = Describe("PostgresEngine", func() {
 		Describe("when there was already a user created", func() {
 			BeforeEach(func() {
 				var err error
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 
 				err = postgresEngine.ResetState()
@@ -480,7 +480,7 @@ var _ = Describe("PostgresEngine", func() {
 			})
 
 			It("CreateUser() returns the same user and different password", func() {
-				user, password, err := postgresEngine.CreateUser(bindingID, dbname)
+				user, password, err := postgresEngine.CreateUser(bindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(user).To(Equal(createdUser))
 				Expect(password).ToNot(Equal(createdPassword))

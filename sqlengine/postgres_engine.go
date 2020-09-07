@@ -70,7 +70,7 @@ func (d *PostgresEngine) Close() {
 	}
 }
 
-func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, readOnly bool) (username, password string, err error) {
 	groupname := d.generatePostgresGroup(dbname)
 
 	if err = d.ensureGroup(tx, dbname, groupname); err != nil {
@@ -107,13 +107,13 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 	return username, password, nil
 }
 
-func (d *PostgresEngine) createUser(bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) createUser(bindingID, dbname string, readOnly bool) (username, password string, err error) {
 	tx, err := d.db.Begin()
 	if err != nil {
 		d.logger.Error("sql-error", err)
 		return "", "", err
 	}
-	username, password, err = d.execCreateUser(tx, bindingID, dbname)
+	username, password, err = d.execCreateUser(tx, bindingID, dbname, readOnly)
 	if err != nil {
 		_ = tx.Rollback()
 		return "", "", err
@@ -121,12 +121,12 @@ func (d *PostgresEngine) createUser(bindingID, dbname string) (username, passwor
 	return username, password, tx.Commit()
 }
 
-func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) CreateUser(bindingID, dbname string, readOnly bool) (username, password string, err error) {
 	var pqErr *pq.Error
 	tries := 0
 	for tries < 10 {
 		tries++
-		username, password, err := d.createUser(bindingID, dbname)
+		username, password, err := d.createUser(bindingID, dbname, readOnly)
 		if err != nil {
 			var ok bool
 			pqErr, ok = err.(*pq.Error)
