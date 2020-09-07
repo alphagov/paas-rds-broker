@@ -598,7 +598,7 @@ func (b *RDSBroker) Bind(
 	}
 	defer sqlEngine.Close()
 
-	dbUsername, dbPassword, err := sqlEngine.CreateUser(bindingID, dbName)
+	dbUsername, dbPassword, err := sqlEngine.CreateUser(bindingID, dbName, false)
 	if err != nil {
 		return bindingResponse, err
 	}
