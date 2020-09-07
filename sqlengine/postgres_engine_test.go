@@ -283,6 +283,67 @@ var _ = Describe("PostgresEngine", func() {
 
 		})
 
+		Context("When the user is read only", func() {
+			var (
+				roBindingID       string
+				roCreatedUser     string
+				roCreatedPassword string
+			)
+
+			BeforeEach(func() {
+				By("Creating test data")
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				defer db.Close()
+
+				_, err = db.Exec("CREATE SCHEMA private")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("CREATE TABLE private.tbl (col CHAR(8))")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("INSERT INTO private.tbl (col) VALUES ('other')")
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Creating a read-only user")
+				roBindingID = "ro-binding-id" + randomTestSuffix
+				roCreatedUser, roCreatedPassword, err = postgresEngine.CreateUser(roBindingID, dbname, true)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				By("Cleaning up")
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				defer db.Close()
+
+				_, err = db.Exec("DROP TABLE private.tbl")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("DROP SCHEMA private CASCADE")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("creates a user which can only select", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, roCreatedUser, roCreatedPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("SELECT * FROM private.tbl")
+				Expect(err).NotTo(HaveOccurred(), "Read only users can SELECT")
+
+				_, err = db.Exec("CREATE TABLE private.anothertbl (col CHAR(8))")
+				Expect(err).To(HaveOccurred(), "Read only users cannot CREATE TABLE")
+
+				_, err = db.Exec("DROP TABLE private.tbl")
+				Expect(err).To(HaveOccurred(), "Read only users cannot DROP TABLE")
+
+				_, err = db.Exec("DROP SCHEMA private CASCADE")
+				Expect(err).To(HaveOccurred(), "Read only users cannot DROP SCHEMA")
+			})
+		})
+
 		Context("When there are two different bindings", func() {
 			var (
 				otherBindingID       string
