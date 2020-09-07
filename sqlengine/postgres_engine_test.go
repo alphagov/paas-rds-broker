@@ -364,9 +364,9 @@ var _ = Describe("PostgresEngine", func() {
 			})
 
 			It("CreateUser() returns different user and password", func() {
-				fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
+				By(fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser))
 				Expect(otherCreatedUser).ToNot(Equal(createdUser))
-				fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
+				By(fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser))
 				Expect(otherCreatedPassword).ToNot(Equal(createdPassword))
 			})
 
