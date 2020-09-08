@@ -83,6 +83,10 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, re
 		return "", "", err
 	}
 
+	if err = d.ensureForbidDDLReaderTrigger(tx, dbname); err != nil {
+		return "", "", err
+	}
+
 	username = d.UsernameGenerator(bindingID)
 	password = generatePassword()
 
@@ -326,7 +330,7 @@ const ensureGroupPattern = `
 		END IF;
 
 		IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = '{{.dbname}}_reader') THEN
-			CREATE ROLE "{{.dbname}}_reader";
+			CREATE ROLE "{{.dbname}}_reader" NOINHERIT;
 		END IF;
 	end
 	$body$
@@ -466,6 +470,60 @@ func (d *PostgresEngine) ensureReadableTrigger(tx *sql.Tx, dbname string) error 
 
 	for _, cmd := range cmds {
 		d.logger.Debug("ensure-readable-trigger", lager.Data{"statement": cmd})
+		_, err := tx.Exec(cmd)
+		if err != nil {
+			d.logger.Error("sql-error", err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+const ensureForbidDDLReaderTriggerPattern = `
+	create or replace function forbid_ddl_reader() returns event_trigger language plpgsql as $$
+	begin
+		-- do not execute if member of rds_superuser
+		IF EXISTS (select 1 from pg_catalog.pg_roles where rolname = 'rds_superuser')
+		AND pg_has_role(current_user, 'rds_superuser', 'member') THEN
+			RETURN;
+		END IF;
+
+		-- do not execute if superuser
+		IF EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true) THEN
+			RETURN;
+		END IF;
+
+		-- do not execute if member of manager role
+		IF pg_has_role(current_user, '{{.dbname}}_manager', 'member') THEN
+			RETURN;
+		END IF;
+
+		IF pg_has_role(current_user, '{{.dbname}}_reader', 'member') THEN
+			RAISE EXCEPTION 'executing % is disabled for read only bindings', tg_tag;
+		END IF;
+	end
+	$$;
+	`
+
+var ensureForbidDDLReaderTriggerTemplate = template.Must(template.New("ensureForbidDDLReaderTrigger").Parse(ensureForbidDDLReaderTriggerPattern))
+
+func (d *PostgresEngine) ensureForbidDDLReaderTrigger(tx *sql.Tx, dbname string) error {
+	var ensureForbidDDLReaderTriggerStatement bytes.Buffer
+	if err := ensureForbidDDLReaderTriggerTemplate.Execute(&ensureForbidDDLReaderTriggerStatement, map[string]string{
+		"dbname": dbname,
+	}); err != nil {
+		return err
+	}
+
+	cmds := []string{
+		ensureForbidDDLReaderTriggerStatement.String(),
+		`drop event trigger if exists forbid_ddl_reader;`,
+		`create event trigger forbid_ddl_reader on ddl_command_start execute procedure forbid_ddl_reader();`,
+	}
+
+	for _, cmd := range cmds {
+		d.logger.Debug("ensure-forbid-ddl-reader-trigger", lager.Data{"statement": cmd})
 		_, err := tx.Exec(cmd)
 		if err != nil {
 			d.logger.Error("sql-error", err)
