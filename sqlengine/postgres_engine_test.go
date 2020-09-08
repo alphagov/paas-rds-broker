@@ -296,16 +296,19 @@ var _ = Describe("PostgresEngine", func() {
 				db, err := sql.Open("postgres", connectionString)
 				defer db.Close()
 
-				_, err = db.Exec("CREATE TABLE tbl (col CHAR(8))")
+				_, err = db.Exec("CREATE TABLE tbl (col TEXT)")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("INSERT INTO tbl (col) VALUES ('public-other')")
 				Expect(err).ToNot(HaveOccurred())
 
 				_, err = db.Exec("CREATE SCHEMA private")
 				Expect(err).ToNot(HaveOccurred())
 
-				_, err = db.Exec("CREATE TABLE private.tbl (col CHAR(8))")
+				_, err = db.Exec("CREATE TABLE private.tbl (col TEXT)")
 				Expect(err).ToNot(HaveOccurred())
 
-				_, err = db.Exec("INSERT INTO private.tbl (col) VALUES ('other')")
+				_, err = db.Exec("INSERT INTO private.tbl (col) VALUES ('private-other')")
 				Expect(err).ToNot(HaveOccurred())
 
 				By("Creating a read-only user")
@@ -336,29 +339,49 @@ var _ = Describe("PostgresEngine", func() {
 				Expect(err).ToNot(HaveOccurred())
 				defer db.Close()
 
-				_, err = db.Exec("SELECT * FROM private.tbl")
-				Expect(err).NotTo(HaveOccurred(), "Read only users can SELECT")
-
-				_, err = db.Exec("INSERT INTO private.tbl (col) VALUES ('other')")
-				Expect(err).To(HaveOccurred(), "Read only users cannot INSERT")
-
-				_, err = db.Exec("CREATE TABLE private.anothertbl (col CHAR(8))")
-				Expect(err).To(HaveOccurred(), "Read only users cannot CREATE TABLE")
-
-				_, err = db.Exec("DROP TABLE private.tbl")
-				Expect(err).To(HaveOccurred(), "Read only users cannot DROP TABLE")
-
-				_, err = db.Exec("DROP SCHEMA private CASCADE")
-				Expect(err).To(HaveOccurred(), "Read only users cannot DROP SCHEMA")
+				By("checking SELECT works")
 
 				_, err = db.Exec("SELECT * FROM tbl")
 				Expect(err).NotTo(HaveOccurred(), "Read only users can SELECT in the public schema")
 
-				_, err = db.Exec("INSERT INTO tbl (col) VALUES ('other')")
-				Expect(err).To(HaveOccurred(), "Read only users cannot INSERT in the public schema")
+				_, err = db.Exec("SELECT * FROM private.tbl")
+				Expect(err).NotTo(HaveOccurred(), "Read only users can SELECT")
 
-				_, err = db.Exec("CREATE TABLE anothertbl (col CHAR(8))")
+				By("checking INSERT is denied")
+
+				_, err = db.Exec("INSERT INTO tbl (col) VALUES ('other')")
+				Expect(err).To(MatchError(ContainSubstring(
+					"permission denied",
+				)), "Read only users cannot INSERT in the public schema")
+
+				_, err = db.Exec("INSERT INTO private.tbl (col) VALUES ('other')")
+				Expect(err).To(MatchError(ContainSubstring(
+					"permission denied",
+				)), "Read only users cannot INSERT")
+
+				By("checking CREATE is denied")
+
+				_, err = db.Exec("CREATE TABLE anothertbl (col TEXT)")
 				Expect(err).To(HaveOccurred(), "Read only users cannot CREATE TABLE in the public schema")
+
+				_, err = db.Exec("CREATE TABLE private.anothertbl (col TEXT)")
+				Expect(err).To(HaveOccurred(), "Read only users cannot CREATE TABLE")
+
+				By("checking DROP TABLE is denied")
+
+				_, err = db.Exec("DROP TABLE tbl")
+				Expect(err).To(HaveOccurred(), "Read only users cannot DROP TABLE in the public schema")
+
+				_, err = db.Exec("DROP TABLE private.tbl")
+				Expect(err).To(HaveOccurred(), "Read only users cannot DROP TABLE")
+
+				By("checking DROP SCHEMA is denied")
+
+				_, err = db.Exec("DROP SCHEMA public CASCADE")
+				Expect(err).To(HaveOccurred(), "Read only users cannot DROP the public schema")
+
+				_, err = db.Exec("DROP SCHEMA private CASCADE")
+				Expect(err).To(HaveOccurred(), "Read only users cannot DROP SCHEMA")
 			})
 		})
 
