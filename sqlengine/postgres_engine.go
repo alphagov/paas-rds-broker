@@ -75,15 +75,7 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, re
 		return "", "", err
 	}
 
-	if err = d.ensureOwnedTrigger(tx, dbname); err != nil {
-		return "", "", err
-	}
-
-	if err = d.ensureReadableTrigger(tx, dbname); err != nil {
-		return "", "", err
-	}
-
-	if err = d.ensureForbidDDLReaderTrigger(tx, dbname); err != nil {
+	if err = d.ensurePermissionsTriggers(tx, dbname); err != nil {
 		return "", "", err
 	}
 
@@ -355,7 +347,7 @@ func (d *PostgresEngine) ensureGroup(tx *sql.Tx, dbname string) error {
 	return nil
 }
 
-const ensureOwnedTriggerPattern = `
+const ensurePermissionsTriggersPattern = `
 	create or replace function reassign_owned() returns event_trigger language plpgsql as $$
 	begin
 		-- do not execute if member of rds_superuser
@@ -379,37 +371,6 @@ const ensureOwnedTriggerPattern = `
 		RETURN;
 	end
 	$$;
-	`
-
-var ensureOwnedTriggerTemplate = template.Must(template.New("ensureOwnedTrigger").Parse(ensureOwnedTriggerPattern))
-
-func (d *PostgresEngine) ensureOwnedTrigger(tx *sql.Tx, dbname string) error {
-	var ensureOwnedTriggerStatement bytes.Buffer
-	if err := ensureOwnedTriggerTemplate.Execute(&ensureOwnedTriggerStatement, map[string]string{
-		"dbname": dbname,
-	}); err != nil {
-		return err
-	}
-
-	cmds := []string{
-		ensureOwnedTriggerStatement.String(),
-		`drop event trigger if exists reassign_owned;`,
-		`create event trigger reassign_owned on ddl_command_end execute procedure reassign_owned();`,
-	}
-
-	for _, cmd := range cmds {
-		d.logger.Debug("ensure-owned-trigger", lager.Data{"statement": cmd})
-		_, err := tx.Exec(cmd)
-		if err != nil {
-			d.logger.Error("sql-error", err)
-			return err
-		}
-	}
-
-	return nil
-}
-
-const ensureReadableTriggerPattern = `
 	create or replace function make_readable_generic() returns void language plpgsql as $$
 	declare
 		r record;
@@ -450,37 +411,6 @@ const ensureReadableTriggerPattern = `
 		RETURN;
 	end
 	$$;
-	`
-
-var ensureReadableTriggerTemplate = template.Must(template.New("ensureReadableTrigger").Parse(ensureReadableTriggerPattern))
-
-func (d *PostgresEngine) ensureReadableTrigger(tx *sql.Tx, dbname string) error {
-	var ensureReadableTriggerStatement bytes.Buffer
-	if err := ensureReadableTriggerTemplate.Execute(&ensureReadableTriggerStatement, map[string]string{
-		"dbname": dbname,
-	}); err != nil {
-		return err
-	}
-
-	cmds := []string{
-		ensureReadableTriggerStatement.String(),
-		`drop event trigger if exists make_readable;`,
-		`create event trigger make_readable on ddl_command_end when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'CREATE SCHEMA') execute procedure make_readable();`,
-	}
-
-	for _, cmd := range cmds {
-		d.logger.Debug("ensure-readable-trigger", lager.Data{"statement": cmd})
-		_, err := tx.Exec(cmd)
-		if err != nil {
-			d.logger.Error("sql-error", err)
-			return err
-		}
-	}
-
-	return nil
-}
-
-const ensureForbidDDLReaderTriggerPattern = `
 	create or replace function forbid_ddl_reader() returns event_trigger language plpgsql as $$
 	begin
 		-- do not execute if member of rds_superuser
@@ -506,24 +436,28 @@ const ensureForbidDDLReaderTriggerPattern = `
 	$$;
 	`
 
-var ensureForbidDDLReaderTriggerTemplate = template.Must(template.New("ensureForbidDDLReaderTrigger").Parse(ensureForbidDDLReaderTriggerPattern))
+var ensurePermissionsTriggersTemplate = template.Must(template.New("ensurePermissionsTriggers").Parse(ensurePermissionsTriggersPattern))
 
-func (d *PostgresEngine) ensureForbidDDLReaderTrigger(tx *sql.Tx, dbname string) error {
-	var ensureForbidDDLReaderTriggerStatement bytes.Buffer
-	if err := ensureForbidDDLReaderTriggerTemplate.Execute(&ensureForbidDDLReaderTriggerStatement, map[string]string{
+func (d *PostgresEngine) ensurePermissionsTriggers(tx *sql.Tx, dbname string) error {
+	var ensurePermissionsTriggersStatement bytes.Buffer
+	if err := ensurePermissionsTriggersTemplate.Execute(&ensurePermissionsTriggersStatement, map[string]string{
 		"dbname": dbname,
 	}); err != nil {
 		return err
 	}
 
 	cmds := []string{
-		ensureForbidDDLReaderTriggerStatement.String(),
+		ensurePermissionsTriggersStatement.String(),
+		`drop event trigger if exists reassign_owned;`,
+		`create event trigger reassign_owned on ddl_command_end execute procedure reassign_owned();`,
+		`drop event trigger if exists make_readable;`,
+		`create event trigger make_readable on ddl_command_end when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'CREATE SCHEMA') execute procedure make_readable();`,
 		`drop event trigger if exists forbid_ddl_reader;`,
 		`create event trigger forbid_ddl_reader on ddl_command_start execute procedure forbid_ddl_reader();`,
 	}
 
 	for _, cmd := range cmds {
-		d.logger.Debug("ensure-forbid-ddl-reader-trigger", lager.Data{"statement": cmd})
+		d.logger.Debug("ensure-permissions-triggers", lager.Data{"statement": cmd})
 		_, err := tx.Exec(cmd)
 		if err != nil {
 			d.logger.Error("sql-error", err)
