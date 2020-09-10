@@ -302,6 +302,9 @@ var _ = Describe("PostgresEngine", func() {
 				_, err = db.Exec("INSERT INTO tbl (col) VALUES ('public-other')")
 				Expect(err).ToNot(HaveOccurred())
 
+				_, err = db.Exec("CREATE SEQUENCE seq START 99") // red balloons
+				Expect(err).ToNot(HaveOccurred())
+
 				_, err = db.Exec("CREATE SCHEMA private")
 				Expect(err).ToNot(HaveOccurred())
 
@@ -309,6 +312,9 @@ var _ = Describe("PostgresEngine", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				_, err = db.Exec("INSERT INTO private.tbl (col) VALUES ('private-other')")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("CREATE SEQUENCE private.seq START 99") // red balloons
 				Expect(err).ToNot(HaveOccurred())
 
 				By("Creating a read-only user")
@@ -326,7 +332,13 @@ var _ = Describe("PostgresEngine", func() {
 				_, err = db.Exec("DROP TABLE tbl")
 				Expect(err).ToNot(HaveOccurred())
 
+				_, err = db.Exec("DROP SEQUENCE seq")
+				Expect(err).ToNot(HaveOccurred())
+
 				_, err = db.Exec("DROP TABLE private.tbl")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("DROP SEQUENCE private.seq")
 				Expect(err).ToNot(HaveOccurred())
 
 				_, err = db.Exec("DROP SCHEMA private CASCADE")
@@ -346,6 +358,14 @@ var _ = Describe("PostgresEngine", func() {
 
 				_, err = db.Exec("SELECT * FROM private.tbl")
 				Expect(err).NotTo(HaveOccurred(), "Read only users can SELECT")
+
+				By("checking SELECT from sequences work")
+
+				_, err = db.Exec("SELECT last_value FROM private.seq")
+				Expect(err).NotTo(HaveOccurred(), "Read only users can SELECT from a sequence")
+
+				_, err = db.Exec("SELECT last_value FROM seq")
+				Expect(err).NotTo(HaveOccurred(), "Read only users can SELECT from a sequence in the public schema")
 
 				By("checking INSERT is denied")
 

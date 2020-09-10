@@ -394,6 +394,7 @@ const ensurePermissionsTriggersPattern = `
 		FOR r in (select schema_name from information_schema.schemata) LOOP
 			BEGIN
 				EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %s TO "{{.dbname}}_reader"', r.schema_name);
+				EXECUTE format('GRANT SELECT ON ALL SEQUENCES IN SCHEMA %s TO "{{.dbname}}_reader"', r.schema_name);
 				EXECUTE format('GRANT USAGE ON SCHEMA %s TO "{{.dbname}}_reader"', r.schema_name);
 
 				RAISE NOTICE 'GRANTED READ ONLY IN SCHEMA %s', r.schema_name;
@@ -451,7 +452,7 @@ func (d *PostgresEngine) ensurePermissionsTriggers(tx *sql.Tx, dbname string) er
 		`drop event trigger if exists reassign_owned;`,
 		`create event trigger reassign_owned on ddl_command_end execute procedure reassign_owned();`,
 		`drop event trigger if exists make_readable;`,
-		`create event trigger make_readable on ddl_command_end when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'CREATE SCHEMA') execute procedure make_readable();`,
+		`create event trigger make_readable on ddl_command_end when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'CREATE SCHEMA', 'CREATE VIEW', 'CREATE SEQUENCE') execute procedure make_readable();`,
 		`drop event trigger if exists forbid_ddl_reader;`,
 		`create event trigger forbid_ddl_reader on ddl_command_start execute procedure forbid_ddl_reader();`,
 	}
