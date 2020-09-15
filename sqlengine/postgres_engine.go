@@ -70,14 +70,12 @@ func (d *PostgresEngine) Close() {
 	}
 }
 
-func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (username, password string, err error) {
-	groupname := d.generatePostgresGroup(dbname)
-
-	if err = d.ensureGroup(tx, dbname, groupname); err != nil {
+func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, readOnly bool) (username, password string, err error) {
+	if err = d.ensureGroup(tx, dbname); err != nil {
 		return "", "", err
 	}
 
-	if err = d.ensureTrigger(tx, groupname); err != nil {
+	if err = d.ensurePermissionsTriggers(tx, dbname); err != nil {
 		return "", "", err
 	}
 
@@ -88,32 +86,58 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string) (u
 		return "", "", err
 	}
 
-	grantPrivilegesStatement := fmt.Sprintf(`grant "%s" to "%s"`, groupname, username)
-	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+	if readOnly {
+		grantPrivilegesStatement := fmt.Sprintf(`grant "%s_reader" to "%s"`, dbname, username)
+		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
-	if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
-		d.logger.Error("Grant sql-error", err)
-		return "", "", err
-	}
+		if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
+			d.logger.Error("Grant sql-error", err)
+			return "", "", err
+		}
 
-	grantAllOnDatabaseStatement := fmt.Sprintf(`grant all privileges on database "%s" to "%s"`, dbname, groupname)
-	d.logger.Debug("grant-privileges", lager.Data{"statement": grantAllOnDatabaseStatement})
+		grantConnectOnDatabaseStatement := fmt.Sprintf(`grant connect on database "%s" to "%s_reader"`, dbname, dbname)
+		d.logger.Debug("grant-connect", lager.Data{"statement": grantConnectOnDatabaseStatement})
 
-	if _, err := tx.Exec(grantAllOnDatabaseStatement); err != nil {
-		d.logger.Error("Grant sql-error", err)
-		return "", "", err
+		if _, err := tx.Exec(grantConnectOnDatabaseStatement); err != nil {
+			d.logger.Error("Grant sql-error", err)
+			return "", "", err
+		}
+
+		makeReadableStatement := `select make_readable_generic()`
+		d.logger.Debug("make-readable", lager.Data{"statement": makeReadableStatement})
+
+		if _, err := tx.Exec(makeReadableStatement); err != nil {
+			d.logger.Error("Make readable-error", err)
+			return "", "", err
+		}
+	} else {
+		grantPrivilegesStatement := fmt.Sprintf(`grant "%s_manager" to "%s"`, dbname, username)
+		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+
+		if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
+			d.logger.Error("Grant sql-error", err)
+			return "", "", err
+		}
+
+		grantAllOnDatabaseStatement := fmt.Sprintf(`grant all privileges on database "%s" to "%s_manager"`, dbname, dbname)
+		d.logger.Debug("grant-privileges", lager.Data{"statement": grantAllOnDatabaseStatement})
+
+		if _, err := tx.Exec(grantAllOnDatabaseStatement); err != nil {
+			d.logger.Error("Grant sql-error", err)
+			return "", "", err
+		}
 	}
 
 	return username, password, nil
 }
 
-func (d *PostgresEngine) createUser(bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) createUser(bindingID, dbname string, readOnly bool) (username, password string, err error) {
 	tx, err := d.db.Begin()
 	if err != nil {
 		d.logger.Error("sql-error", err)
 		return "", "", err
 	}
-	username, password, err = d.execCreateUser(tx, bindingID, dbname)
+	username, password, err = d.execCreateUser(tx, bindingID, dbname, readOnly)
 	if err != nil {
 		_ = tx.Rollback()
 		return "", "", err
@@ -121,12 +145,12 @@ func (d *PostgresEngine) createUser(bindingID, dbname string) (username, passwor
 	return username, password, tx.Commit()
 }
 
-func (d *PostgresEngine) CreateUser(bindingID, dbname string) (username, password string, err error) {
+func (d *PostgresEngine) CreateUser(bindingID, dbname string, readOnly bool) (username, password string, err error) {
 	var pqErr *pq.Error
 	tries := 0
 	for tries < 10 {
 		tries++
-		username, password, err := d.createUser(bindingID, dbname)
+		username, password, err := d.createUser(bindingID, dbname, readOnly)
 		if err != nil {
 			var ok bool
 			pqErr, ok = err.(*pq.Error)
@@ -289,18 +313,16 @@ func (d *PostgresEngine) DropExtensions(extensions []string) error {
 	return nil
 }
 
-// generatePostgresGroup produces a deterministic group name. This is because the role
-// will be persisted across all application bindings
-func (d *PostgresEngine) generatePostgresGroup(dbname string) string {
-	return dbname + "_manager"
-}
-
 const ensureGroupPattern = `
 	do
 	$body$
 	begin
-		IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = '{{.role}}') THEN
-			CREATE ROLE "{{.role}}";
+		IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = '{{.dbname}}_manager') THEN
+			CREATE ROLE "{{.dbname}}_manager";
+		END IF;
+
+		IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = '{{.dbname}}_reader') THEN
+			CREATE ROLE "{{.dbname}}_reader" NOINHERIT;
 		END IF;
 	end
 	$body$
@@ -308,10 +330,10 @@ const ensureGroupPattern = `
 
 var ensureGroupTemplate = template.Must(template.New("ensureGroup").Parse(ensureGroupPattern))
 
-func (d *PostgresEngine) ensureGroup(tx *sql.Tx, dbname, groupname string) error {
+func (d *PostgresEngine) ensureGroup(tx *sql.Tx, dbname string) error {
 	var ensureGroupStatement bytes.Buffer
 	if err := ensureGroupTemplate.Execute(&ensureGroupStatement, map[string]string{
-		"role": groupname,
+		"dbname": dbname,
 	}); err != nil {
 		return err
 	}
@@ -325,7 +347,7 @@ func (d *PostgresEngine) ensureGroup(tx *sql.Tx, dbname, groupname string) error
 	return nil
 }
 
-const ensureTriggerPattern = `
+const ensurePermissionsTriggersPattern = `
 	create or replace function reassign_owned() returns event_trigger language plpgsql as $$
 	begin
 		-- do not execute if member of rds_superuser
@@ -334,8 +356,28 @@ const ensureTriggerPattern = `
 			RETURN;
 		END IF;
 
+		-- do not execute if superuser
+		IF EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true) THEN
+			RETURN;
+		END IF;
+
 		-- do not execute if not member of manager role
-		IF NOT pg_has_role(current_user, '{{.role}}', 'member') THEN
+		IF NOT pg_has_role(current_user, '{{.dbname}}_manager', 'member') THEN
+			RETURN;
+		END IF;
+
+		EXECUTE 'reassign owned by "' || current_user || '" to "{{.dbname}}_manager"';
+
+		RETURN;
+	end
+	$$;
+	create or replace function make_readable_generic() returns void language plpgsql as $$
+	declare
+		r record;
+	begin
+		-- do not execute if member of rds_superuser
+		IF EXISTS (select 1 from pg_catalog.pg_roles where rolname = 'rds_superuser')
+		AND pg_has_role(current_user, 'rds_superuser', 'member') THEN
 			RETURN;
 		END IF;
 
@@ -344,29 +386,79 @@ const ensureTriggerPattern = `
 			RETURN;
 		END IF;
 
-		EXECUTE 'reassign owned by "' || current_user || '" to "{{.role}}"';
+		-- do not execute if not member of manager role
+		IF NOT pg_has_role(current_user, '{{.dbname}}_manager', 'member') THEN
+			RETURN;
+		END IF;
+
+		FOR r in (select schema_name from information_schema.schemata) LOOP
+			BEGIN
+				EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %s TO "{{.dbname}}_reader"', r.schema_name);
+				EXECUTE format('GRANT SELECT ON ALL SEQUENCES IN SCHEMA %s TO "{{.dbname}}_reader"', r.schema_name);
+				EXECUTE format('GRANT USAGE ON SCHEMA %s TO "{{.dbname}}_reader"', r.schema_name);
+
+				RAISE NOTICE 'GRANTED READ ONLY IN SCHEMA %s', r.schema_name;
+			EXCEPTION WHEN OTHERS THEN
+			  -- brrr
+			END;
+		END LOOP;
+
+		RETURN;
+	end
+	$$;
+	create or replace function make_readable() returns event_trigger language plpgsql as $$
+	begin
+		EXECUTE 'select make_readable_generic()';
+		RETURN;
+	end
+	$$;
+	create or replace function forbid_ddl_reader() returns event_trigger language plpgsql as $$
+	begin
+		-- do not execute if member of rds_superuser
+		IF EXISTS (select 1 from pg_catalog.pg_roles where rolname = 'rds_superuser')
+		AND pg_has_role(current_user, 'rds_superuser', 'member') THEN
+			RETURN;
+		END IF;
+
+		-- do not execute if superuser
+		IF EXISTS (SELECT 1 FROM pg_user WHERE usename = current_user and usesuper = true) THEN
+			RETURN;
+		END IF;
+
+		-- do not execute if member of manager role
+		IF pg_has_role(current_user, '{{.dbname}}_manager', 'member') THEN
+			RETURN;
+		END IF;
+
+		IF pg_has_role(current_user, '{{.dbname}}_reader', 'member') THEN
+			RAISE EXCEPTION 'executing % is disabled for read only bindings', tg_tag;
+		END IF;
 	end
 	$$;
 	`
 
-var ensureTriggerTemplate = template.Must(template.New("ensureTrigger").Parse(ensureTriggerPattern))
+var ensurePermissionsTriggersTemplate = template.Must(template.New("ensurePermissionsTriggers").Parse(ensurePermissionsTriggersPattern))
 
-func (d *PostgresEngine) ensureTrigger(tx *sql.Tx, groupname string) error {
-	var ensureTriggerStatement bytes.Buffer
-	if err := ensureTriggerTemplate.Execute(&ensureTriggerStatement, map[string]string{
-		"role": groupname,
+func (d *PostgresEngine) ensurePermissionsTriggers(tx *sql.Tx, dbname string) error {
+	var ensurePermissionsTriggersStatement bytes.Buffer
+	if err := ensurePermissionsTriggersTemplate.Execute(&ensurePermissionsTriggersStatement, map[string]string{
+		"dbname": dbname,
 	}); err != nil {
 		return err
 	}
 
 	cmds := []string{
-		ensureTriggerStatement.String(),
+		ensurePermissionsTriggersStatement.String(),
 		`drop event trigger if exists reassign_owned;`,
 		`create event trigger reassign_owned on ddl_command_end execute procedure reassign_owned();`,
+		`drop event trigger if exists make_readable;`,
+		`create event trigger make_readable on ddl_command_end when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'CREATE SCHEMA', 'CREATE VIEW', 'CREATE SEQUENCE') execute procedure make_readable();`,
+		`drop event trigger if exists forbid_ddl_reader;`,
+		`create event trigger forbid_ddl_reader on ddl_command_start execute procedure forbid_ddl_reader();`,
 	}
 
 	for _, cmd := range cmds {
-		d.logger.Debug("ensure-trigger", lager.Data{"statement": cmd})
+		d.logger.Debug("ensure-permissions-triggers", lager.Data{"statement": cmd})
 		_, err := tx.Exec(cmd)
 		if err != nil {
 			d.logger.Error("sql-error", err)

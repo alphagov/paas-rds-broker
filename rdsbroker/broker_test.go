@@ -1542,6 +1542,7 @@ var _ = Describe("RDS Broker", func() {
 			Expect(sqlEngine.CreateUserCalled).To(BeTrue())
 			Expect(sqlEngine.CreateUserBindingID).To(Equal(bindingID))
 			Expect(sqlEngine.CreateUserDBName).To(Equal("test-db"))
+			Expect(sqlEngine.CreateUserReadOnly).To(Equal(false))
 			Expect(sqlEngine.CloseCalled).To(BeTrue())
 		})
 
@@ -1633,6 +1634,41 @@ var _ = Describe("RDS Broker", func() {
 				It("does not return an error", func() {
 					_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails, false)
 					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+
+			Context("when creating a read only binding", func() {
+				BeforeEach(func() {
+					bindDetails.RawParameters = json.RawMessage(`{"read_only": true}`)
+				})
+
+				Context("when the engine is postgres", func() {
+					BeforeEach(func() {
+						rdsInstance.DescribeReturns(&rds.DBInstance{
+							DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+							Endpoint: &rds.Endpoint{
+								Address: aws.String("endpoint-address"),
+								Port:    aws.Int64(3306),
+							},
+							DBName:         aws.String("test-db"),
+							MasterUsername: aws.String("master-username"),
+							Engine:         aws.String("postgres"),
+						}, nil)
+					})
+
+					It("creates a read only binding successfully", func() {
+						_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails, false)
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(sqlEngine.CreateUserReadOnly).To(Equal(true))
+					})
+				})
+
+				It("creates returns an error", func() {
+					_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails, false)
+					Expect(err).To(MatchError(ContainSubstring(
+						"Read only bindings are only supported for postgres",
+					)))
 				})
 			})
 		})

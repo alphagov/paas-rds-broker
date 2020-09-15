@@ -47,3 +47,23 @@ jobs:
       - name: Run tests
         run: |
           make unit
+
+      - name: Run postgres 9 tests
+        run: |
+          make start_postgres_9 run_postgres_sql_tests stop_postgres_9
+
+      - name: Run postgres 10 tests
+        run: |
+          make start_postgres_10 run_postgres_sql_tests stop_postgres_10
+
+      - name: Run postgres 11 tests
+        run: |
+          make start_postgres_11 run_postgres_sql_tests stop_postgres_11
+
+      - name: Run mysql 8.0
+        run: |
+          make start_mysql_80 run_mysql_sql_tests stop_mysql_80
+
+      - name: Run mysql 5.7
+        run: |
+          make start_mysql_57 run_mysql_sql_tests stop_mysql_57

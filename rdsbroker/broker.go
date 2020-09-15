@@ -579,6 +579,10 @@ func (b *RDSBroker) Bind(
 		return bindingResponse, err
 	}
 
+	if aws.StringValue(dbInstance.Engine) != "postgres" && bindParameters.ReadOnly {
+		return bindingResponse, fmt.Errorf("Read only bindings are only supported for postgres")
+	}
+
 	dbAddress := awsrds.GetDBAddress(dbInstance.Endpoint)
 	dbPort := awsrds.GetDBPort(dbInstance.Endpoint)
 	masterUsername := aws.StringValue(dbInstance.MasterUsername)
@@ -598,7 +602,7 @@ func (b *RDSBroker) Bind(
 	}
 	defer sqlEngine.Close()
 
-	dbUsername, dbPassword, err := sqlEngine.CreateUser(bindingID, dbName)
+	dbUsername, dbPassword, err := sqlEngine.CreateUser(bindingID, dbName, bindParameters.ReadOnly)
 	if err != nil {
 		return bindingResponse, err
 	}

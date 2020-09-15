@@ -27,8 +27,7 @@ type UpdateParameters struct {
 }
 
 type BindParameters struct {
-	// This is currently empty, but preserved to make it easier to add
-	// bind-time parameters in future.
+	ReadOnly bool `json:"read_only"`
 }
 
 func (pp *ProvisionParameters) Validate() error {

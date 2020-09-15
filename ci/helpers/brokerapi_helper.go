@@ -243,8 +243,6 @@ func (b *BrokerAPIClient) DoLastOperationRequest(instanceID, serviceID, planID, 
 		uriParam{key: "plan_id", value: planID},
 		uriParam{key: "operation", value: operation},
 	)
-
-	return b.doRequest("GET", path, nil)
 }
 
 func (b *BrokerAPIClient) GetLastOperationState(instanceID, serviceID, planID, operation string) (string, error) {
@@ -272,8 +270,6 @@ func (b *BrokerAPIClient) GetLastOperationState(instanceID, serviceID, planID, o
 	default:
 		return "", fmt.Errorf("Unknown code %d: %s", resp.StatusCode, string(body))
 	}
-
-	return "", nil
 }
 
 func (b *BrokerAPIClient) DoBindRequest(instanceID, serviceID, planID, appGUID, bindingID string) (*http.Response, error) {

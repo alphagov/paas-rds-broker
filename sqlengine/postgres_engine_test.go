@@ -210,7 +210,7 @@ var _ = Describe("PostgresEngine", func() {
 					Expect(err).ToNot(HaveOccurred())
 					defer postgresEngine.Close()
 
-					_, _, err = postgresEngine.CreateUser(bindingID, dbname)
+					_, _, err = postgresEngine.CreateUser(bindingID, dbname, false)
 					Expect(err).ToNot(HaveOccurred())
 
 					err = postgresEngine.DropUser(bindingID)
@@ -236,7 +236,7 @@ var _ = Describe("PostgresEngine", func() {
 			err := postgresEngine.Open(address, port, dbname, masterUsername, masterPassword)
 			Expect(err).ToNot(HaveOccurred())
 
-			createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+			createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, false)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -283,6 +283,128 @@ var _ = Describe("PostgresEngine", func() {
 
 		})
 
+		Context("When the user is read only", func() {
+			var (
+				roBindingID       string
+				roCreatedUser     string
+				roCreatedPassword string
+			)
+
+			BeforeEach(func() {
+				By("Creating test data")
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				defer db.Close()
+
+				_, err = db.Exec("CREATE TABLE tbl (col TEXT)")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("INSERT INTO tbl (col) VALUES ('public-other')")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("CREATE SEQUENCE seq START 99") // red balloons
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("CREATE SCHEMA private")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("CREATE TABLE private.tbl (col TEXT)")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("INSERT INTO private.tbl (col) VALUES ('private-other')")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("CREATE SEQUENCE private.seq START 99") // red balloons
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Creating a read-only user")
+				roBindingID = "ro-binding-id" + randomTestSuffix
+				roCreatedUser, roCreatedPassword, err = postgresEngine.CreateUser(roBindingID, dbname, true)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				By("Cleaning up")
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				defer db.Close()
+
+				_, err = db.Exec("DROP TABLE tbl")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("DROP SEQUENCE seq")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("DROP TABLE private.tbl")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("DROP SEQUENCE private.seq")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("DROP SCHEMA private CASCADE")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("creates a user which can only select", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, roCreatedUser, roCreatedPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				By("checking SELECT works")
+
+				_, err = db.Exec("SELECT * FROM tbl")
+				Expect(err).NotTo(HaveOccurred(), "Read only users can SELECT in the public schema")
+
+				_, err = db.Exec("SELECT * FROM private.tbl")
+				Expect(err).NotTo(HaveOccurred(), "Read only users can SELECT")
+
+				By("checking SELECT from sequences work")
+
+				_, err = db.Exec("SELECT last_value FROM private.seq")
+				Expect(err).NotTo(HaveOccurred(), "Read only users can SELECT from a sequence")
+
+				_, err = db.Exec("SELECT last_value FROM seq")
+				Expect(err).NotTo(HaveOccurred(), "Read only users can SELECT from a sequence in the public schema")
+
+				By("checking INSERT is denied")
+
+				_, err = db.Exec("INSERT INTO tbl (col) VALUES ('other')")
+				Expect(err).To(MatchError(ContainSubstring(
+					"permission denied",
+				)), "Read only users cannot INSERT in the public schema")
+
+				_, err = db.Exec("INSERT INTO private.tbl (col) VALUES ('other')")
+				Expect(err).To(MatchError(ContainSubstring(
+					"permission denied",
+				)), "Read only users cannot INSERT")
+
+				By("checking CREATE is denied")
+
+				_, err = db.Exec("CREATE TABLE anothertbl (col TEXT)")
+				Expect(err).To(HaveOccurred(), "Read only users cannot CREATE TABLE in the public schema")
+
+				_, err = db.Exec("CREATE TABLE private.anothertbl (col TEXT)")
+				Expect(err).To(HaveOccurred(), "Read only users cannot CREATE TABLE")
+
+				By("checking DROP TABLE is denied")
+
+				_, err = db.Exec("DROP TABLE tbl")
+				Expect(err).To(HaveOccurred(), "Read only users cannot DROP TABLE in the public schema")
+
+				_, err = db.Exec("DROP TABLE private.tbl")
+				Expect(err).To(HaveOccurred(), "Read only users cannot DROP TABLE")
+
+				By("checking DROP SCHEMA is denied")
+
+				_, err = db.Exec("DROP SCHEMA public CASCADE")
+				Expect(err).To(HaveOccurred(), "Read only users cannot DROP the public schema")
+
+				_, err = db.Exec("DROP SCHEMA private CASCADE")
+				Expect(err).To(HaveOccurred(), "Read only users cannot DROP SCHEMA")
+			})
+		})
+
 		Context("When there are two different bindings", func() {
 			var (
 				otherBindingID       string
@@ -293,7 +415,7 @@ var _ = Describe("PostgresEngine", func() {
 			BeforeEach(func() {
 				var err error
 				otherBindingID = "other-binding-id" + randomTestSuffix
-				otherCreatedUser, otherCreatedPassword, err = postgresEngine.CreateUser(otherBindingID, dbname)
+				otherCreatedUser, otherCreatedPassword, err = postgresEngine.CreateUser(otherBindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -303,9 +425,9 @@ var _ = Describe("PostgresEngine", func() {
 			})
 
 			It("CreateUser() returns different user and password", func() {
-				fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
+				By(fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser))
 				Expect(otherCreatedUser).ToNot(Equal(createdUser))
-				fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser)
+				By(fmt.Sprintf("created user: '%s' Other created user: '%s'", createdUser, otherCreatedUser))
 				Expect(otherCreatedPassword).ToNot(Equal(createdPassword))
 			})
 
@@ -337,7 +459,7 @@ var _ = Describe("PostgresEngine", func() {
 
 			BeforeEach(func() {
 				var err error
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -395,7 +517,7 @@ var _ = Describe("PostgresEngine", func() {
 			BeforeEach(func() {
 				var err error
 				postgresEngine.UsernameGenerator = generateUsernameOld
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, false)
 				postgresEngine.UsernameGenerator = generateUsername
 				Expect(err).ToNot(HaveOccurred())
 			})
@@ -444,7 +566,7 @@ var _ = Describe("PostgresEngine", func() {
 			It("CreateUser() can be called after ResetState()", func() {
 				err := postgresEngine.ResetState()
 				Expect(err).ToNot(HaveOccurred())
-				_, _, err = postgresEngine.CreateUser(bindingID, dbname)
+				_, _, err = postgresEngine.CreateUser(bindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 			})
 		})
@@ -452,7 +574,7 @@ var _ = Describe("PostgresEngine", func() {
 		Describe("when there was already a user created", func() {
 			BeforeEach(func() {
 				var err error
-				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname)
+				createdUser, createdPassword, err = postgresEngine.CreateUser(bindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 
 				err = postgresEngine.ResetState()
@@ -480,7 +602,7 @@ var _ = Describe("PostgresEngine", func() {
 			})
 
 			It("CreateUser() returns the same user and different password", func() {
-				user, password, err := postgresEngine.CreateUser(bindingID, dbname)
+				user, password, err := postgresEngine.CreateUser(bindingID, dbname, false)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(user).To(Equal(createdUser))
 				Expect(password).ToNot(Equal(createdPassword))
