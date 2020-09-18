@@ -1,6 +1,6 @@
 module github.com/alphagov/paas-rds-broker
 
-go 1.13
+go 1.15
 
 require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
