@@ -322,8 +322,11 @@ const ensureGroupPattern = `
 		END IF;
 
 		IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = '{{.dbname}}_reader') THEN
-			CREATE ROLE "{{.dbname}}_reader" NOINHERIT;
+			CREATE ROLE "{{.dbname}}_reader";
 		END IF;
+
+		ALTER ROLE "{{.dbname}}_manager" WITH INHERIT;
+		ALTER ROLE "{{.dbname}}_reader" WITH INHERIT;
 	end
 	$body$
 	`
