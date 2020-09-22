@@ -424,7 +424,7 @@ var _ = Describe("PostgresEngine", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("creates a user which can only select", func() {
+			It("can still create and insert with a restricted search path", func() {
 				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
 				db, err := sql.Open("postgres", connectionString)
 				Expect(err).ToNot(HaveOccurred())
