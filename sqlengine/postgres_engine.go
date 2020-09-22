@@ -86,31 +86,31 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, re
 		return "", "", err
 	}
 
-	if readOnly {
-		grantPrivilegesStatement := fmt.Sprintf(`grant "%s_reader" to "%s"`, dbname, username)
-		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+	grantPrivilegesStatement := fmt.Sprintf(`grant "%s_reader" to "%s"`, dbname, username)
+	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
-		if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
-			d.logger.Error("Grant sql-error", err)
-			return "", "", err
-		}
+	if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
+		d.logger.Error("Grant sql-error", err)
+		return "", "", err
+	}
 
-		grantConnectOnDatabaseStatement := fmt.Sprintf(`grant connect on database "%s" to "%s_reader"`, dbname, dbname)
-		d.logger.Debug("grant-connect", lager.Data{"statement": grantConnectOnDatabaseStatement})
+	grantConnectOnDatabaseStatement := fmt.Sprintf(`grant connect on database "%s" to "%s_reader"`, dbname, dbname)
+	d.logger.Debug("grant-connect", lager.Data{"statement": grantConnectOnDatabaseStatement})
 
-		if _, err := tx.Exec(grantConnectOnDatabaseStatement); err != nil {
-			d.logger.Error("Grant sql-error", err)
-			return "", "", err
-		}
+	if _, err := tx.Exec(grantConnectOnDatabaseStatement); err != nil {
+		d.logger.Error("Grant sql-error", err)
+		return "", "", err
+	}
 
-		makeReadableStatement := `select make_readable_generic()`
-		d.logger.Debug("make-readable", lager.Data{"statement": makeReadableStatement})
+	makeReadableStatement := `select make_readable_generic()`
+	d.logger.Debug("make-readable", lager.Data{"statement": makeReadableStatement})
 
-		if _, err := tx.Exec(makeReadableStatement); err != nil {
-			d.logger.Error("Make readable-error", err)
-			return "", "", err
-		}
-	} else {
+	if _, err := tx.Exec(makeReadableStatement); err != nil {
+		d.logger.Error("Make readable-error", err)
+		return "", "", err
+	}
+
+	if !readOnly {
 		grantPrivilegesStatement := fmt.Sprintf(`grant "%s_manager" to "%s"`, dbname, username)
 		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
