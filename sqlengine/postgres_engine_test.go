@@ -405,6 +405,45 @@ var _ = Describe("PostgresEngine", func() {
 			})
 		})
 
+		Context("When setting the search path", func() {
+			BeforeEach(func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				defer db.Close()
+
+				_, err = db.Exec("CREATE SCHEMA isolated")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				defer db.Close()
+
+				_, err = db.Exec("DROP SCHEMA isolated CASCADE")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("can still create and insert with a restricted search path", func() {
+				connectionString := postgresEngine.URI(address, port, dbname, createdUser, createdPassword)
+				db, err := sql.Open("postgres", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+				defer db.Close()
+
+				_, err = db.Exec("SET search_path TO isolated")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("CREATE TABLE isolated.test (col TEXT)")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("INSERT INTO test (col) VALUES ('isolated-id')")
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = db.Exec("DROP TABLE isolated.test")
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
 		Context("When there are two different bindings", func() {
 			var (
 				otherBindingID       string

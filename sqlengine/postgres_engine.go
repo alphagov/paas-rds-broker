@@ -348,7 +348,7 @@ func (d *PostgresEngine) ensureGroup(tx *sql.Tx, dbname string) error {
 }
 
 const ensurePermissionsTriggersPattern = `
-	create or replace function reassign_owned() returns event_trigger language plpgsql as $$
+	create or replace function reassign_owned() returns event_trigger language plpgsql set search_path to public as $$
 	begin
 		-- do not execute if member of rds_superuser
 		IF EXISTS (select 1 from pg_catalog.pg_roles where rolname = 'rds_superuser')
@@ -371,7 +371,7 @@ const ensurePermissionsTriggersPattern = `
 		RETURN;
 	end
 	$$;
-	create or replace function make_readable_generic() returns void language plpgsql as $$
+	create or replace function make_readable_generic() returns void language plpgsql set search_path to public as $$
 	declare
 		r record;
 	begin
@@ -406,13 +406,13 @@ const ensurePermissionsTriggersPattern = `
 		RETURN;
 	end
 	$$;
-	create or replace function make_readable() returns event_trigger language plpgsql as $$
+	create or replace function make_readable() returns event_trigger language plpgsql set search_path to public as $$
 	begin
 		EXECUTE 'select make_readable_generic()';
 		RETURN;
 	end
 	$$;
-	create or replace function forbid_ddl_reader() returns event_trigger language plpgsql as $$
+	create or replace function forbid_ddl_reader() returns event_trigger language plpgsql set search_path to public as $$
 	begin
 		-- do not execute if member of rds_superuser
 		IF EXISTS (select 1 from pg_catalog.pg_roles where rolname = 'rds_superuser')
