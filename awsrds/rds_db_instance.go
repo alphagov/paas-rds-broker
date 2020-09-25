@@ -447,10 +447,15 @@ func (r *RDSDBInstance) selectEngineVersion(engine *string, oldEngineVersion *st
 		if oldEngineVersionSlice[0] == planEngineVersionSlice[0] {
 			keepEngineVersion = true
 		}
-	}
-	if len(planEngineVersionSlice) >= 2 {
+	} else if len(planEngineVersionSlice) == 2 {
 		if oldEngineVersionSlice[0] == planEngineVersionSlice[0] &&
 			oldEngineVersionSlice[1] == planEngineVersionSlice[1] {
+			keepEngineVersion = true
+		}
+	} else if len(planEngineVersionSlice) == 3 {
+		if oldEngineVersionSlice[0] == planEngineVersionSlice[0] &&
+			oldEngineVersionSlice[1] == planEngineVersionSlice[1] &&
+			oldEngineVersionSlice[2] == planEngineVersionSlice[2] {
 			keepEngineVersion = true
 		}
 	}
