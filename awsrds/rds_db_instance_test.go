@@ -689,7 +689,7 @@ var _ = Describe("RDS DB Instance", func() {
 		It("keeps EngineVersion if new major and minor version match", func() {
 			modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
-				EngineVersion:        aws.String("1.2.1"),
+				EngineVersion:        aws.String("1.2.3"),
 			}
 
 			_, err := rdsDBInstance.Modify(modifyDBInstanceInput)
