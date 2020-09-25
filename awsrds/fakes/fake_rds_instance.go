@@ -108,6 +108,20 @@ type FakeRDSInstance struct {
 		result1 []*rds.DBSnapshot
 		result2 error
 	}
+	GetLatestMinorVersionStub        func(string, string) (*string, error)
+	getLatestMinorVersionMutex       sync.RWMutex
+	getLatestMinorVersionArgsForCall []struct {
+		arg1 string
+		arg2 string
+	}
+	getLatestMinorVersionReturns struct {
+		result1 *string
+		result2 error
+	}
+	getLatestMinorVersionReturnsOnCall map[int]struct {
+		result1 *string
+		result2 error
+	}
 	GetParameterGroupStub        func(string) (*rds.DBParameterGroup, error)
 	getParameterGroupMutex       sync.RWMutex
 	getParameterGroupArgsForCall []struct {
@@ -710,6 +724,70 @@ func (fake *FakeRDSInstance) DescribeSnapshotsReturnsOnCall(i int, result1 []*rd
 	}{result1, result2}
 }
 
+func (fake *FakeRDSInstance) GetLatestMinorVersion(arg1 string, arg2 string) (*string, error) {
+	fake.getLatestMinorVersionMutex.Lock()
+	ret, specificReturn := fake.getLatestMinorVersionReturnsOnCall[len(fake.getLatestMinorVersionArgsForCall)]
+	fake.getLatestMinorVersionArgsForCall = append(fake.getLatestMinorVersionArgsForCall, struct {
+		arg1 string
+		arg2 string
+	}{arg1, arg2})
+	fake.recordInvocation("GetLatestMinorVersion", []interface{}{arg1, arg2})
+	fake.getLatestMinorVersionMutex.Unlock()
+	if fake.GetLatestMinorVersionStub != nil {
+		return fake.GetLatestMinorVersionStub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.getLatestMinorVersionReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeRDSInstance) GetLatestMinorVersionCallCount() int {
+	fake.getLatestMinorVersionMutex.RLock()
+	defer fake.getLatestMinorVersionMutex.RUnlock()
+	return len(fake.getLatestMinorVersionArgsForCall)
+}
+
+func (fake *FakeRDSInstance) GetLatestMinorVersionCalls(stub func(string, string) (*string, error)) {
+	fake.getLatestMinorVersionMutex.Lock()
+	defer fake.getLatestMinorVersionMutex.Unlock()
+	fake.GetLatestMinorVersionStub = stub
+}
+
+func (fake *FakeRDSInstance) GetLatestMinorVersionArgsForCall(i int) (string, string) {
+	fake.getLatestMinorVersionMutex.RLock()
+	defer fake.getLatestMinorVersionMutex.RUnlock()
+	argsForCall := fake.getLatestMinorVersionArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeRDSInstance) GetLatestMinorVersionReturns(result1 *string, result2 error) {
+	fake.getLatestMinorVersionMutex.Lock()
+	defer fake.getLatestMinorVersionMutex.Unlock()
+	fake.GetLatestMinorVersionStub = nil
+	fake.getLatestMinorVersionReturns = struct {
+		result1 *string
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRDSInstance) GetLatestMinorVersionReturnsOnCall(i int, result1 *string, result2 error) {
+	fake.getLatestMinorVersionMutex.Lock()
+	defer fake.getLatestMinorVersionMutex.Unlock()
+	fake.GetLatestMinorVersionStub = nil
+	if fake.getLatestMinorVersionReturnsOnCall == nil {
+		fake.getLatestMinorVersionReturnsOnCall = make(map[int]struct {
+			result1 *string
+			result2 error
+		})
+	}
+	fake.getLatestMinorVersionReturnsOnCall[i] = struct {
+		result1 *string
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeRDSInstance) GetParameterGroup(arg1 string) (*rds.DBParameterGroup, error) {
 	fake.getParameterGroupMutex.Lock()
 	ret, specificReturn := fake.getParameterGroupReturnsOnCall[len(fake.getParameterGroupArgsForCall)]
@@ -1224,6 +1302,8 @@ func (fake *FakeRDSInstance) Invocations() map[string][][]interface{} {
 	defer fake.describeByTagMutex.RUnlock()
 	fake.describeSnapshotsMutex.RLock()
 	defer fake.describeSnapshotsMutex.RUnlock()
+	fake.getLatestMinorVersionMutex.RLock()
+	defer fake.getLatestMinorVersionMutex.RUnlock()
 	fake.getParameterGroupMutex.RLock()
 	defer fake.getParameterGroupMutex.RUnlock()
 	fake.getResourceTagsMutex.RLock()

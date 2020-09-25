@@ -465,3 +465,37 @@ func (r *RDSDBInstance) selectEngineVersion(engine *string, oldEngineVersion *st
 
 	return newEngineVersion, err
 }
+
+func (r *RDSDBInstance) GetLatestMinorVersion(engine string, version string) (*string, error) {
+	resp, err := r.rdssvc.DescribeDBEngineVersions(&rds.DescribeDBEngineVersionsInput{
+		Engine:        aws.String(engine),
+		EngineVersion: aws.String(version),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	r.logger.Info(
+		"get-latest-minor-version.describe",
+		lager.Data{"version-count": len(resp.DBEngineVersions)},
+	)
+
+	if len(resp.DBEngineVersions) != 1 {
+		return nil, fmt.Errorf("Did not find a single version for %s/%s", engine, version)
+	}
+
+	validUpgradeTargets := []rds.UpgradeTarget{}
+	for _, target := range resp.DBEngineVersions[0].ValidUpgradeTarget {
+		if target.IsMajorVersionUpgrade != nil && *target.IsMajorVersionUpgrade == false {
+			validUpgradeTargets = append(validUpgradeTargets, *target)
+		}
+	}
+
+	if len(validUpgradeTargets) == 0 {
+		// no versions to upgrade to
+		return nil, nil
+	}
+
+	latestUpgradeTarget := validUpgradeTargets[len(validUpgradeTargets)-1]
+	return latestUpgradeTarget.EngineVersion, nil
+}

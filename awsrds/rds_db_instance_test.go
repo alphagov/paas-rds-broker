@@ -1176,4 +1176,108 @@ var _ = Describe("RDS DB Instance", func() {
 
 	})
 
+	Describe("GetLatestMinorVersion", func() {
+		var (
+			engineVersions []*rds.DBEngineVersion
+		)
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("DescribeDBEngineVersions"))
+				data := r.Data.(*rds.DescribeDBEngineVersionsOutput)
+				data.DBEngineVersions = engineVersions
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		Context("When no versions are found", func() {
+			BeforeEach(func() {
+				engineVersions = []*rds.DBEngineVersion{}
+			})
+
+			It("returns an error", func() {
+				_, err := rdsDBInstance.GetLatestMinorVersion("not-postgres", "5")
+				Expect(err).To(MatchError("Did not find a single version for not-postgres/5"))
+			})
+		})
+
+		Context("When many versions are found", func() {
+			BeforeEach(func() {
+				engineVersions = []*rds.DBEngineVersion{
+					{Engine: aws.String("not-postgres")},
+					{Engine: aws.String("definitely-not-postgres")},
+				}
+			})
+
+			It("returns an error", func() {
+				_, err := rdsDBInstance.GetLatestMinorVersion("not-postgres", "5")
+				Expect(err).To(MatchError("Did not find a single version for not-postgres/5"))
+			})
+		})
+
+		Context("When exactly one version is found", func() {
+			Context("And there are no upgrade targets", func() {
+				BeforeEach(func() {
+					engineVersions = []*rds.DBEngineVersion{
+						{
+							Engine:             aws.String("not-postgres"),
+							ValidUpgradeTarget: []*rds.UpgradeTarget{},
+						},
+					}
+				})
+
+				It("returns nil", func() {
+					version, err := rdsDBInstance.GetLatestMinorVersion("not-postgres", "5")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(version).To(BeNil())
+				})
+			})
+
+			Context("And there are only major upgrade targets", func() {
+				BeforeEach(func() {
+					engineVersions = []*rds.DBEngineVersion{
+						{
+							Engine: aws.String("not-postgres"),
+							ValidUpgradeTarget: []*rds.UpgradeTarget{
+								{IsMajorVersionUpgrade: aws.Bool(true)},
+								{IsMajorVersionUpgrade: aws.Bool(true)},
+								{IsMajorVersionUpgrade: aws.Bool(true)},
+							},
+						},
+					}
+				})
+
+				It("returns nil", func() {
+					version, err := rdsDBInstance.GetLatestMinorVersion("not-postgres", "5")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(version).To(BeNil())
+				})
+			})
+
+			Context("And there are both major and minor upgrade targets", func() {
+				BeforeEach(func() {
+					engineVersions = []*rds.DBEngineVersion{
+						{
+							Engine: aws.String("not-postgres"),
+							ValidUpgradeTarget: []*rds.UpgradeTarget{
+								{IsMajorVersionUpgrade: aws.Bool(true)},
+								{EngineVersion: aws.String("6"), IsMajorVersionUpgrade: aws.Bool(false)},
+								{EngineVersion: aws.String("7"), IsMajorVersionUpgrade: aws.Bool(false)},
+								{IsMajorVersionUpgrade: aws.Bool(true)},
+							},
+						},
+					}
+				})
+
+				It("returns the last minor upgrade target", func() {
+					version, err := rdsDBInstance.GetLatestMinorVersion("not-postgres", "5")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(version).To(Equal(aws.String("7")))
+				})
+			})
+		})
+	})
+
 })
