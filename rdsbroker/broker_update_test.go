@@ -1138,5 +1138,57 @@ var _ = Describe("RDS Broker", func() {
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
+
+		Context("when upgrade minor version to latest", func() {
+			BeforeEach(func() {
+				updateDetails.RawParameters = json.RawMessage(`{"update_minor_version_to_latest": true}`)
+				updateDetails.PlanID = updateDetails.PreviousValues.PlanID
+			})
+
+			JustBeforeEach(func() {
+				existingDbInstance.Engine = aws.String("postgres")
+				existingDbInstance.EngineVersion = aws.String("9.5")
+			})
+
+			It("successfully upgrades the plan", func() {
+				rdsInstance.GetLatestMinorVersionReturns(stringPointer("9.999"), nil)
+
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.EngineVersion)).To(Equal("9.999"))
+			})
+
+			Context("when reboot is specified", func() {
+				BeforeEach(func() {
+					updateDetails.RawParameters = json.RawMessage(`{"update_minor_version_to_latest": true, "reboot": true}`)
+				})
+
+				It("fails", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(MatchError(
+						"Cannot reboot and upgrade minor version to latest at the same time",
+					))
+				})
+			})
+
+			Context("when a plan ID is specified", func() {
+				BeforeEach(func() {
+					updateDetails.PlanID = "Plan-2"
+					updateDetails.RawParameters = json.RawMessage(`{"update_minor_version_to_latest": true}`)
+				})
+
+				It("fails", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(MatchError(
+						"Cannot specify a version and upgrade minor version to latest at the same time",
+					))
+				})
+			})
+		})
 	})
 })
