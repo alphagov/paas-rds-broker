@@ -68,17 +68,18 @@ Provision calls support the following optional [arbitrary parameters](https://do
 
 Update calls support the following optional [arbitrary parameters](https://docs.cloudfoundry.org/devguide/services/managing-services.html#arbitrary-params-update):
 
-| Option                         | Type    | Description
-|:-------------------------------|:------- |:-----------
-| `apply_at_maintenance_window`  | Boolean | Specifies whether the modifications in this request and any pending modifications are asynchronously applied as soon as possible (default) or if they should be queued until the Preferred Maintenance Window setting for the DB instance (*)
-| `backup_retention_period`      | Integer | The number of days that Amazon RDS should retain automatic backups of the DB instance (between `0` and `35`) (*)
-| `preferred_backup_window`      | String  | The daily time range during which automated backups are created if automated backups are enabled (*)
-| `preferred_maintenance_window` | String  | The weekly time range during which system maintenance can occur (*)
-| `preferred_maintenance_window` | String  | The weekly time range during which system maintenance can occur (*)
-| `reboot`                       | Boolean | Reboot the instance immediately. Any other parameter or change in the updated would be ignored. See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RebootInstance.html for detais.
-| `force_failover`               | Boolean | For HA failover during reboot. Only valid when used with `reboot` and for HA plans. See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RebootInstance.html for detais.
-| `enable_extensions`           | []String | The names of the extensions which should be enabled. Supported extensions are specified by the plan, and the supplied list is combined with the set of default extensions defined by the plan. (*\*)
-| `disable_extensions`           | []String | The names of the extensions which should be disabled. Supported extensions are specified by the plan, and default extensions cannot be disabled. (*\*)
+| Option                           | Type     | Description
+|:-------------------------------  |:-------  |:-----------
+| `apply_at_maintenance_window`    | Boolean  | Specifies whether the modifications in this request and any pending modifications are asynchronously applied as soon as possible (default) or if they should be queued until the Preferred Maintenance Window setting for the DB instance (*)
+| `backup_retention_period`        | Integer  | The number of days that Amazon RDS should retain automatic backups of the DB instance (between `0` and `35`) (*)
+| `preferred_backup_window`        | String   | The daily time range during which automated backups are created if automated backups are enabled (*)
+| `preferred_maintenance_window`   | String   | The weekly time range during which system maintenance can occur (*)
+| `preferred_maintenance_window`   | String   | The weekly time range during which system maintenance can occur (*)
+| `reboot`                         | Boolean  | Reboot the instance immediately. Any other parameter or change in the updated would be ignored. See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RebootInstance.html for details.
+| `force_failover`                 | Boolean  | For HA failover during reboot. Only valid when used with `reboot` and for HA plans. See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RebootInstance.html for detais.
+| `update_minor_version_to_latest` | Boolean  | Attempts to update the database to the latest available minor version supported by RDS as per the `rds:DescribeDBEngineVersions` API
+| `enable_extensions`              | []String | The names of the extensions which should be enabled. Supported extensions are specified by the plan, and the supplied list is combined with the set of default extensions defined by the plan. (*\*)
+| `disable_extensions`             | []String | The names of the extensions which should be disabled. Supported extensions are specified by the plan, and default extensions cannot be disabled. (*\*)
 
 (*) Refer to the [Amazon Relational Database Service Documentation](https://aws.amazon.com/documentation/rds/) for more details about how to set these properties
 
