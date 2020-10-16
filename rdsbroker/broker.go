@@ -447,6 +447,33 @@ func (b *RDSBroker) Update(
 
 	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, updateParameters, newDbParamGroup)
 
+	if updateParameters.UpgradeMinorVersionToLatest != nil && *updateParameters.UpgradeMinorVersionToLatest {
+		if updateParameters.Reboot != nil && *updateParameters.Reboot {
+			return brokerapi.UpdateServiceSpec{}, fmt.Errorf(
+				"Cannot reboot and upgrade minor version to latest at the same time",
+			)
+		}
+
+		if details.PlanID != details.PreviousValues.PlanID {
+			return brokerapi.UpdateServiceSpec{}, fmt.Errorf(
+				"Cannot specify a version and upgrade minor version to latest at the same time",
+			)
+		}
+
+		availableEngineVersion, err := b.dbInstance.GetLatestMinorVersion(
+			*existingInstance.Engine,
+			*existingInstance.EngineVersion,
+		)
+
+		if err != nil {
+			return brokerapi.UpdateServiceSpec{}, err
+		}
+
+		if availableEngineVersion != nil {
+			modifyDBInstanceInput.EngineVersion = availableEngineVersion
+		}
+	}
+
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
