@@ -21,6 +21,8 @@ const (
 	TagRestoredFromSnapshot = "Restored From Snapshot"
 	TagBrokerName           = "Broker Name"
 	TagExtensions           = "Extensions"
+	TagOriginDatabase       = "Restored From Database"
+	TagOriginPointInTime    = "Restored From Time"
 )
 
 type RDSDBInstance struct {
