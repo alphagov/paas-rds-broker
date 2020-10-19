@@ -216,6 +216,11 @@ func (b *RDSBroker) Provision(
 		if *provisionParameters.RestoreFromPointInTimeOf == "" {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromPointInTimeOf)
 		}
+		restoreFromDBInstanceID := b.dbInstanceIdentifier(*provisionParameters.RestoreFromPointInTimeOf)
+		_, err := b.dbInstance.Describe(b.dbInstanceIdentifier(restoreFromDBInstanceID))
+		if err != nil {
+			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Cannot find instance %s", restoreFromDBInstanceID)
+		}
 	} else {
 		if *provisionParameters.RestoreFromLatestSnapshotOf == "" {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromLatestSnapshotOf)

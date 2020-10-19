@@ -427,10 +427,24 @@ var _ = Describe("RDS Broker", func() {
 				BeforeEach(func() {
 					provisionDetails.RawParameters = json.RawMessage(`{"restore_from_point_in_time_of": ""}`)
 				})
+
 				It("returns the correct error", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 					Expect(err).To(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("Invalid guid"))
+				})
+			})
+
+			Context("and the instance does not exist", func() {
+				BeforeEach(func() {
+					provisionDetails.RawParameters = json.RawMessage(`{"restore_from_point_in_time_of": "a-guid"}`)
+					rdsInstance.DescribeReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
+				})
+
+				It("returns the correct error", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("Cannot find instance cf-a-guid"))
 				})
 			})
 		})
