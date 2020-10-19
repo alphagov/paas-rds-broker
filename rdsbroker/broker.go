@@ -210,6 +210,9 @@ func (b *RDSBroker) Provision(
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
 	} else if provisionParameters.RestoreFromPointInTimeOf != nil {
+		if servicePlan.RDSProperties.Engine != nil && *servicePlan.RDSProperties.Engine != "postgres" {
+			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Restore from snapshot not supported for engine '%s'", *servicePlan.RDSProperties.Engine)
+		}
 	} else {
 		if *provisionParameters.RestoreFromLatestSnapshotOf == "" {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromLatestSnapshotOf)

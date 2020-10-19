@@ -405,6 +405,19 @@ var _ = Describe("RDS Broker", func() {
 					Expect(err.Error()).Should(ContainSubstring("Cannot use both restore_from_latest_snapshot_of and restore_from_point_in_time_of at the same time"))
 				})
 			})
+
+			Context("when the engine is not 'postgres'", func() {
+				BeforeEach(func() {
+					rdsProperties1.Engine = stringPointer("some-other-engine")
+					provisionDetails.RawParameters = json.RawMessage(`{"restore_from_point_in_time_of": "a-guid"}`)
+				})
+
+				It("returns the correct error", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("not supported for engine"))
+				})
+			})
 		})
 
 		Context("when restoring from a snapshot", func() {
