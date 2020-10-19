@@ -201,7 +201,7 @@ func (b *RDSBroker) Provision(
 		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Parameter restore_from_latest_snapshot_before should be used with restore_from_latest_snapshot_of")
 	}
 
-	if provisionParameters.RestoreFromLatestSnapshotOf == nil {
+	if provisionParameters.RestoreFromLatestSnapshotOf == nil && provisionParameters.RestoreFromPointInTimeOf == nil {
 		createDBInstance, err := b.newCreateDBInstanceInput(instanceID, servicePlan, provisionParameters, details)
 		if err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
@@ -209,6 +209,7 @@ func (b *RDSBroker) Provision(
 		if err := b.dbInstance.Create(createDBInstance); err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
+	} else if provisionParameters.RestoreFromPointInTimeOf != nil {
 	} else {
 		if *provisionParameters.RestoreFromLatestSnapshotOf == "" {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromLatestSnapshotOf)
