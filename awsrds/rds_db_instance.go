@@ -250,6 +250,18 @@ func (r *RDSDBInstance) Restore(restoreDBInstanceInput *rds.RestoreDBInstanceFro
 	return nil
 }
 
+func (r *RDSDBInstance) RestoreToPointInTime(restoreDBInstanceInput *rds.RestoreDBInstanceToPointInTimeInput) error {
+	r.logger.Debug("restore-db-instance-to-point-in-time", lager.Data{"input": &restoreDBInstanceInput})
+
+	restoreDBInstanceOutput, err := r.rdssvc.RestoreDBInstanceToPointInTime(restoreDBInstanceInput)
+	if err != nil {
+		return HandleAWSError(err, r.logger)
+	}
+	r.logger.Debug("restore-db-instance-to-point-in-time", lager.Data{"output": restoreDBInstanceOutput})
+
+	return nil
+}
+
 func (r *RDSDBInstance) Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput) (*rds.DBInstance, error) {
 	sanitizedDBInstanceInput := *modifyDBInstanceInput
 	sanitizedDBInstanceInput.MasterUserPassword = aws.String("REDACTED")

@@ -612,6 +612,68 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 	})
 
+	var _ = Describe("RestoreToPointInTime", func() {
+		var (
+			sourceDBIdentifier string
+
+			receivedRestoreDBInstanceInput *rds.RestoreDBInstanceToPointInTimeInput
+			restoreDBInstanceError         error
+		)
+
+		BeforeEach(func() {
+			restoreDBInstanceError = nil
+			sourceDBIdentifier = "a-guid"
+		})
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("RestoreDBInstanceToPointInTime"))
+				Expect(r.Params).To(BeAssignableToTypeOf(&rds.RestoreDBInstanceToPointInTimeInput{}))
+				receivedRestoreDBInstanceInput = r.Params.(*rds.RestoreDBInstanceToPointInTimeInput)
+				r.Error = restoreDBInstanceError
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		It("does not return error", func() {
+			restoreDBInstanceInput := &rds.RestoreDBInstanceToPointInTimeInput{
+				TargetDBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				SourceDBInstanceIdentifier: aws.String(sourceDBIdentifier),
+				Engine:                     aws.String("test-engine"),
+				AutoMinorVersionUpgrade:    aws.Bool(false),
+				CopyTagsToSnapshot:         aws.Bool(false),
+				MultiAZ:                    aws.Bool(false),
+				PubliclyAccessible:         aws.Bool(false),
+			}
+			err := rdsDBInstance.RestoreToPointInTime(restoreDBInstanceInput)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(receivedRestoreDBInstanceInput).To(Equal(restoreDBInstanceInput))
+		})
+
+		Context("when creating the DB Instance fails", func() {
+			BeforeEach(func() {
+				restoreDBInstanceError = errors.New("operation failed")
+			})
+
+			It("returns the proper error", func() {
+				restoreDBInstanceInput := &rds.RestoreDBInstanceToPointInTimeInput{
+					TargetDBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+					SourceDBInstanceIdentifier: aws.String(sourceDBIdentifier),
+					Engine:                     aws.String("test-engine"),
+					AutoMinorVersionUpgrade:    aws.Bool(false),
+					CopyTagsToSnapshot:         aws.Bool(false),
+					MultiAZ:                    aws.Bool(false),
+					PubliclyAccessible:         aws.Bool(false),
+				}
+				err := rdsDBInstance.RestoreToPointInTime(restoreDBInstanceInput)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("operation failed"))
+			})
+		})
+	})
+
 	var _ = Describe("Modify", func() {
 		var (
 			describeDBInstances []*rds.DBInstance
