@@ -107,6 +107,8 @@ type RDSInstanceTags struct {
 	SpaceID                  string
 	SkipFinalSnapshot        string
 	OriginSnapshotIdentifier string
+	OriginDatabaseIdentifier string
+	OriginPointInTime        string
 	Extensions               []string
 }
 
@@ -216,16 +218,16 @@ func (b *RDSBroker) Provision(
 		if *provisionParameters.RestoreFromPointInTimeOf == "" {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromPointInTimeOf)
 		}
-		restoreFromDBInstanceID := b.dbInstanceIdentifier(*provisionParameters.RestoreFromPointInTimeOf)
+		restoreFromDBInstanceID := *provisionParameters.RestoreFromPointInTimeOf
 
 		_, err := b.dbInstance.Describe(b.dbInstanceIdentifier(restoreFromDBInstanceID))
 		if err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Cannot find instance %s", restoreFromDBInstanceID)
+			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Cannot find instance %s", b.dbInstanceIdentifier(restoreFromDBInstanceID))
 		}
 
-		tags, err := b.dbInstance.GetResourceTags(restoreFromDBInstanceID)
+		tags, err := b.dbInstance.GetResourceTags(b.dbInstanceIdentifier(restoreFromDBInstanceID))
 		if err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Cannot find instance %s", restoreFromDBInstanceID)
+			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Cannot find instance %s", b.dbInstanceIdentifier(restoreFromDBInstanceID))
 		}
 
 		tagsByName := awsrds.RDSTagsValues(tags)
@@ -234,6 +236,24 @@ func (b *RDSBroker) Provision(
 		}
 		if tagsByName[awsrds.TagPlanID] != details.PlanID {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
+		}
+
+		if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
+			if extensionsTag != "" {
+				existingExts := strings.Split(extensionsTag, ":")
+				provisionParameters.Extensions = mergeExtensions(provisionParameters.Extensions, existingExts)
+			}
+		}
+
+		var restoreTime *time.Time
+
+		restoreInput, err := b.restoreDBInstancePointInTimeInput(instanceID, restoreFromDBInstanceID, restoreTime, servicePlan, provisionParameters, details)
+		if err != nil {
+			return brokerapi.ProvisionedServiceSpec{}, err
+		}
+
+		if err := b.dbInstance.RestoreToPointInTime(restoreInput); err != nil {
+			return brokerapi.ProvisionedServiceSpec{}, err
 		}
 	} else {
 		if *provisionParameters.RestoreFromLatestSnapshotOf == "" {
@@ -1242,6 +1262,57 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 	}, nil
 }
 
+func (b *RDSBroker) restoreDBInstancePointInTimeInput(instanceID, originDBIdentifier string, originTime *time.Time, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.RestoreDBInstanceToPointInTimeInput, error) {
+	skipFinalSnapshot := false
+	if provisionParameters.SkipFinalSnapshot != nil {
+		skipFinalSnapshot = *provisionParameters.SkipFinalSnapshot
+	} else if servicePlan.RDSProperties.SkipFinalSnapshot != nil {
+		skipFinalSnapshot = *servicePlan.RDSProperties.SkipFinalSnapshot
+	}
+	skipFinalSnapshotStr := strconv.FormatBool(skipFinalSnapshot)
+
+	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters.Extensions)
+	if err != nil {
+		return nil, err
+	}
+
+	tags := RDSInstanceTags{
+		Action:                   "Restored",
+		ServiceID:                details.ServiceID,
+		PlanID:                   details.PlanID,
+		OrganizationID:           details.OrganizationGUID,
+		SpaceID:                  details.SpaceGUID,
+		SkipFinalSnapshot:        skipFinalSnapshotStr,
+		OriginDatabaseIdentifier: b.dbInstanceIdentifier(originDBIdentifier),
+		Extensions:               provisionParameters.Extensions,
+	}
+
+	if originTime != nil {
+		tags.OriginPointInTime = (*originTime).Format(time.RFC3339)
+	}
+
+	return &rds.RestoreDBInstanceToPointInTimeInput{
+		SourceDBInstanceIdentifier: aws.String(b.dbInstanceIdentifier(originDBIdentifier)),
+		TargetDBInstanceIdentifier: aws.String(b.dbInstanceIdentifier(instanceID)),
+		RestoreTime:                originTime,
+		DBInstanceClass:            servicePlan.RDSProperties.DBInstanceClass,
+		Engine:                     servicePlan.RDSProperties.Engine,
+		AutoMinorVersionUpgrade:    servicePlan.RDSProperties.AutoMinorVersionUpgrade,
+		AvailabilityZone:           servicePlan.RDSProperties.AvailabilityZone,
+		CopyTagsToSnapshot:         servicePlan.RDSProperties.CopyTagsToSnapshot,
+		DBParameterGroupName:       aws.String(parameterGroupName),
+		DBSubnetGroupName:          servicePlan.RDSProperties.DBSubnetGroupName,
+		OptionGroupName:            servicePlan.RDSProperties.OptionGroupName,
+		PubliclyAccessible:         servicePlan.RDSProperties.PubliclyAccessible,
+		Iops:                       servicePlan.RDSProperties.Iops,
+		LicenseModel:               servicePlan.RDSProperties.LicenseModel,
+		MultiAZ:                    servicePlan.RDSProperties.MultiAZ,
+		Port:                       servicePlan.RDSProperties.Port,
+		StorageType:                servicePlan.RDSProperties.StorageType,
+		Tags:                       awsrds.BuilRDSTags(b.dbTags(tags)),
+	}, nil
+}
+
 func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan, updateParameters UpdateParameters, parameterGroupName string) *rds.ModifyDBInstanceInput {
 	modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
 		DBInstanceIdentifier:       aws.String(b.dbInstanceIdentifier(instanceID)),
@@ -1313,7 +1384,15 @@ func (b *RDSBroker) dbTags(instanceTags RDSInstanceTags) map[string]string {
 		tags[awsrds.TagSkipFinalSnapshot] = instanceTags.SkipFinalSnapshot
 	}
 
-	if instanceTags.OriginSnapshotIdentifier != "" {
+	if instanceTags.OriginDatabaseIdentifier != "" {
+		tags[awsrds.TagOriginDatabase] = instanceTags.OriginDatabaseIdentifier
+	}
+
+	if instanceTags.OriginPointInTime != "" {
+		tags[awsrds.TagOriginPointInTime] = instanceTags.OriginPointInTime
+	}
+
+	if instanceTags.OriginSnapshotIdentifier != "" || instanceTags.OriginDatabaseIdentifier != "" {
 		tags[awsrds.TagRestoredFromSnapshot] = instanceTags.OriginSnapshotIdentifier
 		for _, state := range restoreStateSequence {
 			tags[state] = "true"

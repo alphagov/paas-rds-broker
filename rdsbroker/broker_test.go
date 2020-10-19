@@ -487,6 +487,40 @@ var _ = Describe("RDS Broker", func() {
 					Expect(err).To(HaveOccurred())
 				})
 			})
+
+			It("makes the proper calls", func() {
+				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.RestoreToPointInTimeCallCount()).To(Equal(1))
+				input := rdsInstance.RestoreToPointInTimeArgsForCall(0)
+				Expect(aws.StringValue(input.TargetDBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
+				Expect(aws.StringValue(input.SourceDBInstanceIdentifier)).To(Equal(restoreFromPointInTimeDBInstanceID))
+				Expect(aws.StringValue(input.DBInstanceClass)).To(Equal("db.m1.test"))
+				Expect(aws.StringValue(input.Engine)).To(Equal("postgres"))
+				Expect(aws.StringValue(input.DBName)).To(BeEmpty())
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("sets the right tags", func() {
+				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.RestoreToPointInTimeCallCount()).To(Equal(1))
+				input := rdsInstance.RestoreToPointInTimeArgsForCall(0)
+
+				tagsByName := awsrds.RDSTagsValues(input.Tags)
+				Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
+				Expect(tagsByName["Restored by"]).To(Equal("AWS RDS Service Broker"))
+				Expect(tagsByName).To(HaveKey("Restored at"))
+				Expect(tagsByName["Service ID"]).To(Equal("Service-1"))
+				Expect(tagsByName["Plan ID"]).To(Equal("Plan-1"))
+				Expect(tagsByName["Organization ID"]).To(Equal("organization-id"))
+				Expect(tagsByName["Space ID"]).To(Equal("space-id"))
+				Expect(tagsByName["Restored From Database"]).To(Equal(restoreFromPointInTimeDBInstanceID))
+				Expect(tagsByName["PendingResetUserPassword"]).To(Equal("true"))
+				Expect(tagsByName["PendingUpdateSettings"]).To(Equal("true"))
+			})
 		})
 
 		Context("when restoring from a snapshot", func() {
