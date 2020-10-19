@@ -9,6 +9,8 @@ type ProvisionParameters struct {
 	PreferredBackupWindow           string   `json:"preferred_backup_window"`
 	PreferredMaintenanceWindow      string   `json:"preferred_maintenance_window"`
 	SkipFinalSnapshot               *bool    `json:"skip_final_snapshot"`
+	RestoreToPointInTimeOf          *string  `json:"restore_to_point_in_time_of"`
+	RestoreToPointInTimeBefore      *string  `json:"restore_to_point_in_time_before"`
 	RestoreFromLatestSnapshotOf     *string  `json:"restore_from_latest_snapshot_of"`
 	RestoreFromLatestSnapshotBefore *string  `json:"restore_from_latest_snapshot_before"`
 	Extensions                      []string `json:"enable_extensions"`
