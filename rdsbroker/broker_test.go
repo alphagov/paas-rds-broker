@@ -394,6 +394,10 @@ var _ = Describe("RDS Broker", func() {
 		})
 
 		Context("when restoring from a point in time", func() {
+			BeforeEach(func() {
+				rdsProperties1.Engine = stringPointer("postgres")
+			})
+
 			Context("and the restore_from_latest_snapshot_of also present", func() {
 				BeforeEach(func() {
 					provisionDetails.RawParameters = json.RawMessage(`{"restore_from_latest_snapshot_of": "abc", "restore_from_point_in_time_of": "def"}`)
@@ -416,6 +420,17 @@ var _ = Describe("RDS Broker", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 					Expect(err).To(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("not supported for engine"))
+				})
+			})
+
+			Context("and the restore_from_point_in_time_of is an empty string", func() {
+				BeforeEach(func() {
+					provisionDetails.RawParameters = json.RawMessage(`{"restore_from_point_in_time_of": ""}`)
+				})
+				It("returns the correct error", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("Invalid guid"))
 				})
 			})
 		})
