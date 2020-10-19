@@ -393,6 +393,20 @@ var _ = Describe("RDS Broker", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		Context("when restoring to a point in time", func() {
+			Context("and the restore_from_latest_snapshot_of also present", func() {
+				BeforeEach(func() {
+					provisionDetails.RawParameters = json.RawMessage(`{"restore_from_latest_snapshot_of": "abc", "restore_to_point_in_time_of": "def"}`)
+				})
+
+				It("returns the correct error", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("Cannot use both restore_from_latest_snapshot_of and restore_to_point_in_time_of at the same time"))
+				})
+			})
+		})
+
 		Context("when restoring from a snapshot", func() {
 			var (
 				restoreFromSnapshotInstanceGUID  string

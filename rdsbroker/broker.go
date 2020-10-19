@@ -193,6 +193,10 @@ func (b *RDSBroker) Provision(
 		}
 	}
 
+	if provisionParameters.RestoreFromLatestSnapshotOf != nil && provisionParameters.RestoreToPointInTimeOf != nil {
+		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Cannot use both restore_from_latest_snapshot_of and restore_to_point_in_time_of at the same time")
+	}
+
 	if provisionParameters.RestoreFromLatestSnapshotOf == nil && provisionParameters.RestoreFromLatestSnapshotBefore != nil {
 		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Parameter restore_from_latest_snapshot_before should be used with restore_from_latest_snapshot_of")
 	}
