@@ -511,6 +511,7 @@ var _ = Describe("RDS Broker", func() {
 				Expect(aws.StringValue(input.DBInstanceClass)).To(Equal("db.m1.test"))
 				Expect(aws.StringValue(input.Engine)).To(Equal("postgres"))
 				Expect(aws.StringValue(input.DBName)).To(BeEmpty())
+				Expect(aws.BoolValue(input.UseLatestRestorableTime)).To(Equal(true))
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -558,6 +559,7 @@ var _ = Describe("RDS Broker", func() {
 					Expect(aws.StringValue(input.TargetDBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
 					Expect(aws.StringValue(input.SourceDBInstanceIdentifier)).To(Equal(restoreFromPointInTimeDBInstanceID))
 					Expect(aws.TimeValue(input.RestoreTime)).To(BeTemporally("~", restoreTime, 1*time.Second))
+					Expect(input.UseLatestRestorableTime).To(BeNil())
 					Expect(err).ToNot(HaveOccurred())
 				})
 

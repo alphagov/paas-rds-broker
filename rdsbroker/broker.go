@@ -1307,7 +1307,7 @@ func (b *RDSBroker) restoreDBInstancePointInTimeInput(instanceID, originDBIdenti
 		tags.OriginPointInTime = originTime.Format(time.RFC3339)
 	}
 
-	return &rds.RestoreDBInstanceToPointInTimeInput{
+	input := &rds.RestoreDBInstanceToPointInTimeInput{
 		SourceDBInstanceIdentifier: aws.String(b.dbInstanceIdentifier(originDBIdentifier)),
 		TargetDBInstanceIdentifier: aws.String(b.dbInstanceIdentifier(instanceID)),
 		RestoreTime:                originTime,
@@ -1326,7 +1326,15 @@ func (b *RDSBroker) restoreDBInstancePointInTimeInput(instanceID, originDBIdenti
 		Port:                       servicePlan.RDSProperties.Port,
 		StorageType:                servicePlan.RDSProperties.StorageType,
 		Tags:                       awsrds.BuilRDSTags(b.dbTags(tags)),
-	}, nil
+	}
+
+	if originTime != nil {
+		input.RestoreTime = originTime
+	} else {
+		input.UseLatestRestorableTime = aws.Bool(true)
+	}
+
+	return input, nil
 }
 
 func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan ServicePlan, updateParameters UpdateParameters, parameterGroupName string) *rds.ModifyDBInstanceInput {
