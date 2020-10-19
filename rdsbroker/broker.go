@@ -27,6 +27,7 @@ const MasterUsernameLength = 16
 const MasterPasswordLength = 32
 
 const RestoreFromLatestSnapshotBeforeTimeFormat = "2006-01-02 15:04:05"
+const RestoreFromPointInTimeBeforeTimeFormat = "2006-01-02 15:04:05"
 
 const instanceIDLogKey = "instance-id"
 const bindingIDLogKey = "binding-id"
@@ -218,6 +219,23 @@ func (b *RDSBroker) Provision(
 		if *provisionParameters.RestoreFromPointInTimeOf == "" {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromPointInTimeOf)
 		}
+
+		var restoreTime *time.Time
+		if provisionParameters.RestoreFromPointInTimeBefore != nil {
+			if *provisionParameters.RestoreFromPointInTimeBefore != "" {
+				parsedTime, err := time.ParseInLocation(
+					RestoreFromPointInTimeBeforeTimeFormat,
+					*provisionParameters.RestoreFromPointInTimeBefore,
+					time.UTC,
+				)
+				if err != nil {
+					return brokerapi.ProvisionedServiceSpec{},
+						fmt.Errorf("Parameter restore_from_point_in_time_before should be a date and a time: %s", err)
+				}
+				restoreTime = &parsedTime
+			}
+		}
+
 		restoreFromDBInstanceID := *provisionParameters.RestoreFromPointInTimeOf
 
 		_, err := b.dbInstance.Describe(b.dbInstanceIdentifier(restoreFromDBInstanceID))
@@ -244,8 +262,6 @@ func (b *RDSBroker) Provision(
 				provisionParameters.Extensions = mergeExtensions(provisionParameters.Extensions, existingExts)
 			}
 		}
-
-		var restoreTime *time.Time
 
 		restoreInput, err := b.restoreDBInstancePointInTimeInput(instanceID, restoreFromDBInstanceID, restoreTime, servicePlan, provisionParameters, details)
 		if err != nil {
@@ -1288,7 +1304,7 @@ func (b *RDSBroker) restoreDBInstancePointInTimeInput(instanceID, originDBIdenti
 	}
 
 	if originTime != nil {
-		tags.OriginPointInTime = (*originTime).Format(time.RFC3339)
+		tags.OriginPointInTime = originTime.Format(time.RFC3339)
 	}
 
 	return &rds.RestoreDBInstanceToPointInTimeInput{

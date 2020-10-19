@@ -488,6 +488,18 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 
+			Context("if it is using an invalid date", func() {
+				BeforeEach(func() {
+					provisionDetails.RawParameters = json.RawMessage(`{"restore_from_point_in_time_of": "a-guid", "restore_from_point_in_time_before": "2006-01-01"}`)
+				})
+
+				It("returns the correct error", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("Parameter restore_from_point_in_time_before should be a date and a time"))
+				})
+			})
+
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 				Expect(err).ToNot(HaveOccurred())
@@ -520,6 +532,49 @@ var _ = Describe("RDS Broker", func() {
 				Expect(tagsByName["Restored From Database"]).To(Equal(restoreFromPointInTimeDBInstanceID))
 				Expect(tagsByName["PendingResetUserPassword"]).To(Equal("true"))
 				Expect(tagsByName["PendingUpdateSettings"]).To(Equal("true"))
+			})
+
+			Context("when restoring before a particular point in time", func() {
+				var (
+					restoreTime time.Time
+				)
+
+				BeforeEach(func() {
+					restoreTime = time.Now().UTC().Add(-1 * time.Hour)
+					provisionDetails.RawParameters = json.RawMessage(
+						`{` +
+							`"restore_from_point_in_time_of": "` + restoreFromPointInTimeInstanceGUID + `",` +
+							`"restore_from_point_in_time_before": "` + restoreTime.Format("2006-01-02 15:04:05") + `"` +
+							`}`,
+					)
+				})
+
+				It("makes the proper calls", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(rdsInstance.RestoreToPointInTimeCallCount()).To(Equal(1))
+					input := rdsInstance.RestoreToPointInTimeArgsForCall(0)
+					Expect(aws.StringValue(input.TargetDBInstanceIdentifier)).To(Equal(dbInstanceIdentifier))
+					Expect(aws.StringValue(input.SourceDBInstanceIdentifier)).To(Equal(restoreFromPointInTimeDBInstanceID))
+					Expect(aws.TimeValue(input.RestoreTime)).To(BeTemporally("~", restoreTime, 1*time.Second))
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("sets the right tags", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(rdsInstance.RestoreToPointInTimeCallCount()).To(Equal(1))
+					input := rdsInstance.RestoreToPointInTimeArgsForCall(0)
+
+					tagsByName := awsrds.RDSTagsValues(input.Tags)
+					Expect(tagsByName["Restored From Database"]).To(Equal(restoreFromPointInTimeDBInstanceID))
+					tagTime := tagsByName["Restored From Time"]
+					tagParsedTime, err := time.Parse(time.RFC3339, tagTime)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(tagParsedTime).To(BeTemporally("~", restoreTime, 1*time.Second))
+				})
 			})
 		})
 
