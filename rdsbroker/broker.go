@@ -217,9 +217,23 @@ func (b *RDSBroker) Provision(
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromPointInTimeOf)
 		}
 		restoreFromDBInstanceID := b.dbInstanceIdentifier(*provisionParameters.RestoreFromPointInTimeOf)
+
 		_, err := b.dbInstance.Describe(b.dbInstanceIdentifier(restoreFromDBInstanceID))
 		if err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Cannot find instance %s", restoreFromDBInstanceID)
+		}
+
+		tags, err := b.dbInstance.GetResourceTags(restoreFromDBInstanceID)
+		if err != nil {
+			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Cannot find instance %s", restoreFromDBInstanceID)
+		}
+
+		tagsByName := awsrds.RDSTagsValues(tags)
+		if tagsByName[awsrds.TagSpaceID] != details.SpaceGUID || tagsByName[awsrds.TagOrganizationID] != details.OrganizationGUID {
+			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
+		}
+		if tagsByName[awsrds.TagPlanID] != details.PlanID {
+			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
 		}
 	} else {
 		if *provisionParameters.RestoreFromLatestSnapshotOf == "" {
