@@ -272,95 +272,108 @@ func (b *RDSBroker) Provision(
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
 	} else {
-		if *provisionParameters.RestoreFromLatestSnapshotOf == "" {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromLatestSnapshotOf)
-		}
-		if servicePlan.RDSProperties.Engine != nil && *servicePlan.RDSProperties.Engine != "postgres" {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Restore from snapshot not supported for engine '%s'", *servicePlan.RDSProperties.Engine)
-		}
-		restoreFromDBInstanceID := b.dbInstanceIdentifier(*provisionParameters.RestoreFromLatestSnapshotOf)
-		snapshots, err := b.dbInstance.DescribeSnapshots(restoreFromDBInstanceID)
+		err := b.restoreFromSnapshot(
+			ctx, instanceID, details, asyncAllowed,
+			provisionParameters, servicePlan,
+		)
 		if err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, err
-		}
-
-		if provisionParameters.RestoreFromLatestSnapshotBefore != nil {
-			if *provisionParameters.RestoreFromLatestSnapshotBefore == "" {
-				return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Parameter restore_from_latest_snapshot_before must not be empty")
-			}
-
-			restoreFromLatestSnapshotBeforeTime, err := time.ParseInLocation(
-				RestoreFromLatestSnapshotBeforeTimeFormat,
-				*provisionParameters.RestoreFromLatestSnapshotBefore,
-				time.UTC,
-			)
-			if err != nil {
-				return brokerapi.ProvisionedServiceSpec{},
-					fmt.Errorf("Parameter restore_from_latest_snapshot_before should be a date and a time: %s", err)
-			}
-
-			prunedSnapshots := make([]*rds.DBSnapshot, 0)
-			for _, snapshot := range snapshots {
-				if snapshot.SnapshotCreateTime.Before(restoreFromLatestSnapshotBeforeTime) {
-					prunedSnapshots = append(prunedSnapshots, snapshot)
-				}
-			}
-
-			b.logger.Info("pruned-snapshots", lager.Data{
-				"instanceIDLogKey":     instanceID,
-				"detailsLogKey":        details,
-				"allSnapshotsCount":    len(snapshots),
-				"prunedSnapshotsCount": len(prunedSnapshots),
-			})
-
-			snapshots = prunedSnapshots
-		}
-
-		if len(snapshots) == 0 {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("No snapshots found for guid '%s'", *provisionParameters.RestoreFromLatestSnapshotOf)
-		}
-
-		snapshot := snapshots[0]
-
-		b.logger.Info("chose-snapshot", lager.Data{
-			"instanceIDLogKey":   instanceID,
-			"detailsLogKey":      details,
-			"snapshotIdentifier": snapshot.DBSnapshotIdentifier,
-		})
-
-		tags, err := b.dbInstance.GetResourceTags(aws.StringValue(snapshot.DBSnapshotArn))
-		if err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, err
-		}
-		tagsByName := awsrds.RDSTagsValues(tags)
-
-		if tagsByName[awsrds.TagSpaceID] != details.SpaceGUID || tagsByName[awsrds.TagOrganizationID] != details.OrganizationGUID {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
-		}
-		if tagsByName[awsrds.TagPlanID] != details.PlanID {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
-		}
-		snapshotIdentifier := aws.StringValue(snapshot.DBSnapshotIdentifier)
-
-		if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
-			if extensionsTag != "" {
-				snapshotExts := strings.Split(extensionsTag, ":")
-				provisionParameters.Extensions = mergeExtensions(provisionParameters.Extensions, snapshotExts)
-			}
-		}
-
-		restoreDBInstanceInput, err := b.restoreDBInstanceInput(instanceID, snapshotIdentifier, servicePlan, provisionParameters, details)
-
-		if err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, err
-		}
-
-		if err := b.dbInstance.Restore(restoreDBInstanceInput); err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
 	}
 
 	return brokerapi.ProvisionedServiceSpec{IsAsync: true}, nil
+}
+
+func (b *RDSBroker) restoreFromSnapshot(
+	ctx context.Context,
+	instanceID string,
+	details brokerapi.ProvisionDetails,
+	asyncAllowed bool,
+	provisionParameters ProvisionParameters,
+	servicePlan ServicePlan,
+) error {
+	if *provisionParameters.RestoreFromLatestSnapshotOf == "" {
+		return fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromLatestSnapshotOf)
+	}
+	if servicePlan.RDSProperties.Engine != nil && *servicePlan.RDSProperties.Engine != "postgres" {
+		return fmt.Errorf("Restore from snapshot not supported for engine '%s'", *servicePlan.RDSProperties.Engine)
+	}
+	restoreFromDBInstanceID := b.dbInstanceIdentifier(*provisionParameters.RestoreFromLatestSnapshotOf)
+	snapshots, err := b.dbInstance.DescribeSnapshots(restoreFromDBInstanceID)
+	if err != nil {
+		return err
+	}
+
+	if provisionParameters.RestoreFromLatestSnapshotBefore != nil {
+		if *provisionParameters.RestoreFromLatestSnapshotBefore == "" {
+			return fmt.Errorf("Parameter restore_from_latest_snapshot_before must not be empty")
+		}
+
+		restoreFromLatestSnapshotBeforeTime, err := time.ParseInLocation(
+			RestoreFromLatestSnapshotBeforeTimeFormat,
+			*provisionParameters.RestoreFromLatestSnapshotBefore,
+			time.UTC,
+		)
+		if err != nil {
+			return fmt.Errorf("Parameter restore_from_latest_snapshot_before should be a date and a time: %s", err)
+		}
+
+		prunedSnapshots := make([]*rds.DBSnapshot, 0)
+		for _, snapshot := range snapshots {
+			if snapshot.SnapshotCreateTime.Before(restoreFromLatestSnapshotBeforeTime) {
+				prunedSnapshots = append(prunedSnapshots, snapshot)
+			}
+		}
+
+		b.logger.Info("pruned-snapshots", lager.Data{
+			"instanceIDLogKey":     instanceID,
+			"detailsLogKey":        details,
+			"allSnapshotsCount":    len(snapshots),
+			"prunedSnapshotsCount": len(prunedSnapshots),
+		})
+
+		snapshots = prunedSnapshots
+	}
+
+	if len(snapshots) == 0 {
+		return fmt.Errorf("No snapshots found for guid '%s'", *provisionParameters.RestoreFromLatestSnapshotOf)
+	}
+
+	snapshot := snapshots[0]
+
+	b.logger.Info("chose-snapshot", lager.Data{
+		"instanceIDLogKey":   instanceID,
+		"detailsLogKey":      details,
+		"snapshotIdentifier": snapshot.DBSnapshotIdentifier,
+	})
+
+	tags, err := b.dbInstance.GetResourceTags(aws.StringValue(snapshot.DBSnapshotArn))
+	if err != nil {
+		return err
+	}
+	tagsByName := awsrds.RDSTagsValues(tags)
+
+	if tagsByName[awsrds.TagSpaceID] != details.SpaceGUID || tagsByName[awsrds.TagOrganizationID] != details.OrganizationGUID {
+		return fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
+	}
+	if tagsByName[awsrds.TagPlanID] != details.PlanID {
+		return fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
+	}
+	snapshotIdentifier := aws.StringValue(snapshot.DBSnapshotIdentifier)
+
+	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
+		if extensionsTag != "" {
+			snapshotExts := strings.Split(extensionsTag, ":")
+			provisionParameters.Extensions = mergeExtensions(provisionParameters.Extensions, snapshotExts)
+		}
+	}
+
+	restoreDBInstanceInput, err := b.restoreDBInstanceInput(instanceID, snapshotIdentifier, servicePlan, provisionParameters, details)
+	if err != nil {
+		return err
+	}
+
+	return b.dbInstance.Restore(restoreDBInstanceInput)
 }
 
 func (b *RDSBroker) GetBinding(ctx context.Context, first, second string) (brokerapi.GetBindingSpec, error) {
