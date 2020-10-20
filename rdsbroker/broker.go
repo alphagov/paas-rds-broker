@@ -213,62 +213,11 @@ func (b *RDSBroker) Provision(
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
 	} else if provisionParameters.RestoreFromPointInTimeOf != nil {
-		if servicePlan.RDSProperties.Engine != nil && *servicePlan.RDSProperties.Engine != "postgres" {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Restore from snapshot not supported for engine '%s'", *servicePlan.RDSProperties.Engine)
-		}
-		if *provisionParameters.RestoreFromPointInTimeOf == "" {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromPointInTimeOf)
-		}
-
-		var restoreTime *time.Time
-		if provisionParameters.RestoreFromPointInTimeBefore != nil {
-			if *provisionParameters.RestoreFromPointInTimeBefore != "" {
-				parsedTime, err := time.ParseInLocation(
-					RestoreFromPointInTimeBeforeTimeFormat,
-					*provisionParameters.RestoreFromPointInTimeBefore,
-					time.UTC,
-				)
-				if err != nil {
-					return brokerapi.ProvisionedServiceSpec{},
-						fmt.Errorf("Parameter restore_from_point_in_time_before should be a date and a time: %s", err)
-				}
-				restoreTime = &parsedTime
-			}
-		}
-
-		restoreFromDBInstanceID := *provisionParameters.RestoreFromPointInTimeOf
-
-		_, err := b.dbInstance.Describe(b.dbInstanceIdentifier(restoreFromDBInstanceID))
+		err := b.restoreFromPointInTime(
+			ctx, instanceID, details, asyncAllowed,
+			provisionParameters, servicePlan,
+		)
 		if err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Cannot find instance %s", b.dbInstanceIdentifier(restoreFromDBInstanceID))
-		}
-
-		tags, err := b.dbInstance.GetResourceTags(b.dbInstanceIdentifier(restoreFromDBInstanceID))
-		if err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Cannot find instance %s", b.dbInstanceIdentifier(restoreFromDBInstanceID))
-		}
-
-		tagsByName := awsrds.RDSTagsValues(tags)
-		if tagsByName[awsrds.TagSpaceID] != details.SpaceGUID || tagsByName[awsrds.TagOrganizationID] != details.OrganizationGUID {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
-		}
-		if tagsByName[awsrds.TagPlanID] != details.PlanID {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
-		}
-
-		if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
-			if extensionsTag != "" {
-				existingExts := strings.Split(extensionsTag, ":")
-				provisionParameters.Extensions = mergeExtensions(provisionParameters.Extensions, existingExts)
-			}
-		}
-
-		restoreInput, err := b.restoreDBInstancePointInTimeInput(instanceID, restoreFromDBInstanceID, restoreTime, servicePlan, provisionParameters, details)
-		if err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, err
-		}
-
-		if err := b.dbInstance.RestoreToPointInTime(restoreInput); err != nil {
 			return brokerapi.ProvisionedServiceSpec{}, err
 		}
 	} else {
@@ -282,6 +231,71 @@ func (b *RDSBroker) Provision(
 	}
 
 	return brokerapi.ProvisionedServiceSpec{IsAsync: true}, nil
+}
+
+func (b *RDSBroker) restoreFromPointInTime(
+	ctx context.Context,
+	instanceID string,
+	details brokerapi.ProvisionDetails,
+	asyncAllowed bool,
+	provisionParameters ProvisionParameters,
+	servicePlan ServicePlan,
+) error {
+	if servicePlan.RDSProperties.Engine != nil && *servicePlan.RDSProperties.Engine != "postgres" {
+		return fmt.Errorf("Restore from snapshot not supported for engine '%s'", *servicePlan.RDSProperties.Engine)
+	}
+	if *provisionParameters.RestoreFromPointInTimeOf == "" {
+		return fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromPointInTimeOf)
+	}
+
+	var restoreTime *time.Time
+	if provisionParameters.RestoreFromPointInTimeBefore != nil {
+		if *provisionParameters.RestoreFromPointInTimeBefore != "" {
+			parsedTime, err := time.ParseInLocation(
+				RestoreFromPointInTimeBeforeTimeFormat,
+				*provisionParameters.RestoreFromPointInTimeBefore,
+				time.UTC,
+			)
+			if err != nil {
+				return fmt.Errorf("Parameter restore_from_point_in_time_before should be a date and a time: %s", err)
+			}
+			restoreTime = &parsedTime
+		}
+	}
+
+	restoreFromDBInstanceID := *provisionParameters.RestoreFromPointInTimeOf
+
+	_, err := b.dbInstance.Describe(b.dbInstanceIdentifier(restoreFromDBInstanceID))
+	if err != nil {
+		return fmt.Errorf("Cannot find instance %s", b.dbInstanceIdentifier(restoreFromDBInstanceID))
+	}
+
+	tags, err := b.dbInstance.GetResourceTags(b.dbInstanceIdentifier(restoreFromDBInstanceID))
+	if err != nil {
+		return fmt.Errorf("Cannot find instance %s", b.dbInstanceIdentifier(restoreFromDBInstanceID))
+	}
+
+	tagsByName := awsrds.RDSTagsValues(tags)
+	if tagsByName[awsrds.TagSpaceID] != details.SpaceGUID || tagsByName[awsrds.TagOrganizationID] != details.OrganizationGUID {
+		return fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
+	}
+	if tagsByName[awsrds.TagPlanID] != details.PlanID {
+		return fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
+	}
+
+	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
+		if extensionsTag != "" {
+			existingExts := strings.Split(extensionsTag, ":")
+			provisionParameters.Extensions = mergeExtensions(provisionParameters.Extensions, existingExts)
+		}
+	}
+
+	restoreInput, err := b.restoreDBInstancePointInTimeInput(instanceID, restoreFromDBInstanceID, restoreTime, servicePlan, provisionParameters, details)
+	if err != nil {
+		return err
+	}
+
+	return b.dbInstance.RestoreToPointInTime(restoreInput)
 }
 
 func (b *RDSBroker) restoreFromSnapshot(
