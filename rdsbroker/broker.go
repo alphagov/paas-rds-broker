@@ -235,6 +235,20 @@ func (b *RDSBroker) Provision(
 	return brokerapi.ProvisionedServiceSpec{IsAsync: true}, nil
 }
 
+func (b *RDSBroker) checkPermissionsFromTags(
+	details brokerapi.ProvisionDetails,
+	tagsByName map[string]string,
+) error {
+	if tagsByName[awsrds.TagSpaceID] != details.SpaceGUID || tagsByName[awsrds.TagOrganizationID] != details.OrganizationGUID {
+		return fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
+	}
+	if tagsByName[awsrds.TagPlanID] != details.PlanID {
+		return fmt.Errorf("You must use the same plan as the service instance you are restoring from")
+	}
+
+	return nil
+}
+
 func (b *RDSBroker) restoreFromPointInTime(
 	ctx context.Context,
 	instanceID string,
@@ -278,11 +292,8 @@ func (b *RDSBroker) restoreFromPointInTime(
 	}
 
 	tagsByName := awsrds.RDSTagsValues(tags)
-	if tagsByName[awsrds.TagSpaceID] != details.SpaceGUID || tagsByName[awsrds.TagOrganizationID] != details.OrganizationGUID {
-		return fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
-	}
-	if tagsByName[awsrds.TagPlanID] != details.PlanID {
-		return fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
+	if err := b.checkPermissionsFromTags(details, tagsByName); err != nil {
+		return err
 	}
 
 	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
@@ -367,14 +378,12 @@ func (b *RDSBroker) restoreFromSnapshot(
 	if err != nil {
 		return err
 	}
-	tagsByName := awsrds.RDSTagsValues(tags)
 
-	if tagsByName[awsrds.TagSpaceID] != details.SpaceGUID || tagsByName[awsrds.TagOrganizationID] != details.OrganizationGUID {
-		return fmt.Errorf("The service instance you are getting a snapshot from is not in the same org or space")
+	tagsByName := awsrds.RDSTagsValues(tags)
+	if err := b.checkPermissionsFromTags(details, tagsByName); err != nil {
+		return err
 	}
-	if tagsByName[awsrds.TagPlanID] != details.PlanID {
-		return fmt.Errorf("You must use the same plan as the service instance you are getting a snapshot from")
-	}
+
 	snapshotIdentifier := aws.StringValue(snapshot.DBSnapshotIdentifier)
 
 	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
