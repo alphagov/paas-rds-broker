@@ -395,15 +395,17 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when restoring from a point in time", func() {
 			var (
-				restoreFromPointInTimeInstanceGUID string
-				restoreFromPointInTimeDBInstanceID string
-				dbIdentifierTags                   map[string]string
+				restoreFromPointInTimeInstanceGUID  string
+				restoreFromPointInTimeDBInstanceID  string
+				restoreFromPointInTimeDBInstanceARN string
+				dbIdentifierTags                    map[string]string
 			)
 
 			BeforeEach(func() {
 				rdsProperties1.Engine = stringPointer("postgres")
 				restoreFromPointInTimeInstanceGUID = "guid-of-origin-instance"
 				restoreFromPointInTimeDBInstanceID = dbPrefix + "-guid-of-origin-instance"
+				restoreFromPointInTimeDBInstanceARN = "arn:aws:rds:rds-region:1234567890:db:" + restoreFromPointInTimeDBInstanceID
 				provisionDetails.RawParameters = json.RawMessage(`{"restore_from_point_in_time_of": "` + restoreFromPointInTimeInstanceGUID + `"}`)
 
 				dbIdentifierTags = map[string]string{
@@ -414,6 +416,10 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			JustBeforeEach(func() {
+				rdsInstance.DescribeReturns(&rds.DBInstance{
+					DBInstanceArn:        aws.String(restoreFromPointInTimeDBInstanceARN),
+					DBInstanceIdentifier: aws.String(restoreFromPointInTimeDBInstanceID),
+				}, nil)
 				rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbIdentifierTags), nil)
 			})
 
@@ -461,7 +467,7 @@ var _ = Describe("RDS Broker", func() {
 				It("returns the correct error", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("Cannot find instance " + dbPrefix + "-" + restoreFromPointInTimeInstanceGUID))
+					Expect(err.Error()).Should(ContainSubstring("Cannot find instance " + restoreFromPointInTimeDBInstanceARN))
 				})
 			})
 
@@ -513,6 +519,10 @@ var _ = Describe("RDS Broker", func() {
 				Expect(aws.StringValue(input.DBName)).To(BeEmpty())
 				Expect(aws.BoolValue(input.UseLatestRestorableTime)).To(Equal(true))
 				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.GetResourceTagsCallCount()).To(Equal(1))
+				dbARN, _ := rdsInstance.GetResourceTagsArgsForCall(0)
+				Expect(dbARN).To(Equal(restoreFromPointInTimeDBInstanceARN))
 			})
 
 			It("sets the right tags", func() {
