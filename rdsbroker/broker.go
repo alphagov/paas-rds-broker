@@ -281,14 +281,15 @@ func (b *RDSBroker) restoreFromPointInTime(
 
 	restoreFromDBInstanceID := *provisionParameters.RestoreFromPointInTimeOf
 
-	_, err := b.dbInstance.Describe(b.dbInstanceIdentifier(restoreFromDBInstanceID))
+	existingInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(restoreFromDBInstanceID))
 	if err != nil {
 		return fmt.Errorf("Cannot find instance %s", b.dbInstanceIdentifier(restoreFromDBInstanceID))
 	}
 
-	tags, err := b.dbInstance.GetResourceTags(b.dbInstanceIdentifier(restoreFromDBInstanceID))
+	dbARN := *(existingInstance.DBInstanceArn)
+	tags, err := b.dbInstance.GetResourceTags(dbARN)
 	if err != nil {
-		return fmt.Errorf("Cannot find instance %s", b.dbInstanceIdentifier(restoreFromDBInstanceID))
+		return fmt.Errorf("Cannot find instance %s", dbARN)
 	}
 
 	tagsByName := awsrds.RDSTagsValues(tags)
