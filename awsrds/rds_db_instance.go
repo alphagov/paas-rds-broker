@@ -21,6 +21,8 @@ const (
 	TagRestoredFromSnapshot = "Restored From Snapshot"
 	TagBrokerName           = "Broker Name"
 	TagExtensions           = "Extensions"
+	TagOriginDatabase       = "Restored From Database"
+	TagOriginPointInTime    = "Restored From Time"
 )
 
 type RDSDBInstance struct {
@@ -246,6 +248,18 @@ func (r *RDSDBInstance) Restore(restoreDBInstanceInput *rds.RestoreDBInstanceFro
 		return HandleAWSError(err, r.logger)
 	}
 	r.logger.Debug("restore-db-instance", lager.Data{"output": restoreDBInstanceOutput})
+
+	return nil
+}
+
+func (r *RDSDBInstance) RestoreToPointInTime(restoreDBInstanceInput *rds.RestoreDBInstanceToPointInTimeInput) error {
+	r.logger.Debug("restore-db-instance-to-point-in-time", lager.Data{"input": &restoreDBInstanceInput})
+
+	restoreDBInstanceOutput, err := r.rdssvc.RestoreDBInstanceToPointInTime(restoreDBInstanceInput)
+	if err != nil {
+		return HandleAWSError(err, r.logger)
+	}
+	r.logger.Debug("restore-db-instance-to-point-in-time", lager.Data{"output": restoreDBInstanceOutput})
 
 	return nil
 }

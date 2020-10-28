@@ -221,6 +221,17 @@ type FakeRDSInstance struct {
 	restoreReturnsOnCall map[int]struct {
 		result1 error
 	}
+	RestoreToPointInTimeStub        func(*rds.RestoreDBInstanceToPointInTimeInput) error
+	restoreToPointInTimeMutex       sync.RWMutex
+	restoreToPointInTimeArgsForCall []struct {
+		arg1 *rds.RestoreDBInstanceToPointInTimeInput
+	}
+	restoreToPointInTimeReturns struct {
+		result1 error
+	}
+	restoreToPointInTimeReturnsOnCall map[int]struct {
+		result1 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -1283,6 +1294,66 @@ func (fake *FakeRDSInstance) RestoreReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
+func (fake *FakeRDSInstance) RestoreToPointInTime(arg1 *rds.RestoreDBInstanceToPointInTimeInput) error {
+	fake.restoreToPointInTimeMutex.Lock()
+	ret, specificReturn := fake.restoreToPointInTimeReturnsOnCall[len(fake.restoreToPointInTimeArgsForCall)]
+	fake.restoreToPointInTimeArgsForCall = append(fake.restoreToPointInTimeArgsForCall, struct {
+		arg1 *rds.RestoreDBInstanceToPointInTimeInput
+	}{arg1})
+	fake.recordInvocation("RestoreToPointInTime", []interface{}{arg1})
+	fake.restoreToPointInTimeMutex.Unlock()
+	if fake.RestoreToPointInTimeStub != nil {
+		return fake.RestoreToPointInTimeStub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.restoreToPointInTimeReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeRDSInstance) RestoreToPointInTimeCallCount() int {
+	fake.restoreToPointInTimeMutex.RLock()
+	defer fake.restoreToPointInTimeMutex.RUnlock()
+	return len(fake.restoreToPointInTimeArgsForCall)
+}
+
+func (fake *FakeRDSInstance) RestoreToPointInTimeCalls(stub func(*rds.RestoreDBInstanceToPointInTimeInput) error) {
+	fake.restoreToPointInTimeMutex.Lock()
+	defer fake.restoreToPointInTimeMutex.Unlock()
+	fake.RestoreToPointInTimeStub = stub
+}
+
+func (fake *FakeRDSInstance) RestoreToPointInTimeArgsForCall(i int) *rds.RestoreDBInstanceToPointInTimeInput {
+	fake.restoreToPointInTimeMutex.RLock()
+	defer fake.restoreToPointInTimeMutex.RUnlock()
+	argsForCall := fake.restoreToPointInTimeArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeRDSInstance) RestoreToPointInTimeReturns(result1 error) {
+	fake.restoreToPointInTimeMutex.Lock()
+	defer fake.restoreToPointInTimeMutex.Unlock()
+	fake.RestoreToPointInTimeStub = nil
+	fake.restoreToPointInTimeReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRDSInstance) RestoreToPointInTimeReturnsOnCall(i int, result1 error) {
+	fake.restoreToPointInTimeMutex.Lock()
+	defer fake.restoreToPointInTimeMutex.Unlock()
+	fake.RestoreToPointInTimeStub = nil
+	if fake.restoreToPointInTimeReturnsOnCall == nil {
+		fake.restoreToPointInTimeReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.restoreToPointInTimeReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
 func (fake *FakeRDSInstance) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -1320,6 +1391,8 @@ func (fake *FakeRDSInstance) Invocations() map[string][][]interface{} {
 	defer fake.removeTagMutex.RUnlock()
 	fake.restoreMutex.RLock()
 	defer fake.restoreMutex.RUnlock()
+	fake.restoreToPointInTimeMutex.RLock()
+	defer fake.restoreToPointInTimeMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value
