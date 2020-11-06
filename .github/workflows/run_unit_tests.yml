@@ -18,7 +18,7 @@ jobs:
         # but when we checkout the source it drops the second mention of the
         # repo name
         run: |
-          echo "##[set-env name=GOPATH;]$(dirname $GITHUB_WORKSPACE)"
+          echo GOPATH=$(dirname $GITHUB_WORKSPACE) >> $GITHUB_ENV
         id: gopath
 
 
@@ -36,8 +36,8 @@ jobs:
       - name: Create GOBIN directory
         run: |
           mkdir $GOPATH/bin
-          echo "##[set-env name=GOBIN;]$GOPATH/bin"
-          echo "##[add-path]$GOPATH/bin"
+          echo GOBIN=$GOPATH/bin >> $GITHUB_ENV
+          echo $GOPATH/bin >> $GITHUB_PATH
         id: gobin
 
       - name: Install Ginkgo CLI
