@@ -976,7 +976,7 @@ func (b *RDSBroker) ensureDropExtensions(instanceID string, dbInstance *rds.DBIn
 		instanceIDLogKey: instanceID,
 	})
 
-	if aws.StringValue(dbInstance.Engine) == "postgres" {
+	if aws.StringValue(dbInstance.Engine) == "postgres" && len(extensions) > 0 {
 		dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
 		sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
 		if err != nil {
