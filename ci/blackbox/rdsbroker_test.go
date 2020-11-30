@@ -80,7 +80,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service2.Description).To(Equal("AWS RDS PostgreSQL service"))
 			Expect(service2.Bindable).To(BeTrue())
 			Expect(service2.PlanUpdatable).To(BeTrue())
-			Expect(service2.Plans).To(HaveLen(6))
+			Expect(service2.Plans).To(HaveLen(8))
 		})
 	})
 
@@ -224,6 +224,10 @@ var _ = Describe("RDS Broker Daemon", func() {
 			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-11")
 		})
 
+		Describe("Postgres 12", func() {
+			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-12")
+		})
+
 		Describe("MySQL 5.7", func() {
 			TestProvisionBindDeprovision("mysql", "mysql-5.7-micro-without-snapshot")
 		})
@@ -288,6 +292,11 @@ var _ = Describe("RDS Broker Daemon", func() {
 		Describe("Postgres 11.5", func() {
 			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-11")
 		})
+
+		Describe("Postgres 12", func() {
+			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-12")
+		})
+
 	})
 
 	Describe("update to a plan with a newer engine version", func() {
@@ -531,6 +540,10 @@ var _ = Describe("RDS Broker Daemon", func() {
 			TestFinalSnapshot("postgres", "postgres-micro-11")
 		})
 
+		Describe("Postgres 12", func() {
+			TestFinalSnapshot("postgres", "postgres-micro-12")
+		})
+
 		Describe("MySQL 5.7", func() {
 			TestFinalSnapshot("mysql", "mysql-5.7-micro")
 		})
@@ -656,6 +669,10 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 		Describe("Postgres 11.5", func() {
 			TestRestoreFromSnapshot("postgres", "postgres-micro-11")
+		})
+
+		Describe("Postgres 12", func() {
+			TestRestoreFromSnapshot("postgres", "postgres-micro-12")
 		})
 
 		PDescribe("MySQL 5.7", func() {
