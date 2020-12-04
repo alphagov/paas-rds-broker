@@ -41,6 +41,7 @@ const extensionsLogKey = "requestedExtensions"
 
 var (
 	ErrEncryptionNotUpdateable = errors.New("instance can not be updated to a plan with different encryption settings")
+	ErrPostgres95UpgradePath   = errors.New("to upgrade from Postgres 9.5, first upgrade to Postgres 10, and then upgrade from there to your desired version")
 )
 
 var rdsStatus2State = map[string]brokerapi.LastOperationState{
@@ -476,6 +477,14 @@ func (b *RDSBroker) Update(
 
 	if !reflect.DeepEqual(servicePlan.RDSProperties.KmsKeyID, previousServicePlan.RDSProperties.KmsKeyID) {
 		return brokerapi.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
+	}
+
+	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
+		previousVersion := aws.StringValue(previousServicePlan.RDSProperties.EngineVersion)
+		newVersion := aws.StringValue(servicePlan.RDSProperties.EngineVersion)
+		if strings.HasPrefix(previousVersion, "9.") && !strings.HasPrefix(newVersion, "9.") && !strings.HasPrefix(newVersion, "10.") && newVersion != "10" {
+			return brokerapi.UpdateServiceSpec{}, ErrPostgres95UpgradePath
+		}
 	}
 
 	existingInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))

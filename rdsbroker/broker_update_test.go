@@ -543,7 +543,60 @@ var _ = Describe("RDS Broker", func() {
 					Expect(err).To(Equal(ErrEncryptionNotUpdateable))
 				})
 			})
+		})
 
+		Context("when updating a Postgres 9.5 instance", func() {
+			BeforeEach(func() {
+				rdsProperties1.EngineVersion = stringPointer("9.5.3")
+				rdsProperties1.Engine = stringPointer("postgres")
+				rdsProperties2.Engine = stringPointer("postgres")
+			})
+
+			Context("when going to another Postgres 9.5 plan", func() {
+				BeforeEach(func() {
+					rdsProperties2.EngineVersion = stringPointer("9.5.4")
+				})
+
+				It("succeeds", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+
+			Context("when going to a Postgres 10 plan", func() {
+				BeforeEach(func() {
+					rdsProperties2.EngineVersion = stringPointer("10")
+				})
+
+				It("succeeds", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+
+			Context("when going to a Postgres 11 plan", func() {
+				BeforeEach(func() {
+					rdsProperties2.EngineVersion = stringPointer("11")
+				})
+
+				It("returns an error telling the user to upgrade via Postgres 10", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(ErrPostgres95UpgradePath))
+				})
+			})
+
+			Context("when going to a Postgres 12 plan", func() {
+				BeforeEach(func() {
+					rdsProperties2.EngineVersion = stringPointer("12")
+				})
+
+				It("returns an error telling the user to upgrade via Postgres 10", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(Equal(ErrPostgres95UpgradePath))
+				})
+			})
 		})
 
 		Context("when has LicenseModel", func() {
