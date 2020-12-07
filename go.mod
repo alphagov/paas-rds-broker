@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
+	github.com/Masterminds/semver v1.5.0
 	github.com/aws/aws-sdk-go v1.16.34
 	github.com/drewolson/testflight v1.0.0 // indirect
 	github.com/go-sql-driver/mysql v1.2.1-0.20150908124601-527bcd55aab2
