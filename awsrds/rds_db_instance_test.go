@@ -6,6 +6,7 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	. "github.com/alphagov/paas-rds-broker/awsrds"
@@ -1353,4 +1354,120 @@ var _ = Describe("RDS DB Instance", func() {
 		})
 	})
 
+	Describe("GetFullValidTargetVersion", func() {
+		var (
+			engineVersions []*rds.DBEngineVersion
+		)
+
+		currentVersion := "9.5.23"
+		targetVersion := "10"
+
+		var dbEngineVersions = func(currentVersion string, upgradeTargets []*rds.UpgradeTarget) []*rds.DBEngineVersion {
+			return []*rds.DBEngineVersion{
+				{
+					Engine:             aws.String("postgres"),
+					EngineVersion:      aws.String(currentVersion),
+					ValidUpgradeTarget: upgradeTargets,
+				},
+			}
+		}
+
+		JustBeforeEach(func() {
+			rdssvc.Handlers.Clear()
+
+			rdsCall = func(r *request.Request) {
+				Expect(r.Operation.Name).To(Equal("DescribeDBEngineVersions"))
+				data := r.Data.(*rds.DescribeDBEngineVersionsOutput)
+				data.DBEngineVersions = engineVersions
+			}
+			rdssvc.Handlers.Send.PushBack(rdsCall)
+		})
+
+		It("returns an error when the current version was not described", func() {
+			engineVersions = []*rds.DBEngineVersion{}
+			_, err := rdsDBInstance.GetFullValidTargetVersion("postgres", currentVersion, targetVersion)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("returns an error when there are no upgrade targets for the current version", func() {
+			engineVersions = dbEngineVersions(currentVersion, []*rds.UpgradeTarget{})
+			_, err := rdsDBInstance.GetFullValidTargetVersion("postgres", currentVersion, targetVersion)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("returns an error when there is >1 engine version returned", func() {
+			By("because the version was ambiguous")
+			engineVersions = []*rds.DBEngineVersion{
+				{
+					Engine:        aws.String("postgres"),
+					EngineVersion: aws.String("9.5.1"),
+				},
+				{
+					Engine:        aws.String("postgres"),
+					EngineVersion: aws.String("9.5.2"),
+				},
+			}
+			_, err := rdsDBInstance.GetFullValidTargetVersion("postgres", currentVersion, targetVersion)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("returns an error if there were no upgrade targets for the target major version", func() {
+			engineVersions = dbEngineVersions(currentVersion, []*rds.UpgradeTarget{
+				{
+					Engine:        aws.String("postgres"),
+					EngineVersion: aws.String("11"),
+				},
+			})
+			_, err := rdsDBInstance.GetFullValidTargetVersion("postgres", currentVersion, targetVersion)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("returns the newest minor version of the target major version", func() {
+			upgradeTargets := []*rds.UpgradeTarget{}
+
+			for i := 10; i < 15; i++ {
+				upgradeTargets = append(upgradeTargets, &rds.UpgradeTarget{
+					Engine:        aws.String("postgres"),
+					EngineVersion: aws.String(fmt.Sprintf("%s.%d", targetVersion, i)),
+				})
+			}
+			engineVersions = dbEngineVersions(currentVersion, upgradeTargets)
+			expectedVersion := "10.14"
+
+			actualVersion, err := rdsDBInstance.GetFullValidTargetVersion("postgres", currentVersion, targetVersion)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(actualVersion).To(Equal(expectedVersion))
+		})
+
+		DescribeTable(
+			"formats the version correctly for engine and major version",
+			func(engine string, currentVersion string, targetVersionMoniker string, fullTargetVersion string, expected string) {
+				upgradeTargets := []*rds.UpgradeTarget{
+					&rds.UpgradeTarget{
+						Engine:        aws.String(engine),
+						EngineVersion: aws.String(fullTargetVersion),
+					},
+				}
+				engineVersions = []*rds.DBEngineVersion{
+					{
+						Engine:             aws.String(engine),
+						EngineVersion:      aws.String(currentVersion),
+						ValidUpgradeTarget: upgradeTargets,
+					},
+				}
+
+				actualVersion, err := rdsDBInstance.GetFullValidTargetVersion(engine, currentVersion, targetVersionMoniker)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(actualVersion).To(Equal(expected))
+			},
+			Entry("postgres 9.5->9.6", "postgres", "9.5", "9.6", "9.6.8", "9.6.8"),
+			Entry("postgres 9.5->10", "postgres", "9.5", "10", "10.6", "10.6"),
+			Entry("postgres 9.5->11", "postgres", "9.5", "11", "11.5", "11.5"),
+			Entry("postgres 9.5->12", "postgres", "9.5", "12", "12.4", "12.4"),
+			Entry("mysql 5.5->5.7", "mysql", "5.5", "5.7", "5.7.22", "5.7.22"),
+			Entry("mysql 5.7->8.0", "mysql", "5.7", "8.0", "8.0.20", "8.0.20"),
+		)
+	})
 })

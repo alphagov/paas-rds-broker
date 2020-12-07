@@ -1,6 +1,7 @@
 package rdsbroker_test
 
 import (
+	"github.com/aws/aws-sdk-go/aws"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -100,6 +101,69 @@ var _ = Describe("Config", func() {
 			err := config.Validate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Validating Catalog configuration"))
+		})
+	})
+})
+
+var _ = Describe("ServicePlan", func() {
+	Describe("IsUpgradeFrom", func() {
+		It("returns an error if the engines are different", func() {
+			planA := ServicePlan{
+				RDSProperties: RDSProperties{
+					Engine:        aws.String("postgres"),
+					EngineVersion: aws.String("10"),
+				},
+			}
+
+			planB := ServicePlan{
+				RDSProperties: RDSProperties{
+					Engine:        aws.String("mysql"),
+					EngineVersion: aws.String("8"),
+				},
+			}
+
+			_, err := planB.IsUpgradeFrom(planA)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("returns true if the input plans engine version is smaller", func() {
+			planA := ServicePlan{
+				RDSProperties: RDSProperties{
+					Engine:        aws.String("postgres"),
+					EngineVersion: aws.String("10"),
+				},
+			}
+
+			planB := ServicePlan{
+				RDSProperties: RDSProperties{
+					Engine:        aws.String("postgres"),
+					EngineVersion: aws.String("9.5"),
+				},
+			}
+
+			actual, err := planA.IsUpgradeFrom(planB)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(actual).To(BeTrue())
+		})
+
+		It("returns false if the input plans engine version is smaller", func() {
+			planA := ServicePlan{
+				RDSProperties: RDSProperties{
+					Engine:        aws.String("postgres"),
+					EngineVersion: aws.String("10"),
+				},
+			}
+
+			planB := ServicePlan{
+				RDSProperties: RDSProperties{
+					Engine:        aws.String("postgres"),
+					EngineVersion: aws.String("11"),
+				},
+			}
+
+			actual, err := planA.IsUpgradeFrom(planB)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(actual).To(BeFalse())
 		})
 	})
 })

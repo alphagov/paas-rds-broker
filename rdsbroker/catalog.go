@@ -2,6 +2,7 @@ package rdsbroker
 
 import (
 	"fmt"
+	"github.com/Masterminds/semver"
 	"regexp"
 	"strings"
 
@@ -148,6 +149,31 @@ func (sp ServicePlan) Validate(c Catalog) error {
 	}
 
 	return nil
+}
+
+func (sp ServicePlan) IsUpgradeFrom(oldPlan ServicePlan) (bool, error) {
+	if *sp.RDSProperties.Engine != *oldPlan.RDSProperties.Engine {
+		return false, fmt.Errorf(
+			"changing from engine '%s' to engine '%s' is not a valid upgrade",
+			*oldPlan.RDSProperties.Engine,
+			*sp.RDSProperties.Engine,
+		)
+	}
+
+	oldPlanVersionStr := *oldPlan.RDSProperties.EngineVersion
+	newPlanVersionStr := *sp.RDSProperties.EngineVersion
+
+	oldPlanSemVer, err := semver.NewVersion(oldPlanVersionStr)
+	if err != nil {
+		return false, fmt.Errorf("old engine version must be a semantic version number: '%s'", oldPlanVersionStr)
+	}
+
+	newPlanSemVer, err := semver.NewVersion(newPlanVersionStr)
+	if err != nil {
+		return false, fmt.Errorf("new engine version must be a semantic version number: '%s'", newPlanVersionStr)
+	}
+
+	return newPlanSemVer.GreaterThan(oldPlanSemVer), nil
 }
 
 func (rp RDSProperties) Validate(c Catalog) error {

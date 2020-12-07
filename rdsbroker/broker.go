@@ -553,6 +553,7 @@ func (b *RDSBroker) Update(
 	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, updateParameters, newDbParamGroup)
 
 	if updateParameters.UpgradeMinorVersionToLatest != nil && *updateParameters.UpgradeMinorVersionToLatest {
+		b.logger.Info("is-minor-version-upgrade")
 		if updateParameters.Reboot != nil && *updateParameters.Reboot {
 			return brokerapi.UpdateServiceSpec{}, fmt.Errorf(
 				"Cannot reboot and upgrade minor version to latest at the same time",
@@ -569,6 +570,7 @@ func (b *RDSBroker) Update(
 			*existingInstance.Engine,
 			*existingInstance.EngineVersion,
 		)
+		b.logger.Info("selected-minor-version", lager.Data{"version": availableEngineVersion})
 
 		if err != nil {
 			return brokerapi.UpdateServiceSpec{}, err
@@ -577,6 +579,31 @@ func (b *RDSBroker) Update(
 		if availableEngineVersion != nil {
 			modifyDBInstanceInput.EngineVersion = availableEngineVersion
 		}
+	}
+
+	isPlanUpgrade, err := servicePlan.IsUpgradeFrom(previousServicePlan)
+	if err != nil {
+		b.logger.Error("is-service-plan-an-upgrade", err)
+		return brokerapi.UpdateServiceSpec{}, err
+	}
+
+	if isPlanUpgrade {
+		b.logger.Info("is-a-version-upgrade")
+		b.logger.Info("find-exact-upgrade-version")
+		currentVersion := *existingInstance.EngineVersion
+		targetVersion, err := b.dbInstance.GetFullValidTargetVersion(
+			*servicePlan.RDSProperties.Engine,
+			currentVersion,
+			*servicePlan.RDSProperties.EngineVersion,
+		)
+
+		if err != nil {
+			b.logger.Error("find-exact-upgrade-version", err)
+			return brokerapi.UpdateServiceSpec{}, err
+		}
+
+		b.logger.Info("selected-upgrade-version", lager.Data{"version": targetVersion})
+		modifyDBInstanceInput.EngineVersion = aws.String(targetVersion)
 	}
 
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)

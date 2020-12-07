@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/lager"
+	"github.com/Masterminds/semver"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
 )
@@ -517,4 +518,144 @@ func (r *RDSDBInstance) GetLatestMinorVersion(engine string, version string) (*s
 
 	latestUpgradeTarget := validUpgradeTargets[len(validUpgradeTargets)-1]
 	return latestUpgradeTarget.EngineVersion, nil
+}
+
+// GetFullValidTargetVersion finds the full version specifier for the newest release of the target version.
+// engine is the name of the database engine in AWS RDS (e.g. postgres).
+// currentVersion is current, exact version of a database engine
+// targetVersionMoniker is the name of a version of the database engine. It does not include the patch/minor level information.
+//   E.g. For postgres, 9.5 is the moniker for 9.5.x, and 10 is the moniker for 10.x
+func (r *RDSDBInstance) GetFullValidTargetVersion(engine string, currentVersion string, targetVersionMoniker string) (string, error) {
+	logSess := r.logger.Session("get-full-valid-target-version",
+		lager.Data{"engine": engine, "version": currentVersion, "targetVersionMoniker": targetVersionMoniker})
+
+	logSess.Info("describe-db-engine-versions")
+	engineVersionsOut, err := r.rdssvc.DescribeDBEngineVersions(&rds.DescribeDBEngineVersionsInput{
+		Engine:        aws.String(engine),
+		EngineVersion: aws.String(currentVersion),
+	})
+
+	if err != nil {
+		logSess.Error("describe-db-engine-versions", err)
+		return "", err
+	}
+
+	if len(engineVersionsOut.DBEngineVersions) == 0 {
+		err = fmt.Errorf("describe-db-engines did not describe a version engine matching the engine and current version")
+		logSess.Error("no-matching-engine-version", err)
+		return "", err
+	}
+
+	if len(engineVersionsOut.DBEngineVersions) > 1 {
+		err = fmt.Errorf("given version '%s' was too broad. Current version must specify an exact version", currentVersion)
+		logSess.Error("ambiguous-version", err)
+		return "", err
+	}
+
+	if len(engineVersionsOut.DBEngineVersions[0].ValidUpgradeTarget) == 0 {
+		err = fmt.Errorf("no upgrade targets for version '%s'", currentVersion)
+		logSess.Error("zero-upgrade-targets", err)
+		return "", err
+	}
+
+	var targetVersions []string
+	for _, target := range engineVersionsOut.DBEngineVersions[0].ValidUpgradeTarget {
+		targetVersions = append(targetVersions, *target.EngineVersion)
+	}
+
+	targetMonikerSemVer, err := semver.NewVersion(targetVersionMoniker)
+	if err != nil {
+		logSess.Error("parse-target-version-moniker-as-semver", err)
+		return "", err
+	}
+
+	semVersions, err := parseSemanticVersions(targetVersions)
+	targettableVersions := filterTargetVersion(semVersions, engine, *targetMonikerSemVer)
+	if len(targettableVersions) == 0 {
+		err := fmt.Errorf("no valid targets for target major version '%s'", targetVersionMoniker)
+		logSess.Error("no-upgrade-targets-for-target-version", err)
+		return "", err
+	}
+
+	newestTargettableVersion := findNewestTargettableVersion(targettableVersions)
+
+	formattedVersion := formatEngineVersion(newestTargettableVersion, engine)
+	logSess.Info("selected-version", lager.Data{"version": formattedVersion})
+
+	return formattedVersion, nil
+}
+
+func parseSemanticVersions(versions []string) (semver.Collection, error) {
+	collection := semver.Collection{}
+	for _, version := range versions {
+		sv, err := semver.NewVersion(version)
+		if err != nil {
+			return nil, err
+		}
+
+		collection = append(collection, sv)
+	}
+
+	return collection, nil
+}
+
+func filterTargetVersion(versions semver.Collection, engine string, targetSemVer semver.Version) semver.Collection {
+	// Filter target version needs to be a bit smart because Postgres changed its versioning strategy as of
+	// version 10. It used to be that a version was `x.y.PATCH`. It's now `x.PATCH`.
+	// Meanwhile, mysql has maintained `x.y.PATCH`.
+	var comparsionStrategy func(version *semver.Version, targetVersionMoniker semver.Version) bool
+	var semverMajorVersionCompare = func(version *semver.Version, targetVersionMoniker semver.Version) bool {
+		return version.Major() == targetSemVer.Major()
+	}
+	var semverMajorMinorVersionCompare = func(version *semver.Version, targetVersionMoniker semver.Version) bool {
+		return (version.Major() == targetSemVer.Major()) && (version.Minor() == targetSemVer.Minor())
+	}
+
+	switch engine {
+	case "postgres":
+		if targetSemVer.Major() > 9 {
+			comparsionStrategy = semverMajorVersionCompare
+		} else {
+			comparsionStrategy = semverMajorMinorVersionCompare
+		}
+	case "mysql":
+		comparsionStrategy = semverMajorMinorVersionCompare
+	default:
+		comparsionStrategy = semverMajorVersionCompare
+	}
+
+	collection := semver.Collection{}
+	for _, v := range versions {
+		if v != nil && comparsionStrategy(v, targetSemVer) {
+			collection = append(collection, v)
+		}
+	}
+
+	return collection
+}
+
+func findNewestTargettableVersion(versions semver.Collection) semver.Version {
+	sort.Sort(versions)
+	return *versions[versions.Len()-1]
+}
+
+// formatEngineVersion formats a given semantic version in accordance
+// with the versioning rules of the engine.
+func formatEngineVersion(version semver.Version, engine string) string {
+	switch engine {
+	default:
+	case "mysql":
+		// Mysql uses MAJOR.MINOR.PATCH format
+		return fmt.Sprintf("%d.%d.%d", version.Major(), version.Minor(), version.Patch())
+	case "postgres":
+		// Postgres 10 and above uses the MAJOR.MINOR format
+		if version.Major() >= 10 {
+			return fmt.Sprintf("%d.%d", version.Major(), version.Minor())
+		} else {
+			// And postgres 9 and below uses MAJOR.MINOR.PATCH
+			return fmt.Sprintf("%d.%d.%d", version.Major(), version.Minor(), version.Patch())
+		}
+	}
+
+	return ""
 }

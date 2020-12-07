@@ -111,7 +111,7 @@ var _ = Describe("RDS Broker", func() {
 
 		rdsProperties2 = RDSProperties{
 			DBInstanceClass:   stringPointer("db.m2.test"),
-			Engine:            stringPointer("test-engine-two"),
+			Engine:            stringPointer("test-engine-one"),
 			EngineVersion:     stringPointer("4.5.6"),
 			AllocatedStorage:  int64Pointer(200),
 			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
@@ -218,8 +218,17 @@ var _ = Describe("RDS Broker", func() {
 					DBParameterGroupName: aws.String("originalParameterGroupName"),
 				},
 			},
+			Engine:        stringPointer("test-engine-one"),
+			EngineVersion: stringPointer("1.2.3"),
 		}
 		rdsInstance.DescribeReturns(existingDbInstance, nil)
+		rdsInstance.GetFullValidTargetVersionCalls(func(engine string, currentVersion string, targetVersionMoniker string) (string, error) {
+			if currentVersion == "1.2.3" {
+				return "4.5.6", nil
+			} else {
+				return "6.6.6", nil
+			}
+		})
 	})
 
 	Describe("Update", func() {
