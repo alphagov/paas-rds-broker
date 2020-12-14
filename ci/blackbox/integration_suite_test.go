@@ -2,8 +2,10 @@ package integration_aws_test
 
 import (
 	"bytes"
+	"code.cloudfoundry.org/lager"
 	"encoding/gob"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -26,6 +28,7 @@ type SuiteData struct {
 var (
 	suiteData SuiteData
 
+	testSuiteLogger    lager.Logger
 	rdsSubnetGroupName *string
 	ec2SecurityGroupID *string
 )
@@ -33,16 +36,31 @@ var (
 func TestSuite(t *testing.T) {
 	SynchronizedBeforeSuite(
 		func() []byte {
+			testSuiteLogger = lager.NewLogger("test-suite-synchronization")
+			testSuiteLogger.RegisterSink(lager.NewWriterSink(os.Stdout, lager.INFO))
+
+			logSess := testSuiteLogger.Session("before-suite")
 			var err error
 
 			// Compile the broker
+			logSess.Info("compile-broker")
 			rdsBrokerPath, err := gexec.Build("github.com/alphagov/paas-rds-broker")
+			if err != nil {
+				logSess.Error("compile-broker", err)
+			}
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Update config
+			logSess.Info("update-broker-config")
 			rdsBrokerConfig, err := config.LoadConfig("./config.json")
+			if err != nil {
+				logSess.Error("update-broker-config", err)
+			}
 			Expect(err).ToNot(HaveOccurred())
 			err = rdsBrokerConfig.Validate()
+			if err != nil {
+				logSess.Error("broker-config-invalid", err)
+			}
 			Expect(err).ToNot(HaveOccurred())
 
 			// DB instance identifiers can be a maximum
@@ -52,15 +70,27 @@ func TestSuite(t *testing.T) {
 				"build-test",      // 10 characters
 				time.Now().Unix(), // 10 characters
 			)
+			logSess.Info("db-prefix", lager.Data{"prefix": rdsBrokerConfig.RDSConfig.DBPrefix})
 
 			awsSession := session.New(&aws.Config{
 				Region: aws.String(rdsBrokerConfig.RDSConfig.Region)},
 			)
 
+			logSess.Info("create-subnet-group")
 			rdsSubnetGroupName, err = CreateSubnetGroup(rdsBrokerConfig.RDSConfig.DBPrefix, awsSession)
+			if err != nil {
+				logSess.Error("create-subnet-group", err)
+			}
 			Expect(err).ToNot(HaveOccurred())
+			logSess.Info("subnet-group-created", lager.Data{"name": rdsSubnetGroupName})
+
+			logSess.Info("create-security-group")
 			ec2SecurityGroupID, err = CreateSecurityGroup(rdsBrokerConfig.RDSConfig.DBPrefix, awsSession)
+			if err != nil {
+				logSess.Error("create-security-group", err)
+			}
 			Expect(err).ToNot(HaveOccurred())
+			logSess.Info("security-group-created", lager.Data{"id": ec2SecurityGroupID})
 
 			for serviceIndex := range rdsBrokerConfig.RDSConfig.Catalog.Services {
 				for planIndex := range rdsBrokerConfig.RDSConfig.Catalog.Services[serviceIndex].Plans {
@@ -89,22 +119,41 @@ func TestSuite(t *testing.T) {
 	SynchronizedAfterSuite(
 		func() {},
 		func() {
+			logSess := testSuiteLogger.Session("after-suite")
 			awsSession := session.New(&aws.Config{
 				Region: aws.String(suiteData.RdsBrokerConfig.RDSConfig.Region)},
 			)
 
-			err := CleanUpTestDatabaseInstances(suiteData.RdsBrokerConfig.RDSConfig.DBPrefix, awsSession)
+			logSess.Info("remove-databases")
+			err := CleanUpTestDatabaseInstances(suiteData.RdsBrokerConfig.RDSConfig.DBPrefix, awsSession, logSess)
 
+			if err != nil {
+				logSess.Error("remove-databases", err)
+			}
 			Expect(err).ToNot(HaveOccurred())
 
 			if ec2SecurityGroupID != nil {
-				Expect(DestroySecurityGroup(ec2SecurityGroupID, awsSession)).To(Succeed())
+				logSess.Info("remove-security-group")
+				err = DestroySecurityGroup(ec2SecurityGroupID, awsSession, logSess)
+				if err != nil {
+					logSess.Error("remove-security-group", err)
+				}
+				Expect(err).To(Succeed())
 			}
 			if rdsSubnetGroupName != nil {
-				Expect(DestroySubnetGroup(rdsSubnetGroupName, awsSession)).To(Succeed())
+				logSess.Info("remove-subnet-group")
+				err = DestroySubnetGroup(rdsSubnetGroupName, awsSession, logSess)
+				if err != nil {
+					logSess.Error("remove-subnet-group", err)
+				}
+				Expect(err).To(Succeed())
 			}
 
-			err = CleanUpParameterGroups(suiteData.RdsBrokerConfig.RDSConfig.DBPrefix, awsSession)
+			logSess.Info("remove-parameter-groups")
+			err = CleanUpParameterGroups(suiteData.RdsBrokerConfig.RDSConfig.DBPrefix, awsSession, logSess)
+			if err != nil {
+				logSess.Error("remove-parameter-groups", err)
+			}
 			Expect(err).ToNot(HaveOccurred())
 		},
 	)
