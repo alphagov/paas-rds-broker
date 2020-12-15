@@ -125,10 +125,17 @@ func TestSuite(t *testing.T) {
 			)
 
 			logSess.Info("remove-databases")
-			err := CleanUpTestDatabaseInstances(suiteData.RdsBrokerConfig.RDSConfig.DBPrefix, awsSession, logSess)
+			deletedDbIds, err := CleanUpTestDatabaseInstances(suiteData.RdsBrokerConfig.RDSConfig.DBPrefix, awsSession, logSess)
 
 			if err != nil {
 				logSess.Error("remove-databases", err)
+			}
+			Expect(err).ToNot(HaveOccurred())
+
+			logSess.Info("wait-for-db-deletion")
+			err = WaitForDatabasesToBeDeleted(deletedDbIds, awsSession, logSess)
+			if err != nil {
+				logSess.Error("wait-for-db-deletion", err)
 			}
 			Expect(err).ToNot(HaveOccurred())
 

@@ -3,6 +3,7 @@ package helpers
 import (
 	"code.cloudfoundry.org/lager"
 	"fmt"
+	"golang.org/x/sync/errgroup"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -163,7 +164,7 @@ func CleanUpParameterGroups(prefix string, session *session.Session, logger lage
 	return nil
 }
 
-func CleanUpTestDatabaseInstances(prefix string, awsSession *session.Session, logger lager.Logger) error {
+func CleanUpTestDatabaseInstances(prefix string, awsSession *session.Session, logger lager.Logger) ([]string, error) {
 	logSess := logger.Session("cleanup-test-databases")
 	if !strings.HasPrefix(prefix, "build-test-") {
 		logSess.Error("cleanup-init", fmt.Errorf("trying to clean up databases without the 'build-test-' prefix will fail"))
@@ -192,7 +193,7 @@ func CleanUpTestDatabaseInstances(prefix string, awsSession *session.Session, lo
 
 	if err != nil {
 		logSess.Error("list-deletable-databases", err)
-		return err
+		return []string{}, err
 	} else {
 		logSess.Info("deletable-databases", lager.Data{"instance-identifiers": requiringDeletion})
 	}
@@ -206,11 +207,29 @@ func CleanUpTestDatabaseInstances(prefix string, awsSession *session.Session, lo
 
 		if err != nil {
 			logSess.Error("delete-database", err, lager.Data{"db-instance-identifier": instance})
-			return err
+			return []string{}, err
 		}
 	}
 
-	return nil
+	return requiringDeletion, nil
+}
+
+func WaitForDatabasesToBeDeleted(ids []string, awsSession *session.Session, logger lager.Logger) error {
+	logSess := logger.Session("wait-dor-db-deletion")
+	rdsSvc := rds.New(awsSession)
+
+	errGroup := errgroup.Group{}
+
+	for _, instanceId := range ids {
+		logSess.Info("begin-waiter", lager.Data{"instance-id": instanceId})
+		errGroup.Go(func() error {
+			return rdsSvc.WaitUntilDBInstanceDeleted(&rds.DescribeDBInstancesInput{
+				DBInstanceIdentifier: aws.String(instanceId),
+			})
+		})
+	}
+
+	return errGroup.Wait()
 }
 
 func getNetworkMetadata(name string, session *session.Session) (string, error) {
