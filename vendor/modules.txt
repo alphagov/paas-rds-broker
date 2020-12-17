@@ -2,6 +2,8 @@
 code.cloudfoundry.org/lager
 code.cloudfoundry.org/lager/lagerctx
 code.cloudfoundry.org/lager/lagertest
+# github.com/Masterminds/semver v1.5.0
+github.com/Masterminds/semver
 # github.com/aws/aws-sdk-go v1.16.34
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/awserr
@@ -55,6 +57,7 @@ github.com/lib/pq/oid
 # github.com/onsi/ginkgo v1.12.0
 github.com/onsi/ginkgo
 github.com/onsi/ginkgo/config
+github.com/onsi/ginkgo/extensions/table
 github.com/onsi/ginkgo/internal/codelocation
 github.com/onsi/ginkgo/internal/containernode
 github.com/onsi/ginkgo/internal/failer
@@ -105,9 +108,12 @@ github.com/robfig/cron
 # github.com/satori/go.uuid v1.1.1-0.20160927100844-b061729afc07
 github.com/satori/go.uuid
 # golang.org/x/net v0.0.0-20190206173232-65e2d4e15006
+golang.org/x/net/context
 golang.org/x/net/html
 golang.org/x/net/html/atom
 golang.org/x/net/html/charset
+# golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
+golang.org/x/sync/errgroup
 # golang.org/x/sys v0.0.0-20200202164722-d101bd2416d5
 golang.org/x/sys/unix
 # golang.org/x/text v0.3.0

@@ -424,6 +424,37 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		})
 
+		Describe("Postgres 9.5 to 11 or higher", func() {
+			var (
+				instanceID string
+				serviceID  = "postgres"
+				startPlan  = "postgres-micro"
+				endPlan    = "postgres-micro-11"
+			)
+
+			BeforeEach(func() {
+				instanceID = uuid.NewV4().String()
+
+				brokerAPIClient.AcceptsIncomplete = true
+
+				params := `{
+						"enable_extensions": []
+					}`
+
+				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlan, params)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlan, operation)
+				Expect(state).To(Equal("succeeded"))
+			})
+
+			It("cannot be upgraded", func() {
+				code, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlan, endPlan, `{}`)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(400))
+			})
+		})
+
 		Describe("Postgres 10 to 11", func() {
 			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-10", "postgres-micro-without-snapshot-11")
 		})

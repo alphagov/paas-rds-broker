@@ -34,6 +34,7 @@ type RDSInstance interface {
 	CreateParameterGroup(input *rds.CreateDBParameterGroupInput) error
 	ModifyParameterGroup(input *rds.ModifyDBParameterGroupInput) error
 	GetLatestMinorVersion(engine string, version string) (*string, error)
+	GetFullValidTargetVersion(engine string, currentVersion string, targetVersion string) (string, error)
 }
 
 type ByCreateTime []*rds.DBSnapshot

@@ -1,7 +1,9 @@
 package helpers
 
 import (
+	"code.cloudfoundry.org/lager"
 	"fmt"
+	"golang.org/x/sync/errgroup"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -85,32 +87,47 @@ func CreateSecurityGroup(prefix string, session *session.Session) (*string, erro
 	return securityGroup.GroupId, nil
 }
 
-func DestroySubnetGroup(name *string, session *session.Session) error {
+func DestroySubnetGroup(name *string, session *session.Session, logger lager.Logger) error {
+	logSess := logger.Session("destroy-subnet-group")
 	rdsService := rds.New(session)
+	logSess.Info("delete-db-subnet-group", lager.Data{"db-subnet-group-name": name})
 	_, err := rdsService.DeleteDBSubnetGroup(&rds.DeleteDBSubnetGroupInput{
 		DBSubnetGroupName: name,
 	})
 
+	if err != nil {
+		logSess.Error("delete-db-subnet-group", err, lager.Data{"db-subnet-group-name": name})
+	}
+
 	return err
 }
 
-func DestroySecurityGroup(id *string, session *session.Session) error {
+func DestroySecurityGroup(id *string, session *session.Session, logger lager.Logger) error {
+	logSess := logger.Session("destroy-security-group")
 	ec2Service := ec2.New(session)
+	logSess.Info("delete-security-group", lager.Data{"group-id": id})
 	_, err := ec2Service.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
 		GroupId: id,
 	})
 
+	if err != nil {
+		logSess.Error("delete-security-group", err, lager.Data{"group-id": id})
+	}
+
 	return err
 }
 
-func CleanUpParameterGroups(prefix string, session *session.Session) error {
+func CleanUpParameterGroups(prefix string, session *session.Session, logger lager.Logger) error {
+	logSess := logger.Session("cleanup-parameter-groups")
 	if !strings.HasPrefix(prefix, "build-test-") {
+		logSess.Error("cleanup-init", fmt.Errorf("trying to clean up parameter groups without the 'build-test-' prefix will fail"))
 		panic("Trying to clean up parameter groups without the 'build-test-' prefix will fail")
 	}
 
 	rdsService := rds.New(session)
 	parameterGroups := []string{}
 
+	logSess.Info("list-deletable-parameter-groups")
 	// Fetch all parameter group names
 	err := rdsService.DescribeDBParameterGroupsPages(
 		&rds.DescribeDBParameterGroupsInput{},
@@ -123,17 +140,22 @@ func CleanUpParameterGroups(prefix string, session *session.Session) error {
 	)
 
 	if err != nil {
+		logSess.Error("list-deletable-parameter-groups", err)
 		return err
+	} else {
+		logSess.Info("deletable-parameter-groups", lager.Data{"parameter-group-names": parameterGroups})
 	}
 
 	// Delete any with a matching prefix
 	for _, group := range parameterGroups {
 		if strings.HasPrefix(group, prefix) {
+			logSess.Info("delete-parameter-group", lager.Data{"name": group})
 			_, err := rdsService.DeleteDBParameterGroup(&rds.DeleteDBParameterGroupInput{
 				DBParameterGroupName: aws.String(group),
 			})
 
 			if err != nil {
+				logSess.Error("delete-parameter-group", err, lager.Data{"name": group})
 				return err
 			}
 		}
@@ -142,13 +164,16 @@ func CleanUpParameterGroups(prefix string, session *session.Session) error {
 	return nil
 }
 
-func CleanUpTestDatabaseInstances(prefix string, awsSession *session.Session) error {
+func CleanUpTestDatabaseInstances(prefix string, awsSession *session.Session, logger lager.Logger) ([]string, error) {
+	logSess := logger.Session("cleanup-test-databases")
 	if !strings.HasPrefix(prefix, "build-test-") {
+		logSess.Error("cleanup-init", fmt.Errorf("trying to clean up databases without the 'build-test-' prefix will fail"))
 		panic("Trying to clean up databases without the 'build-test-' prefix will fail")
 	}
 
 	rdsSvc := rds.New(awsSession)
 
+	logSess.Info("list-deletable-databases")
 	requiringDeletion := []string{}
 	err := rdsSvc.DescribeDBInstancesPages(
 		&rds.DescribeDBInstancesInput{},
@@ -167,21 +192,44 @@ func CleanUpTestDatabaseInstances(prefix string, awsSession *session.Session) er
 		})
 
 	if err != nil {
-		return err
+		logSess.Error("list-deletable-databases", err)
+		return []string{}, err
+	} else {
+		logSess.Info("deletable-databases", lager.Data{"instance-identifiers": requiringDeletion})
 	}
 
 	for _, instance := range requiringDeletion {
+		logSess.Info("delete-database", lager.Data{"db-instance-identifier": instance})
 		_, err := rdsSvc.DeleteDBInstance(&rds.DeleteDBInstanceInput{
 			DBInstanceIdentifier: aws.String(instance),
 			SkipFinalSnapshot:    aws.Bool(true),
 		})
 
 		if err != nil {
-			return err
+			logSess.Error("delete-database", err, lager.Data{"db-instance-identifier": instance})
+			return []string{}, err
 		}
 	}
 
-	return nil
+	return requiringDeletion, nil
+}
+
+func WaitForDatabasesToBeDeleted(ids []string, awsSession *session.Session, logger lager.Logger) error {
+	logSess := logger.Session("wait-dor-db-deletion")
+	rdsSvc := rds.New(awsSession)
+
+	errGroup := errgroup.Group{}
+
+	for _, instanceId := range ids {
+		logSess.Info("begin-waiter", lager.Data{"instance-id": instanceId})
+		errGroup.Go(func() error {
+			return rdsSvc.WaitUntilDBInstanceDeleted(&rds.DescribeDBInstancesInput{
+				DBInstanceIdentifier: aws.String(instanceId),
+			})
+		})
+	}
+
+	return errGroup.Wait()
 }
 
 func getNetworkMetadata(name string, session *session.Session) (string, error) {

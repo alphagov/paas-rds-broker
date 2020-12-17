@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
+	github.com/Masterminds/semver v1.5.0
 	github.com/aws/aws-sdk-go v1.16.34
 	github.com/drewolson/testflight v1.0.0 // indirect
 	github.com/go-sql-driver/mysql v1.2.1-0.20150908124601-527bcd55aab2
@@ -20,5 +21,6 @@ require (
 	github.com/satori/go.uuid v1.1.1-0.20160927100844-b061729afc07
 	github.com/stretchr/testify v1.4.0 // indirect
 	golang.org/x/net v0.0.0-20190206173232-65e2d4e15006 // indirect
+	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
 	golang.org/x/sys v0.0.0-20200202164722-d101bd2416d5 // indirect
 )

@@ -40,7 +40,8 @@ const lastOperationResponseLogKey = "lastOperationResponse"
 const extensionsLogKey = "requestedExtensions"
 
 var (
-	ErrEncryptionNotUpdateable = errors.New("instance can not be updated to a plan with different encryption settings")
+	ErrEncryptionNotUpdateable            = errors.New("instance can not be updated to a plan with different encryption settings")
+	ErrCannotUpgradePostgres9To11OrHigher = errors.New("cannot upgrade from Postgres 9.5 directly to Postgres 11 or higher. The database must be upgraded to Postgres 10 first")
 )
 
 var rdsStatus2State = map[string]brokerapi.LastOperationState{
@@ -470,6 +471,27 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PreviousValues.PlanID)
 	}
 
+	isPlanUpgrade, err := servicePlan.IsUpgradeFrom(previousServicePlan)
+	if err != nil {
+		b.logger.Error("is-service-plan-an-upgrade", err)
+		return brokerapi.UpdateServiceSpec{}, err
+	}
+
+	previousPlanIs9x := strings.HasPrefix(*previousServicePlan.RDSProperties.EngineVersion, "9.")
+	newPlanIs11OrNewer := !strings.HasPrefix(*servicePlan.RDSProperties.EngineVersion, "9.") && !strings.HasPrefix(*servicePlan.RDSProperties.EngineVersion, "10")
+	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
+		if previousPlanIs9x && newPlanIs11OrNewer {
+			err := ErrCannotUpgradePostgres9To11OrHigher
+			b.logger.Error("invalid-upgrade-path", err)
+			return brokerapi.UpdateServiceSpec{},
+				apiresponses.NewFailureResponse(
+					err,
+					http.StatusBadRequest,
+					"upgrade",
+				)
+		}
+	}
+
 	if !reflect.DeepEqual(servicePlan.RDSProperties.StorageEncrypted, previousServicePlan.RDSProperties.StorageEncrypted) {
 		return brokerapi.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
 	}
@@ -553,6 +575,7 @@ func (b *RDSBroker) Update(
 	modifyDBInstanceInput := b.newModifyDBInstanceInput(instanceID, servicePlan, updateParameters, newDbParamGroup)
 
 	if updateParameters.UpgradeMinorVersionToLatest != nil && *updateParameters.UpgradeMinorVersionToLatest {
+		b.logger.Info("is-minor-version-upgrade")
 		if updateParameters.Reboot != nil && *updateParameters.Reboot {
 			return brokerapi.UpdateServiceSpec{}, fmt.Errorf(
 				"Cannot reboot and upgrade minor version to latest at the same time",
@@ -569,6 +592,7 @@ func (b *RDSBroker) Update(
 			*existingInstance.Engine,
 			*existingInstance.EngineVersion,
 		)
+		b.logger.Info("selected-minor-version", lager.Data{"version": availableEngineVersion})
 
 		if err != nil {
 			return brokerapi.UpdateServiceSpec{}, err
@@ -577,6 +601,25 @@ func (b *RDSBroker) Update(
 		if availableEngineVersion != nil {
 			modifyDBInstanceInput.EngineVersion = availableEngineVersion
 		}
+	}
+
+	if isPlanUpgrade {
+		b.logger.Info("is-a-version-upgrade")
+		b.logger.Info("find-exact-upgrade-version")
+		currentVersion := *existingInstance.EngineVersion
+		targetVersion, err := b.dbInstance.GetFullValidTargetVersion(
+			*servicePlan.RDSProperties.Engine,
+			currentVersion,
+			*servicePlan.RDSProperties.EngineVersion,
+		)
+
+		if err != nil {
+			b.logger.Error("find-exact-upgrade-version", err)
+			return brokerapi.UpdateServiceSpec{}, err
+		}
+
+		b.logger.Info("selected-upgrade-version", lager.Data{"version": targetVersion})
+		modifyDBInstanceInput.EngineVersion = aws.String(targetVersion)
 	}
 
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)

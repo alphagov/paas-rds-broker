@@ -108,6 +108,21 @@ type FakeRDSInstance struct {
 		result1 []*rds.DBSnapshot
 		result2 error
 	}
+	GetFullValidTargetVersionStub        func(string, string, string) (string, error)
+	getFullValidTargetVersionMutex       sync.RWMutex
+	getFullValidTargetVersionArgsForCall []struct {
+		arg1 string
+		arg2 string
+		arg3 string
+	}
+	getFullValidTargetVersionReturns struct {
+		result1 string
+		result2 error
+	}
+	getFullValidTargetVersionReturnsOnCall map[int]struct {
+		result1 string
+		result2 error
+	}
 	GetLatestMinorVersionStub        func(string, string) (*string, error)
 	getLatestMinorVersionMutex       sync.RWMutex
 	getLatestMinorVersionArgsForCall []struct {
@@ -248,15 +263,16 @@ func (fake *FakeRDSInstance) AddTagsToResource(arg1 string, arg2 []*rds.Tag) err
 		arg1 string
 		arg2 []*rds.Tag
 	}{arg1, arg2Copy})
+	stub := fake.AddTagsToResourceStub
+	fakeReturns := fake.addTagsToResourceReturns
 	fake.recordInvocation("AddTagsToResource", []interface{}{arg1, arg2Copy})
 	fake.addTagsToResourceMutex.Unlock()
-	if fake.AddTagsToResourceStub != nil {
-		return fake.AddTagsToResourceStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.addTagsToResourceReturns
 	return fakeReturns.result1
 }
 
@@ -308,15 +324,16 @@ func (fake *FakeRDSInstance) Create(arg1 *rds.CreateDBInstanceInput) error {
 	fake.createArgsForCall = append(fake.createArgsForCall, struct {
 		arg1 *rds.CreateDBInstanceInput
 	}{arg1})
+	stub := fake.CreateStub
+	fakeReturns := fake.createReturns
 	fake.recordInvocation("Create", []interface{}{arg1})
 	fake.createMutex.Unlock()
-	if fake.CreateStub != nil {
-		return fake.CreateStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.createReturns
 	return fakeReturns.result1
 }
 
@@ -368,15 +385,16 @@ func (fake *FakeRDSInstance) CreateParameterGroup(arg1 *rds.CreateDBParameterGro
 	fake.createParameterGroupArgsForCall = append(fake.createParameterGroupArgsForCall, struct {
 		arg1 *rds.CreateDBParameterGroupInput
 	}{arg1})
+	stub := fake.CreateParameterGroupStub
+	fakeReturns := fake.createParameterGroupReturns
 	fake.recordInvocation("CreateParameterGroup", []interface{}{arg1})
 	fake.createParameterGroupMutex.Unlock()
-	if fake.CreateParameterGroupStub != nil {
-		return fake.CreateParameterGroupStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.createParameterGroupReturns
 	return fakeReturns.result1
 }
 
@@ -429,15 +447,16 @@ func (fake *FakeRDSInstance) Delete(arg1 string, arg2 bool) error {
 		arg1 string
 		arg2 bool
 	}{arg1, arg2})
+	stub := fake.DeleteStub
+	fakeReturns := fake.deleteReturns
 	fake.recordInvocation("Delete", []interface{}{arg1, arg2})
 	fake.deleteMutex.Unlock()
-	if fake.DeleteStub != nil {
-		return fake.DeleteStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.deleteReturns
 	return fakeReturns.result1
 }
 
@@ -490,15 +509,16 @@ func (fake *FakeRDSInstance) DeleteSnapshots(arg1 string, arg2 int) error {
 		arg1 string
 		arg2 int
 	}{arg1, arg2})
+	stub := fake.DeleteSnapshotsStub
+	fakeReturns := fake.deleteSnapshotsReturns
 	fake.recordInvocation("DeleteSnapshots", []interface{}{arg1, arg2})
 	fake.deleteSnapshotsMutex.Unlock()
-	if fake.DeleteSnapshotsStub != nil {
-		return fake.DeleteSnapshotsStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.deleteSnapshotsReturns
 	return fakeReturns.result1
 }
 
@@ -550,15 +570,16 @@ func (fake *FakeRDSInstance) Describe(arg1 string) (*rds.DBInstance, error) {
 	fake.describeArgsForCall = append(fake.describeArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.DescribeStub
+	fakeReturns := fake.describeReturns
 	fake.recordInvocation("Describe", []interface{}{arg1})
 	fake.describeMutex.Unlock()
-	if fake.DescribeStub != nil {
-		return fake.DescribeStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.describeReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -615,15 +636,16 @@ func (fake *FakeRDSInstance) DescribeByTag(arg1 string, arg2 string, arg3 ...aws
 		arg2 string
 		arg3 []awsrds.DescribeOption
 	}{arg1, arg2, arg3})
+	stub := fake.DescribeByTagStub
+	fakeReturns := fake.describeByTagReturns
 	fake.recordInvocation("DescribeByTag", []interface{}{arg1, arg2, arg3})
 	fake.describeByTagMutex.Unlock()
-	if fake.DescribeByTagStub != nil {
-		return fake.DescribeByTagStub(arg1, arg2, arg3...)
+	if stub != nil {
+		return stub(arg1, arg2, arg3...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.describeByTagReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -678,15 +700,16 @@ func (fake *FakeRDSInstance) DescribeSnapshots(arg1 string) ([]*rds.DBSnapshot, 
 	fake.describeSnapshotsArgsForCall = append(fake.describeSnapshotsArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.DescribeSnapshotsStub
+	fakeReturns := fake.describeSnapshotsReturns
 	fake.recordInvocation("DescribeSnapshots", []interface{}{arg1})
 	fake.describeSnapshotsMutex.Unlock()
-	if fake.DescribeSnapshotsStub != nil {
-		return fake.DescribeSnapshotsStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.describeSnapshotsReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -735,6 +758,72 @@ func (fake *FakeRDSInstance) DescribeSnapshotsReturnsOnCall(i int, result1 []*rd
 	}{result1, result2}
 }
 
+func (fake *FakeRDSInstance) GetFullValidTargetVersion(arg1 string, arg2 string, arg3 string) (string, error) {
+	fake.getFullValidTargetVersionMutex.Lock()
+	ret, specificReturn := fake.getFullValidTargetVersionReturnsOnCall[len(fake.getFullValidTargetVersionArgsForCall)]
+	fake.getFullValidTargetVersionArgsForCall = append(fake.getFullValidTargetVersionArgsForCall, struct {
+		arg1 string
+		arg2 string
+		arg3 string
+	}{arg1, arg2, arg3})
+	stub := fake.GetFullValidTargetVersionStub
+	fakeReturns := fake.getFullValidTargetVersionReturns
+	fake.recordInvocation("GetFullValidTargetVersion", []interface{}{arg1, arg2, arg3})
+	fake.getFullValidTargetVersionMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeRDSInstance) GetFullValidTargetVersionCallCount() int {
+	fake.getFullValidTargetVersionMutex.RLock()
+	defer fake.getFullValidTargetVersionMutex.RUnlock()
+	return len(fake.getFullValidTargetVersionArgsForCall)
+}
+
+func (fake *FakeRDSInstance) GetFullValidTargetVersionCalls(stub func(string, string, string) (string, error)) {
+	fake.getFullValidTargetVersionMutex.Lock()
+	defer fake.getFullValidTargetVersionMutex.Unlock()
+	fake.GetFullValidTargetVersionStub = stub
+}
+
+func (fake *FakeRDSInstance) GetFullValidTargetVersionArgsForCall(i int) (string, string, string) {
+	fake.getFullValidTargetVersionMutex.RLock()
+	defer fake.getFullValidTargetVersionMutex.RUnlock()
+	argsForCall := fake.getFullValidTargetVersionArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeRDSInstance) GetFullValidTargetVersionReturns(result1 string, result2 error) {
+	fake.getFullValidTargetVersionMutex.Lock()
+	defer fake.getFullValidTargetVersionMutex.Unlock()
+	fake.GetFullValidTargetVersionStub = nil
+	fake.getFullValidTargetVersionReturns = struct {
+		result1 string
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRDSInstance) GetFullValidTargetVersionReturnsOnCall(i int, result1 string, result2 error) {
+	fake.getFullValidTargetVersionMutex.Lock()
+	defer fake.getFullValidTargetVersionMutex.Unlock()
+	fake.GetFullValidTargetVersionStub = nil
+	if fake.getFullValidTargetVersionReturnsOnCall == nil {
+		fake.getFullValidTargetVersionReturnsOnCall = make(map[int]struct {
+			result1 string
+			result2 error
+		})
+	}
+	fake.getFullValidTargetVersionReturnsOnCall[i] = struct {
+		result1 string
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeRDSInstance) GetLatestMinorVersion(arg1 string, arg2 string) (*string, error) {
 	fake.getLatestMinorVersionMutex.Lock()
 	ret, specificReturn := fake.getLatestMinorVersionReturnsOnCall[len(fake.getLatestMinorVersionArgsForCall)]
@@ -742,15 +831,16 @@ func (fake *FakeRDSInstance) GetLatestMinorVersion(arg1 string, arg2 string) (*s
 		arg1 string
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.GetLatestMinorVersionStub
+	fakeReturns := fake.getLatestMinorVersionReturns
 	fake.recordInvocation("GetLatestMinorVersion", []interface{}{arg1, arg2})
 	fake.getLatestMinorVersionMutex.Unlock()
-	if fake.GetLatestMinorVersionStub != nil {
-		return fake.GetLatestMinorVersionStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getLatestMinorVersionReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -805,15 +895,16 @@ func (fake *FakeRDSInstance) GetParameterGroup(arg1 string) (*rds.DBParameterGro
 	fake.getParameterGroupArgsForCall = append(fake.getParameterGroupArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.GetParameterGroupStub
+	fakeReturns := fake.getParameterGroupReturns
 	fake.recordInvocation("GetParameterGroup", []interface{}{arg1})
 	fake.getParameterGroupMutex.Unlock()
-	if fake.GetParameterGroupStub != nil {
-		return fake.GetParameterGroupStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getParameterGroupReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -869,15 +960,16 @@ func (fake *FakeRDSInstance) GetResourceTags(arg1 string, arg2 ...awsrds.Describ
 		arg1 string
 		arg2 []awsrds.DescribeOption
 	}{arg1, arg2})
+	stub := fake.GetResourceTagsStub
+	fakeReturns := fake.getResourceTagsReturns
 	fake.recordInvocation("GetResourceTags", []interface{}{arg1, arg2})
 	fake.getResourceTagsMutex.Unlock()
-	if fake.GetResourceTagsStub != nil {
-		return fake.GetResourceTagsStub(arg1, arg2...)
+	if stub != nil {
+		return stub(arg1, arg2...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getResourceTagsReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -933,15 +1025,16 @@ func (fake *FakeRDSInstance) GetTag(arg1 string, arg2 string) (string, error) {
 		arg1 string
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.GetTagStub
+	fakeReturns := fake.getTagReturns
 	fake.recordInvocation("GetTag", []interface{}{arg1, arg2})
 	fake.getTagMutex.Unlock()
-	if fake.GetTagStub != nil {
-		return fake.GetTagStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getTagReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -996,15 +1089,16 @@ func (fake *FakeRDSInstance) Modify(arg1 *rds.ModifyDBInstanceInput) (*rds.DBIns
 	fake.modifyArgsForCall = append(fake.modifyArgsForCall, struct {
 		arg1 *rds.ModifyDBInstanceInput
 	}{arg1})
+	stub := fake.ModifyStub
+	fakeReturns := fake.modifyReturns
 	fake.recordInvocation("Modify", []interface{}{arg1})
 	fake.modifyMutex.Unlock()
-	if fake.ModifyStub != nil {
-		return fake.ModifyStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.modifyReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1059,15 +1153,16 @@ func (fake *FakeRDSInstance) ModifyParameterGroup(arg1 *rds.ModifyDBParameterGro
 	fake.modifyParameterGroupArgsForCall = append(fake.modifyParameterGroupArgsForCall, struct {
 		arg1 *rds.ModifyDBParameterGroupInput
 	}{arg1})
+	stub := fake.ModifyParameterGroupStub
+	fakeReturns := fake.modifyParameterGroupReturns
 	fake.recordInvocation("ModifyParameterGroup", []interface{}{arg1})
 	fake.modifyParameterGroupMutex.Unlock()
-	if fake.ModifyParameterGroupStub != nil {
-		return fake.ModifyParameterGroupStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.modifyParameterGroupReturns
 	return fakeReturns.result1
 }
 
@@ -1119,15 +1214,16 @@ func (fake *FakeRDSInstance) Reboot(arg1 *rds.RebootDBInstanceInput) error {
 	fake.rebootArgsForCall = append(fake.rebootArgsForCall, struct {
 		arg1 *rds.RebootDBInstanceInput
 	}{arg1})
+	stub := fake.RebootStub
+	fakeReturns := fake.rebootReturns
 	fake.recordInvocation("Reboot", []interface{}{arg1})
 	fake.rebootMutex.Unlock()
-	if fake.RebootStub != nil {
-		return fake.RebootStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.rebootReturns
 	return fakeReturns.result1
 }
 
@@ -1180,15 +1276,16 @@ func (fake *FakeRDSInstance) RemoveTag(arg1 string, arg2 string) error {
 		arg1 string
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.RemoveTagStub
+	fakeReturns := fake.removeTagReturns
 	fake.recordInvocation("RemoveTag", []interface{}{arg1, arg2})
 	fake.removeTagMutex.Unlock()
-	if fake.RemoveTagStub != nil {
-		return fake.RemoveTagStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.removeTagReturns
 	return fakeReturns.result1
 }
 
@@ -1240,15 +1337,16 @@ func (fake *FakeRDSInstance) Restore(arg1 *rds.RestoreDBInstanceFromDBSnapshotIn
 	fake.restoreArgsForCall = append(fake.restoreArgsForCall, struct {
 		arg1 *rds.RestoreDBInstanceFromDBSnapshotInput
 	}{arg1})
+	stub := fake.RestoreStub
+	fakeReturns := fake.restoreReturns
 	fake.recordInvocation("Restore", []interface{}{arg1})
 	fake.restoreMutex.Unlock()
-	if fake.RestoreStub != nil {
-		return fake.RestoreStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.restoreReturns
 	return fakeReturns.result1
 }
 
@@ -1300,15 +1398,16 @@ func (fake *FakeRDSInstance) RestoreToPointInTime(arg1 *rds.RestoreDBInstanceToP
 	fake.restoreToPointInTimeArgsForCall = append(fake.restoreToPointInTimeArgsForCall, struct {
 		arg1 *rds.RestoreDBInstanceToPointInTimeInput
 	}{arg1})
+	stub := fake.RestoreToPointInTimeStub
+	fakeReturns := fake.restoreToPointInTimeReturns
 	fake.recordInvocation("RestoreToPointInTime", []interface{}{arg1})
 	fake.restoreToPointInTimeMutex.Unlock()
-	if fake.RestoreToPointInTimeStub != nil {
-		return fake.RestoreToPointInTimeStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.restoreToPointInTimeReturns
 	return fakeReturns.result1
 }
 
@@ -1373,6 +1472,8 @@ func (fake *FakeRDSInstance) Invocations() map[string][][]interface{} {
 	defer fake.describeByTagMutex.RUnlock()
 	fake.describeSnapshotsMutex.RLock()
 	defer fake.describeSnapshotsMutex.RUnlock()
+	fake.getFullValidTargetVersionMutex.RLock()
+	defer fake.getFullValidTargetVersionMutex.RUnlock()
 	fake.getLatestMinorVersionMutex.RLock()
 	defer fake.getLatestMinorVersionMutex.RUnlock()
 	fake.getParameterGroupMutex.RLock()

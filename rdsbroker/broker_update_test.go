@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/pivotal-cf/brokerapi/domain"
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/alphagov/paas-rds-broker/rdsbroker/fakes"
@@ -27,16 +28,23 @@ var _ = Describe("RDS Broker", func() {
 	var (
 		ctx context.Context
 
-		rdsProperties1 RDSProperties
-		rdsProperties2 RDSProperties
-		rdsProperties3 RDSProperties
-		plan1          ServicePlan
-		plan2          ServicePlan
-		plan3          ServicePlan
-		service1       Service
-		service2       Service
-		service3       Service
-		catalog        Catalog
+		rdsProperties1      RDSProperties
+		rdsProperties2      RDSProperties
+		rdsProperties3      RDSProperties
+		rdsPropertiesPSQL9  RDSProperties
+		rdsPropertiesPSQL10 RDSProperties
+		rdsPropertiesPSQL11 RDSProperties
+		plan1               ServicePlan
+		plan2               ServicePlan
+		plan3               ServicePlan
+		planPSQL9           ServicePlan
+		planPSQL10          ServicePlan
+		planPSQL11          ServicePlan
+		service1            Service
+		service2            Service
+		service3            Service
+		servicePSQL         Service
+		catalog             Catalog
 
 		config Config
 
@@ -111,7 +119,7 @@ var _ = Describe("RDS Broker", func() {
 
 		rdsProperties2 = RDSProperties{
 			DBInstanceClass:   stringPointer("db.m2.test"),
-			Engine:            stringPointer("test-engine-two"),
+			Engine:            stringPointer("test-engine-one"),
 			EngineVersion:     stringPointer("4.5.6"),
 			AllocatedStorage:  int64Pointer(200),
 			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
@@ -132,6 +140,55 @@ var _ = Describe("RDS Broker", func() {
 			EngineVersion:     stringPointer("4.5.6"),
 			AllocatedStorage:  int64Pointer(300),
 			SkipFinalSnapshot: boolPointer(false),
+			DefaultExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+			},
+			AllowedExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+				stringPointer("postgres_super_extension"),
+			},
+		}
+
+		rdsPropertiesPSQL9 = RDSProperties{
+			DBInstanceClass:   stringPointer("db.t2.small"),
+			Engine:            stringPointer("postgres"),
+			EngineVersion:     stringPointer("9.5"),
+			AllocatedStorage:  int64Pointer(200),
+			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
+			DefaultExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+			},
+			AllowedExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+				stringPointer("postgres_super_extension"),
+			},
+		}
+		rdsPropertiesPSQL10 = RDSProperties{
+			DBInstanceClass:   stringPointer("db.t2.small"),
+			Engine:            stringPointer("postgres"),
+			EngineVersion:     stringPointer("10"),
+			AllocatedStorage:  int64Pointer(200),
+			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
+			DefaultExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+			},
+			AllowedExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+				stringPointer("postgres_super_extension"),
+			},
+		}
+		rdsPropertiesPSQL11 = RDSProperties{
+			DBInstanceClass:   stringPointer("db.t3.small"),
+			Engine:            stringPointer("postgres"),
+			EngineVersion:     stringPointer("11"),
+			AllocatedStorage:  int64Pointer(200),
+			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
 			DefaultExtensions: []*string{
 				stringPointer("postgis"),
 				stringPointer("pg_stat_statements"),
@@ -163,6 +220,30 @@ var _ = Describe("RDS Broker", func() {
 			Description:   "This is the Plan 3",
 			RDSProperties: rdsProperties3,
 		}
+		planPSQL9 = ServicePlan{
+			ID:            "plan-psql9",
+			Name:          "Plan PSQL 9",
+			Description:   "",
+			Free:          nil,
+			Metadata:      nil,
+			RDSProperties: rdsPropertiesPSQL9,
+		}
+		planPSQL10 = ServicePlan{
+			ID:            "plan-psql10",
+			Name:          "Plan PSQL 10",
+			Description:   "",
+			Free:          nil,
+			Metadata:      nil,
+			RDSProperties: rdsPropertiesPSQL10,
+		}
+		planPSQL11 = ServicePlan{
+			ID:            "plan-psql11",
+			Name:          "Plan PSQL 11",
+			Description:   "",
+			Free:          nil,
+			Metadata:      nil,
+			RDSProperties: rdsPropertiesPSQL11,
+		}
 
 		service1 = Service{
 			ID:            "Service-1",
@@ -185,9 +266,20 @@ var _ = Describe("RDS Broker", func() {
 			PlanUpdatable: planUpdateable,
 			Plans:         []ServicePlan{plan3},
 		}
+		servicePSQL = Service{
+			ID:            "psql-service",
+			Name:          "PSQL",
+			Description:   "Provides Postgres",
+			PlanUpdatable: planUpdateable,
+			Plans: []ServicePlan{
+				planPSQL9,
+				planPSQL10,
+				planPSQL11,
+			},
+		}
 
 		catalog = Catalog{
-			Services: []Service{service1, service2, service3},
+			Services: []Service{service1, service2, service3, servicePSQL},
 		}
 
 		config = Config{
@@ -218,8 +310,17 @@ var _ = Describe("RDS Broker", func() {
 					DBParameterGroupName: aws.String("originalParameterGroupName"),
 				},
 			},
+			Engine:        stringPointer("test-engine-one"),
+			EngineVersion: stringPointer("1.2.3"),
 		}
 		rdsInstance.DescribeReturns(existingDbInstance, nil)
+		rdsInstance.GetFullValidTargetVersionCalls(func(engine string, currentVersion string, targetVersionMoniker string) (string, error) {
+			if currentVersion == "1.2.3" {
+				return "4.5.6", nil
+			} else {
+				return "6.6.6", nil
+			}
+		})
 	})
 
 	Describe("Update", func() {
@@ -1091,10 +1192,14 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when the postgres version is being changed away from 9", func() {
 			BeforeEach(func() {
-				rdsProperties1.Engine = aws.String("postgres")
-				rdsProperties1.EngineVersion = aws.String("9.5")
-				rdsProperties2.Engine = aws.String("postgres")
-				rdsProperties2.EngineVersion = aws.String("10")
+				updateDetails.PlanID = planPSQL10.ID
+				updateDetails.ServiceID = servicePSQL.ID
+				updateDetails.PreviousValues = domain.PreviousValues{
+					PlanID:    planPSQL9.ID,
+					ServiceID: servicePSQL.ID,
+					OrgID:     updateDetails.PreviousValues.OrgID,
+					SpaceID:   updateDetails.PreviousValues.SpaceID,
+				}
 
 				rdsInstance.GetResourceTagsCalls(func(resourceArn string, opts ...awsrds.DescribeOption) ([]*rds.Tag, error) {
 					if resourceArn == "arn:aws:rds::i-have-postgis-enabled" {
@@ -1122,6 +1227,22 @@ var _ = Describe("RDS Broker", func() {
 
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("it must be upgraded to postgres 10", func() {
+				updateDetails.PlanID = planPSQL11.ID
+				updateDetails.ServiceID = servicePSQL.ID
+				updateDetails.PreviousValues = domain.PreviousValues{
+					PlanID:    planPSQL9.ID,
+					ServiceID: servicePSQL.ID,
+					OrgID:     updateDetails.PreviousValues.OrgID,
+					SpaceID:   updateDetails.PreviousValues.SpaceID,
+				}
+
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(BeAssignableToTypeOf(&brokerapi.FailureResponse{}))
+				failureResponse := err.(*brokerapi.FailureResponse)
+				Expect(failureResponse.Error()).To(Equal(ErrCannotUpgradePostgres9To11OrHigher.Error()))
 			})
 		})
 
