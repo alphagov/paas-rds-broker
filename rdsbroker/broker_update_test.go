@@ -1219,7 +1219,8 @@ var _ = Describe("RDS Broker", func() {
 				existingDbInstance.DBInstanceArn = aws.String("arn:aws:rds::i-have-postgis-enabled")
 
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(err).To(MatchError("Cannot upgrade from postgres 9 when the postgis extension is enabled. Disable the extension, or contact support."))
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal(ErrCannotUpgradeWhilePostgisIsEnabled.Error()))
 			})
 
 			It("when the postgis extension is not enabled, does not return an error", func() {
@@ -1309,6 +1310,30 @@ var _ = Describe("RDS Broker", func() {
 						"Cannot specify a version and upgrade minor version to latest at the same time",
 					))
 				})
+			})
+		})
+
+		Context("when postgis is enabled while doing a plan change", func() {
+			BeforeEach(func() {
+				dbTags := map[string]string{
+					awsrds.TagExtensions: "postgis:pg_stat_statements",
+				}
+				rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbTags), nil)
+
+				updateDetails.PlanID = planPSQL11.ID
+				updateDetails.ServiceID = servicePSQL.ID
+				updateDetails.PreviousValues = domain.PreviousValues{
+					PlanID:    planPSQL10.ID,
+					ServiceID: servicePSQL.ID,
+					OrgID:     updateDetails.PreviousValues.OrgID,
+					SpaceID:   updateDetails.PreviousValues.SpaceID,
+				}
+			})
+
+			It("the plan cannot be changed", func() {
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal(ErrCannotUpgradeWhilePostgisIsEnabled.Error()))
 			})
 		})
 	})

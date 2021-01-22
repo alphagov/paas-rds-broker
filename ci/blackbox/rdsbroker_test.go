@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -335,93 +336,119 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 9.5 to 10", func() {
-			Describe("when postgis extension is enabled", func() {
-				var (
-					instanceID string
-					serviceID  = "postgres"
-					startPlan  = "postgres-micro-without-snapshot"
-					endPlan    = "postgres-micro-without-snapshot-10"
-				)
+		Describe("Postgres plan upgrade", func() {
+			upgradePaths := map[string][]string{
+				"9.5 to 10": []string{
+					"postgres-micro-without-snapshot",
+					"postgres-micro-without-snapshot-10",
+					"10",
+				},
+				"10 to 12": []string{
+					"postgres-micro-without-snapshot-10",
+					"postgres-micro-without-snapshot-12",
+					"12",
+				},
+			}
 
-				BeforeEach(func() {
-					instanceID = uuid.NewV4().String()
+			for path, startAndEnd := range upgradePaths {
+				start := startAndEnd[0]
+				end := startAndEnd[1]
+				targetVersion := startAndEnd[2]
+				Describe(path, func() {
+					Describe("when postgis extension is enabled", func() {
+						var (
+							instanceID string
+							serviceID  = "postgres"
+							startPlan  = start
+							endPlan    = end
+						)
 
-					brokerAPIClient.AcceptsIncomplete = true
+						BeforeEach(func() {
+							instanceID = uuid.NewV4().String()
 
-					params := `{
-						"enable_extensions": ["postgis"]
-					}`
+							brokerAPIClient.AcceptsIncomplete = true
 
-					code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlan, params)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(code).To(Equal(202))
-					state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlan, operation)
-					Expect(state).To(Equal("succeeded"))
+							params := `{
+								"enable_extensions": ["postgis"]
+							}`
+
+							code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlan, params)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(code).To(Equal(202))
+							state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlan, operation)
+							Expect(state).To(Equal("succeeded"))
+						})
+
+						AfterEach(func() {
+							brokerAPIClient.AcceptsIncomplete = true
+							code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, endPlan)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(code).To(Equal(202))
+							state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, endPlan, operation)
+							Expect(state).To(Equal("gone"))
+						})
+
+						It("cannot be upgraded", func() {
+							code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlan, endPlan, `{}`)
+							Expect(err).ToNot(HaveOccurred(), "the 400 status code should not be an error")
+							Expect(code).To(Equal(400))
+							result := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, endPlan, operation)
+							Expect(result).To(
+								Equal("succeeded"),
+								"the status should be 'succeeded' because the state of the instance hasn't changed",
+							)
+						})
+					})
+
+					Describe("when postgis extension is not enabled", func() {
+						var (
+							instanceID string
+							serviceID  = "postgres"
+							startPlan  = start
+							endPlan    = end
+						)
+
+						BeforeEach(func() {
+							instanceID = uuid.NewV4().String()
+
+							brokerAPIClient.AcceptsIncomplete = true
+
+							params := `{
+								"enable_extensions": []
+							}`
+
+							code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlan, params)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(code).To(Equal(202))
+							state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlan, operation)
+							Expect(state).To(Equal("succeeded"))
+						})
+
+						AfterEach(func() {
+							brokerAPIClient.AcceptsIncomplete = true
+							code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, endPlan)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(code).To(Equal(202))
+							state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, endPlan, operation)
+							Expect(state).To(Equal("gone"))
+						})
+
+						It("can be upgraded", func() {
+							code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlan, endPlan, `{}`)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(code).To(Equal(202))
+							result := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, endPlan, operation)
+							Expect(result).To(Equal("succeeded"))
+
+							details, err := rdsClient.GetDBInstanceDetails(instanceID)
+							Expect(err).ToNot(HaveOccurred())
+
+							engineVersion := *details.DBInstances[0].EngineVersion
+							Expect(strings.HasPrefix(engineVersion, targetVersion)).To(BeTrue(), fmt.Sprintf("Expected database to have engine major version '%s', but version was '%s'", targetVersion, engineVersion))
+						})
+					})
 				})
-
-				AfterEach(func() {
-					brokerAPIClient.AcceptsIncomplete = true
-					code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, endPlan)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(code).To(Equal(202))
-					state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, endPlan, operation)
-					Expect(state).To(Equal("gone"))
-				})
-
-				It("cannot be upgraded", func() {
-					code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlan, endPlan, `{}`)
-					Expect(err).ToNot(HaveOccurred(), "the 400 status code should not be an error")
-					Expect(code).To(Equal(400))
-					result := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, endPlan, operation)
-					Expect(result).To(
-						Equal("succeeded"),
-						"the status should be 'succeeded' because the state of the instance hasn't changed",
-					)
-				})
-			})
-
-			Describe("when postgis extension is not enabled", func() {
-				var (
-					instanceID string
-					serviceID  = "postgres"
-					startPlan  = "postgres-micro-without-snapshot"
-					endPlan    = "postgres-micro-without-snapshot-10"
-				)
-
-				BeforeEach(func() {
-					instanceID = uuid.NewV4().String()
-
-					brokerAPIClient.AcceptsIncomplete = true
-
-					params := `{
-						"enable_extensions": []
-					}`
-
-					code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlan, params)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(code).To(Equal(202))
-					state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlan, operation)
-					Expect(state).To(Equal("succeeded"))
-				})
-
-				AfterEach(func() {
-					brokerAPIClient.AcceptsIncomplete = true
-					code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, endPlan)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(code).To(Equal(202))
-					state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, endPlan, operation)
-					Expect(state).To(Equal("gone"))
-				})
-
-				It("can be upgraded", func() {
-					code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlan, endPlan, `{}`)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(code).To(Equal(202))
-					result := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, endPlan, operation)
-					Expect(result).To(Equal("succeeded"))
-				})
-			})
+			}
 		})
 
 		Describe("Postgres 9.5 to 11 or higher", func() {

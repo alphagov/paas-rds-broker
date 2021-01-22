@@ -42,6 +42,7 @@ const extensionsLogKey = "requestedExtensions"
 var (
 	ErrEncryptionNotUpdateable            = errors.New("instance can not be updated to a plan with different encryption settings")
 	ErrCannotUpgradePostgres9To11OrHigher = errors.New("cannot upgrade from Postgres 9.5 directly to Postgres 11 or higher. The database must be upgraded to Postgres 10 first")
+	ErrCannotUpgradeWhilePostgisIsEnabled = errors.New("cannot upgrade a Postgres database whilst the Postgis extension is enabled. Disable the extension and try again")
 )
 
 var rdsStatus2State = map[string]brokerapi.LastOperationState{
@@ -529,14 +530,11 @@ func (b *RDSBroker) Update(
 	tagsByName := awsrds.RDSTagsValues(tags)
 
 	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
-		previousVersion := aws.StringValue(previousServicePlan.RDSProperties.EngineVersion)
-		newVersion := aws.StringValue(servicePlan.RDSProperties.EngineVersion)
-		if strings.HasPrefix(previousVersion, "9.") && !strings.HasPrefix(newVersion, "9.") {
-
+		if isPlanUpgrade {
 			if postgisIsEnabled(tagsByName) {
 				return brokerapi.UpdateServiceSpec{},
 					apiresponses.NewFailureResponse(
-						fmt.Errorf("Cannot upgrade from postgres 9 when the postgis extension is enabled. Disable the extension, or contact support."),
+						ErrCannotUpgradeWhilePostgisIsEnabled,
 						http.StatusBadRequest,
 						"upgrade",
 					)
