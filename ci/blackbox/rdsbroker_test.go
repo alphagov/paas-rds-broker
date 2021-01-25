@@ -750,11 +750,13 @@ func pollForOperationCompletion(brokerAPIClient *BrokerAPIClient, instanceID, se
 
 	fmt.Fprint(GinkgoWriter, "Polling for Instance Operation to complete")
 	time.Sleep(15 * time.Second) // Ensure the operation has actually started in AWS
+	var lastState string
 	Eventually(
 		func() string {
 			fmt.Fprint(GinkgoWriter, ".")
 			state, err = brokerAPIClient.GetLastOperationState(instanceID, serviceID, planID, operation)
 			Expect(err).ToNot(HaveOccurred())
+			lastState = state
 			return state
 		},
 		INSTANCE_CREATE_TIMEOUT,
@@ -764,6 +766,12 @@ func pollForOperationCompletion(brokerAPIClient *BrokerAPIClient, instanceID, se
 			Equal("succeeded"),
 			Equal("failed"),
 			Equal("gone"),
+		),
+		fmt.Sprintf(
+			"expected instanceID '%s' state to be one of succeeded, failed, gone. It was '%s' after '%d' seconds",
+			instanceID,
+			lastState,
+			INSTANCE_CREATE_TIMEOUT,
 		),
 	)
 
