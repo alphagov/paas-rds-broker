@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	INSTANCE_CREATE_TIMEOUT = 30 * time.Minute
+	INSTANCE_CREATE_TIMEOUT = 45 * time.Minute
 )
 
 var _ = Describe("RDS Broker Daemon", func() {
