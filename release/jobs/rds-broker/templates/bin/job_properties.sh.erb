@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+#
+# RDS Broker properties
+#
+
+# Directory to store the RDS Broker configuration files
+export RDS_BROKER_CONF_DIR=${JOB_DIR}/config
+
+# Directory to store the RDS Broker log files
+export RDS_BROKER_LOG_DIR=${LOG_DIR}
+
+# Directory to store the RDS Broker process IDs
+export RDS_BROKER_PID_DIR=${RUN_DIR}
+
+# Directory to store the RDS Broker data files
+export RDS_BROKER_STORE_DIR=${STORE_DIR}
+
+# Directory to store the RDS Broker temp files
+export RDS_BROKER_TMP_DIR=${TMP_DIR}
+
+<%- if_p('rds-broker.aws_access_key_id') do |access_key| %>
+# AWS Access Key ID
+export AWS_ACCESS_KEY_ID="<%= access_key %>"
+<%- end %>
+
+<%- if_p('rds-broker.aws_secret_access_key') do |secret_key| %>
+# AWS Secret Access Key
+export AWS_SECRET_ACCESS_KEY="<%= secret_key %>"
+<%- end %>

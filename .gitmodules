@@ -1,0 +1,3 @@
+[submodule "release/src/github.com/alphagov/paas-rds-metric-collector"]
+	path = release/src/github.com/alphagov/paas-rds-metric-collector
+	url = https://github.com/alphagov/paas-rds-metric-collector.git

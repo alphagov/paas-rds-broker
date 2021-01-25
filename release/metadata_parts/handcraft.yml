@@ -1,0 +1,1631 @@
+---
+name: p-aws-broker
+product_version: 0.1.1.0
+metadata_version: "1.6"
+label: "AWS Service Broker"
+description: "AWS Service Broker"
+rank: 1
+icon_image: "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"
+
+requires_product_versions:
+  - name: cf
+    version: "~> 1.6"
+
+provides_product_versions:
+  - name: p-aws-broker
+    version: 0.1.1.0
+
+post_deploy_errands:
+  - name: deploy-rds-broker
+  - name: rds-broker-registrar
+  - name: deploy-sqs-broker
+  - name: sqs-broker-registrar
+  - name: deploy-s3-broker
+  - name: s3-broker-registrar
+
+pre_delete_errands:
+  - name: rds-broker-deregistrar
+  - name: destroy-rds-broker
+  - name: sqs-broker-deregistrar
+  - name: destroy-sqs-broker
+  - name: s3-broker-deregistrar
+  - name: destroy-s3-broker
+
+form_types:
+  - name: aws
+    label: "AWS Config"
+    description: "AWS Configuration"
+    property_inputs:
+      - reference: .properties.aws_access_key_id
+        label: "AWS Access Key ID"
+        description: "Enter your AWS Access Key ID"
+      - reference: .properties.aws_secret_access_key
+        label: "AWS Secret Access Key"
+        description: "Enter your AWS Secret Access Key"
+      - reference: .properties.aws_region
+        label: "AWS Region"
+        description: "Enter the AWS Region where resources will be created in"
+
+  - name: rds_broker
+    label: "AWS RDS Broker Config"
+    description: "AWS RDS Service Broker Configuration"
+    property_inputs:
+      - reference: .properties.rds_broker_log_level
+        label: "Broker Log Level"
+        description: "Select the Broker Log Level"
+      - reference: .properties.rds_broker_allow_user_provision_parameters
+        label: "Allow user provision parameters"
+        description: "Allow or disallow users to send arbitrary parameters on provision calls"
+      - reference: .properties.rds_broker_allow_user_update_parameters
+        label: "Allow user update parameters"
+        description: "Allow or disallow users to send arbitrary parameters on update calls"
+      - reference: .properties.rds_broker_allow_user_bind_parameters
+        label: "Allow user bind parameters"
+        description: "Allow or disallow users to send arbitrary parameters on bind calls"
+      - reference: .properties.rds_broker_db_subnet_group_name
+        label: "AWS RDS DB Subnet Group"
+        description: "Enter the AWS RDS DB subnet group name that defines which subnets and IP ranges DB Instances can use in the VPC"
+      - reference: .properties.rds_broker_vpc_security_group_id
+        label: "AWS VPC Security Group ID"
+        description: "Enter the VPC Security Group ID that have rules authorizing connections from applications that need to access the data stored in DB Instances"
+      - reference: .properties.rds_broker_publicly_accessible
+        label: "Publicly Accessible"
+        description: "Specify if DB Instances will be publicly accessible"
+      - reference: .properties.rds_broker_multi_az
+        label: "Multi-AZ Deployment for DB Instances? (recommended for high availability)"
+        selector_property_inputs:
+          - reference: .properties.rds_broker_multi_az.enabled
+            label: "Enabled"
+          - reference: .properties.rds_broker_multi_az.disabled
+            label: "Disabled"
+            property_inputs:
+              - reference: .properties.rds_broker_multi_az.disabled.availability_zone
+                label: "AWS Availability Zone"
+                description: "Enter the Availability Zone where DB Instances will be created in. If not specified, a random, system-chosen Availability Zone in the endpoint's region, will be automatically chosen"
+
+  - name: sqs_broker
+    label: "AWS SQS Broker Config"
+    description: "AWS SQS Service Broker Configuration"
+    property_inputs:
+      - reference: .properties.sqs_broker_log_level
+        label: "Broker Log Level"
+        description: "Select the Broker Log Level"
+      - reference: .properties.sqs_broker_allow_user_provision_parameters
+        label: "Allow user provision parameters"
+        description: "Allow or disallow users to send arbitrary parameters on provision calls"
+      - reference: .properties.sqs_broker_allow_user_update_parameters
+        label: "Allow user update parameters"
+        description: "Allow or disallow users to send arbitrary parameters on update calls"
+      - reference: .properties.sqs_broker_delay_seconds
+        label: "Delay"
+        description: "Enter the time (in seconds) that the delivery of all messages in the queue will be delayed (min: 0 - max: 900)"
+      - reference: .properties.sqs_broker_maximum_message_size
+        label: "Maximum message size"
+        description: "Enter the limit of how many bytes a message can contain before Amazon SQS rejects it (min: 1024 - max: 262144)"
+      - reference: .properties.sqs_broker_message_retention_period
+        label: "Message retention period"
+        description: "Enter the number of seconds Amazon SQS retains a message (min: 60 - max: 1209600)"
+      - reference: .properties.sqs_broker_receive_message_wait_time_seconds
+        label: "ReceiveMessage wait time"
+        description: "Enter the time (in seconds) for which a ReceiveMessage call will wait for a message to arrive (min: 0 - max: 20)"
+      - reference: .properties.sqs_broker_visibility_timeout
+        label: "Visibility timeout"
+        description: "Enter the visibility timeout (in seconds) for the queue (min: 0 - max: 43200)"
+
+  - name: s3_broker
+    label: "AWS S3 Broker Config"
+    description: "AWS S3 Service Broker Configuration"
+    property_inputs:
+      - reference: .properties.s3_broker_log_level
+        label: "Broker Log Level"
+        description: "Select the Broker Log Level"
+      - reference: .properties.s3_broker_allow_user_provision_parameters
+        label: "Allow user provision parameters"
+        description: "Allow or disallow users to send arbitrary parameters on provision calls"
+      - reference: .properties.s3_broker_allow_user_update_parameters
+        label: "Allow user update parameters"
+        description: "Allow or disallow users to send arbitrary parameters on update calls"
+
+property_blueprints:
+  - name: aws_access_key_id
+    type: string
+    configurable: true
+    optional: false
+  - name: aws_secret_access_key
+    type: secret
+    configurable: true
+    optional: false
+  - name: aws_region
+    type: string
+    configurable: true
+    optional: false
+
+  - name: rds_broker_organization
+    type: string
+    configurable: false
+    default: system
+  - name: rds_broker_space
+    type: string
+    configurable: false
+    default: aws-broker
+  - name: rds_broker_name
+    type: string
+    configurable: false
+    default: rds-broker
+  - name: rds_broker_prefix
+    type: string
+    configurable: false
+    default: pcf
+  - name: rds_broker_log_level
+    type: dropdown_select
+    configurable: true
+    optional: false
+    default: ERROR
+    options:
+      - name: FATAL
+        label: FATAL
+      - name: ERROR
+        label: ERROR
+      - name: INFO
+        label: INFO
+      - name: DEBUG
+        label: DEBUG
+  - name: rds_broker_allow_user_provision_parameters
+    type: boolean
+    configurable: true
+    default: true
+  - name: rds_broker_allow_user_update_parameters
+    type: boolean
+    configurable: true
+    default: true
+  - name: rds_broker_allow_user_bind_parameters
+    type: boolean
+    configurable: true
+    default: true
+  - name: rds_broker_db_subnet_group_name
+    type: string
+    configurable: true
+    optional: false
+  - name: rds_broker_vpc_security_group_id
+    type: string
+    configurable: true
+    optional: false
+  - name: rds_broker_publicly_accessible
+    type: boolean
+    configurable: true
+    default: false
+  - name: rds_broker_multi_az
+    type: selector
+    configurable: true
+    optional: false
+    default: enabled
+    option_templates:
+      - name: enabled
+        select_value: enabled
+      - name: disabled
+        select_value: disabled
+        property_blueprints:
+          - name: availability_zone
+            type: string
+            configurable: true
+            optional: true
+  - name: rds_broker_plan_small_db_instance_class
+    type: string
+    configurable: false
+    optional: false
+    default: db.r3.large
+  - name: rds_broker_plan_small_allocated_storage
+    type: integer
+    configurable: false
+    optional: false
+    default: 10
+  - name: rds_broker_plan_small_storage_type
+    type: string
+    configurable: false
+    optional: false
+    default: standard
+  - name: rds_broker_plan_small_storage_type_description
+    type: string
+    configurable: false
+    optional: false
+    default: Magnetic storage
+  - name: rds_broker_plan_medium_db_instance_class
+    type: string
+    configurable: false
+    optional: false
+    default: db.r3.xlarge
+  - name: rds_broker_plan_medium_allocated_storage
+    type: integer
+    configurable: false
+    optional: false
+    default: 100
+  - name: rds_broker_plan_medium_storage_type
+    type: string
+    configurable: false
+    optional: false
+    default: gp2
+  - name: rds_broker_plan_medium_storage_type_description
+    type: string
+    configurable: false
+    optional: false
+    default: General purpose SSD-backed storage
+  - name: rds_broker_plan_large_db_instance_class
+    type: string
+    configurable: false
+    optional: false
+    default: db.r3.2xlarge
+  - name: rds_broker_plan_large_allocated_storage
+    type: integer
+    configurable: false
+    optional: false
+    default: 500
+  - name: rds_broker_plan_large_storage_type
+    type: string
+    configurable: false
+    optional: false
+    default: io1
+  - name: rds_broker_plan_large_storage_type_description
+    type: string
+    configurable: false
+    optional: false
+    default: Provisioned IOPS storage (1000 IOPS)
+  - name: rds_broker_plan_large_storage_iops
+    type: integer
+    configurable: false
+    optional: false
+    default: 1000
+
+  - name: sqs_broker_organization
+    type: string
+    configurable: false
+    default: system
+  - name: sqs_broker_space
+    type: string
+    configurable: false
+    default: aws-broker
+  - name: sqs_broker_name
+    type: string
+    configurable: false
+    default: sqs-broker
+  - name: sqs_broker_prefix
+    type: string
+    configurable: false
+    default: pcf
+  - name: sqs_broker_log_level
+    type: dropdown_select
+    configurable: true
+    optional: false
+    default: ERROR
+    options:
+      - name: FATAL
+        label: FATAL
+      - name: ERROR
+        label: ERROR
+      - name: INFO
+        label: INFO
+      - name: DEBUG
+        label: DEBUG
+  - name: sqs_broker_allow_user_provision_parameters
+    type: boolean
+    configurable: true
+    default: true
+  - name: sqs_broker_allow_user_update_parameters
+    type: boolean
+    configurable: true
+    default: true
+  - name: sqs_broker_delay_seconds
+    type: string
+    configurable: true
+    default: "0"
+  - name: sqs_broker_maximum_message_size
+    type: string
+    configurable: true
+    default: "262144"
+  - name: sqs_broker_message_retention_period
+    type: string
+    configurable: true
+    default: "345600"
+  - name: sqs_broker_receive_message_wait_time_seconds
+    type: string
+    configurable: true
+    default: "0"
+  - name: sqs_broker_visibility_timeout
+    type: string
+    configurable: true
+    default: "30"
+
+  - name: s3_broker_organization
+    type: string
+    configurable: false
+    default: system
+  - name: s3_broker_space
+    type: string
+    configurable: false
+    default: aws-broker
+  - name: s3_broker_name
+    type: string
+    configurable: false
+    default: s3-broker
+  - name: s3_broker_prefix
+    type: string
+    configurable: false
+    default: pcf
+  - name: s3_broker_log_level
+    type: dropdown_select
+    configurable: true
+    optional: false
+    default: ERROR
+    options:
+      - name: FATAL
+        label: FATAL
+      - name: ERROR
+        label: ERROR
+      - name: INFO
+        label: INFO
+      - name: DEBUG
+        label: DEBUG
+  - name: s3_broker_allow_user_provision_parameters
+    type: boolean
+    configurable: true
+    default: true
+  - name: s3_broker_allow_user_update_parameters
+    type: boolean
+    configurable: true
+    default: true
+
+job_types:
+  - name: compilation
+    resource_label: Compilation
+    description: Compilation resource
+
+    static_ip: 0
+    dynamic_ip: 1
+    max_in_flight: 1
+
+    instance_definitions:
+      - name: instances
+        type: integer
+        label: Instances
+        configurable: false
+        default: 1
+        constraints:
+          min: 1
+
+    resource_definitions:
+      - name: cpu
+        label: CPU
+        type: integer
+        configurable: true
+        default: 2
+        constraints:
+          min: 1
+      - name: ram
+        label: RAM
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: ephemeral_disk
+        label: Ephemeral Disk
+        type: integer
+        configurable: true
+        default: 8_192
+        constraints:
+          min: 4_096
+      - name: persistent_disk
+        label: Persistent Disk
+        type: integer
+        configurable: false
+        default: 0
+
+  - name: deploy-rds-broker
+    resource_label: Deploy AWS RDS Service Broker
+    description: Deploys the AWS RDS Service Broker application
+
+    templates:
+      - name: deploy-rds-broker
+        release: aws-broker
+
+    errand: true
+    static_ip: 0
+    dynamic_ip: 1
+    max_in_flight: 1
+
+    instance_definitions:
+      - name: instances
+        label: Instances
+        type: integer
+        configurable: false
+        default: 1
+        constraints:
+          min: 1
+
+    resource_definitions:
+      - name: cpu
+        label: CPU
+        type: integer
+        configurable: true
+        default: 2
+        constraints:
+          min: 1
+      - name: ram
+        label: RAM
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: ephemeral_disk
+        label: Ephemeral Disk
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: persistent_disk
+        label: Persistent Disk
+        type: integer
+        configurable: false
+        default: 0
+
+    property_blueprints:
+      - name: vm_credentials
+        type: salted_credentials
+        label: VM credentials
+        default:
+          identity: vcap
+      - name: broker_auth_credentials
+        type: simple_credentials
+        label: Broker Auth Credentials
+
+    manifest: |
+      multi_az_manifest: &multi_az_manifest
+        multi_az: <%= if "(( .properties.rds_broker_multi_az.value ))" == "enabled" then true else false end %>
+        availability_zone: (( .properties.rds_broker_multi_az.disabled.availability_zone.value ))
+      common_rds_properties: &common_rds_properties
+        auto_minor_version_upgrade: true
+        copy_tags_to_snapshot: true
+        publicly_accessible: (( .properties.rds_broker_publicly_accessible.value ))
+        db_subnet_group_name: (( .properties.rds_broker_db_subnet_group_name.value ))
+        vpc_security_group_ids:
+          - (( .properties.rds_broker_vpc_security_group_id.value ))
+      rds-broker:
+        log_level: "(( .properties.rds_broker_log_level.value ))"
+        username: "(( broker_auth_credentials.identity ))"
+        password: "(( broker_auth_credentials.password ))"
+        aws_access_key_id: "(( .properties.aws_access_key_id.value ))"
+        aws_secret_access_key: "(( .properties.aws_secret_access_key.value ))"
+        aws_region: "(( .properties.aws_region.value ))"
+        db_prefix: "(( .properties.rds_broker_prefix.value ))"
+        allow_user_provision_parameters: (( .properties.rds_broker_allow_user_provision_parameters.value ))
+        allow_user_update_parameters: (( .properties.rds_broker_allow_user_update_parameters.value ))
+        allow_user_bind_parameters: (( .properties.rds_broker_allow_user_bind_parameters.value ))
+        catalog:
+          services:
+            - id: 2ae1df05-bd36-49ec-8fda-60bc59bd3faa
+              name: aws-rds-aurora
+              description: AWS RDS Aurora service
+              bindable: true
+              tags:
+                - aurora
+                - mysql
+                - relational
+              metadata:
+                displayName: AWS RDS Aurora
+                imageUrl: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAAAAACPAi4CAAACK0lEQVRYw+3VXU+ScRzGcd9PdfBjUhpkLWfNuUUamhO8s5YloyeyEt3yoXkijS1yE0OmbcWKDmyVQ4r6BywzsWBzFYQThTYqLCkyEuTm6qQ8Q9w4ae6+XsDn7Nq3CAWuSAAEQAAEYHMC2Ww2WxDwtVHpLwhwEekLAtRUWgOMXrM2dc81cw4kBjhuOPVcp9PpwunRo9zdzBfdrVbudi5gQXSwnXzQ0P4jJOnaVcafEN9sI4tFWUf0eojOqkTtQRJfLi9ezgEYacJDzbymNJWkGr6LshPDzm4yA2dIn6ram1yVk5eO8yM0nQNQEBGVxTV7AJKjh/hL4rqTZM5cIXUGxft4XCQ3dcCSC5inqv5+FbnWgHTl6YydzPfo8CrASRZjInq3HnCOngJeql4DMort1bvpKhERDXpKdkql74PrAPxLBuA3Y9NugE3Bz7Bie5Rw+hhjjIXw/eH9KH6yt4iwpf/9TLGBAgGzyFcYIHdKgIUU8CE5n3F//GUyJZBYCjlgM01vBAheSG6dRWcUaAhoVfpJmc1+wO9Rql9w15+1PMkP8C12mAf/AUPosADjxzxKJNsQtxrzA3FRraJhB/8X+AxuFohUvjIgO1KyTbYBYKw3EgnXj3dGAWlAC5xyAK5DUwYsNkbB8gOp8k8AxlSO86E7WwJawFPrneGcHgO+VcxMyluX8wHhnjQA9K30VdwwRq0A3ijqnZh7DDyQNf3ojQlhEQABEAAB2NzAH/mNMsRSl0sEAAAAAElFTkSuQmCC
+                longDescription: AWS RDS Aurora service
+                providerDisplayName: Amazon Web Services
+                documentationUrl: https://aws.amazon.com/documentation/rds/
+                supportUrl: https://forums.aws.amazon.com/forum.jspa?forumID=60
+              plan_updateable: true
+              plans:
+                - id: caf83c0b-087c-4f4e-9dba-610120eadd4c
+                  name: bronze
+                  description: AWS RDS Aurora - (( .properties.rds_broker_plan_small_db_instance_class.value ))
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS RDS Aurora DB Cluster"
+                      - "DB Instance Class: (( .properties.rds_broker_plan_small_db_instance_class.value ))"
+                  free: true
+                  rds_properties:
+                    db_instance_class: (( .properties.rds_broker_plan_small_db_instance_class.value ))
+                    engine: aurora
+                    <<: *common_rds_properties
+                    multi_az: false
+                - id: 80e048ac-cad0-455b-8344-7e96a7cf6ca6
+                  name: silver
+                  description: AWS RDS Aurora - (( .properties.rds_broker_plan_medium_db_instance_class.value ))
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS RDS Aurora DB Cluster"
+                      - "DB Instance Class: (( .properties.rds_broker_plan_medium_db_instance_class.value ))"
+                  free: true
+                  rds_properties:
+                    db_instance_class: (( .properties.rds_broker_plan_medium_db_instance_class.value ))
+                    engine: aurora
+                    <<: *common_rds_properties
+                    multi_az: false
+                - id: 6f1d974f-62e0-4327-9f43-46a0c2ac3ebb
+                  name: gold
+                  description: AWS RDS Aurora - (( .properties.rds_broker_plan_large_db_instance_class.value ))
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS RDS Aurora DB Cluster"
+                      - "DB Instance Class: (( .properties.rds_broker_plan_large_db_instance_class.value ))"
+                  free: true
+                  rds_properties:
+                    db_instance_class: (( .properties.rds_broker_plan_large_db_instance_class.value ))
+                    engine: aurora
+                    <<: *common_rds_properties
+                    multi_az: false
+            - id: ce71b484-d542-40f7-9dd4-5526e38c81ba
+              name: aws-rds-mysql
+              description: AWS RDS MySQL service
+              bindable: true
+              tags:
+                  - mysql
+                  - relational
+              metadata:
+                displayName: AWS RDS MySQL
+                imageUrl: data:image/png;base64,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
+                longDescription: AWS RDS MySQL service
+                providerDisplayName: Amazon Web Services
+                documentationUrl: https://aws.amazon.com/documentation/rds/
+                supportUrl: https://forums.aws.amazon.com/forum.jspa?forumID=60
+              plan_updateable: true
+              plans:
+                - id: 5b8282cf-a669-4ffc-b426-c169a7bbfc71
+                  name: 5.6-bronze
+                  description: AWS RDS MySQL 5.6 - (( .properties.rds_broker_plan_small_db_instance_class.value )) - (( .properties.rds_broker_plan_small_allocated_storage.value ))Gb
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS RDS MySQL 5.6 DB Instance"
+                      - "DB Instance Class: (( .properties.rds_broker_plan_small_db_instance_class.value ))"
+                      - "Allocated Storage: (( .properties.rds_broker_plan_small_allocated_storage.value ))Gb"
+                      - "(( .properties.rds_broker_plan_small_storage_type_description.value ))"
+                  free: true
+                  rds_properties:
+                    db_instance_class: (( .properties.rds_broker_plan_small_db_instance_class.value ))
+                    engine: MySQL
+                    engine_version: 5.6.23
+                    allocated_storage: (( .properties.rds_broker_plan_small_allocated_storage.value ))
+                    storage_type: (( .properties.rds_broker_plan_small_storage_type.value ))
+                    <<: *common_rds_properties
+                    <<: *multi_az_manifest
+                - id: b4943c34-fd33-47a6-8f0b-eb4f462fd746
+                  name: 5.6-silver
+                  description: AWS RDS MySQL 5.6 - (( .properties.rds_broker_plan_medium_db_instance_class.value )) - (( .properties.rds_broker_plan_medium_allocated_storage.value ))Gb SSD
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS RDS MySQL 5.6 DB Instance"
+                      - "DB Instance Class: (( .properties.rds_broker_plan_medium_db_instance_class.value ))"
+                      - "Allocated Storage: (( .properties.rds_broker_plan_medium_allocated_storage.value ))Gb"
+                      - "(( .properties.rds_broker_plan_medium_storage_type_description.value ))"
+                  free: true
+                  rds_properties:
+                    db_instance_class: (( .properties.rds_broker_plan_medium_db_instance_class.value ))
+                    engine: MySQL
+                    engine_version: 5.6.23
+                    allocated_storage: (( .properties.rds_broker_plan_medium_allocated_storage.value ))
+                    storage_type: (( .properties.rds_broker_plan_medium_storage_type.value ))
+                    <<: *common_rds_properties
+                    <<: *multi_az_manifest
+                - id: 7e47cd05-625e-415d-bafd-09fbb0eb9ed8
+                  name: 5.6-gold
+                  description: AWS RDS MySQL 5.6 - (( .properties.rds_broker_plan_large_db_instance_class.value )) - (( .properties.rds_broker_plan_large_allocated_storage.value ))Gb SSD
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS RDS MySQL 5.6 DB Instance"
+                      - "DB Instance Class: (( .properties.rds_broker_plan_large_db_instance_class.value ))"
+                      - "Allocated Storage: (( .properties.rds_broker_plan_large_allocated_storage.value ))Gb"
+                      - "(( .properties.rds_broker_plan_large_storage_type_description.value ))"
+                  free: true
+                  rds_properties:
+                    db_instance_class: (( .properties.rds_broker_plan_large_db_instance_class.value ))
+                    engine: MySQL
+                    engine_version: 5.6.23
+                    allocated_storage: (( .properties.rds_broker_plan_large_allocated_storage.value ))
+                    storage_type: (( .properties.rds_broker_plan_large_storage_type.value ))
+                    iops: (( .properties.rds_broker_plan_large_storage_iops.value ))
+                    <<: *common_rds_properties
+                    <<: *multi_az_manifest
+            - id: 0c1647b1-6c12-4311-ad27-897db74dc285
+              name: aws-rds-mariadb
+              description: AWS RDS MariaDB service
+              bindable: true
+              tags:
+                  - mariadb
+                  - mysql
+                  - relational
+              metadata:
+                displayName: AWS RDS MariaDB
+                imageUrl: data:image/png;base64,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
+                longDescription: AWS RDS MariaDB service
+                providerDisplayName: Amazon Web Services
+                documentationUrl: https://aws.amazon.com/documentation/rds/
+                supportUrl: https://forums.aws.amazon.com/forum.jspa?forumID=60
+              plan_updateable: true
+              plans:
+                - id: a8a33f61-8492-4024-8cae-e210ce9cf34b
+                  name: 10.0-bronze
+                  description: AWS RDS MariaDB 10.0 - (( .properties.rds_broker_plan_small_db_instance_class.value )) - (( .properties.rds_broker_plan_small_allocated_storage.value ))Gb
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS RDS MariaDB 10.0 DB Instance"
+                      - "DB Instance Class: (( .properties.rds_broker_plan_small_db_instance_class.value ))"
+                      - "Allocated Storage: (( .properties.rds_broker_plan_small_allocated_storage.value ))Gb"
+                      - "(( .properties.rds_broker_plan_small_storage_type_description.value ))"
+                  free: true
+                  rds_properties:
+                    db_instance_class: (( .properties.rds_broker_plan_small_db_instance_class.value ))
+                    engine: MariaDB
+                    engine_version: 10.0.17
+                    allocated_storage: (( .properties.rds_broker_plan_small_allocated_storage.value ))
+                    storage_type: (( .properties.rds_broker_plan_small_storage_type.value ))
+                    <<: *common_rds_properties
+                    <<: *multi_az_manifest
+                - id: 27766c1c-ad0c-4467-a04f-37aed25ee6db
+                  name: 10.0-silver
+                  description: AWS RDS MariaDB 10.0 - (( .properties.rds_broker_plan_medium_db_instance_class.value )) - (( .properties.rds_broker_plan_medium_allocated_storage.value ))Gb SSD
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS RDS MariaDB 10.0 DB Instance"
+                      - "DB Instance Class: (( .properties.rds_broker_plan_medium_db_instance_class.value ))"
+                      - "Allocated Storage: (( .properties.rds_broker_plan_medium_allocated_storage.value ))Gb"
+                      - "(( .properties.rds_broker_plan_medium_storage_type_description.value ))"
+                  free: true
+                  rds_properties:
+                    db_instance_class: (( .properties.rds_broker_plan_medium_db_instance_class.value ))
+                    engine: MariaDB
+                    engine_version: 10.0.17
+                    allocated_storage: (( .properties.rds_broker_plan_medium_allocated_storage.value ))
+                    storage_type: (( .properties.rds_broker_plan_medium_storage_type.value ))
+                    <<: *common_rds_properties
+                    <<: *multi_az_manifest
+                - id: 0a93e267-7a20-43a9-ad8c-0429df1db58a
+                  name: 10.0-gold
+                  description: AWS RDS MariaDB 10.0 - (( .properties.rds_broker_plan_large_db_instance_class.value )) - (( .properties.rds_broker_plan_large_allocated_storage.value ))Gb SSD
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS RDS MariaDB 10.0 DB Instance"
+                      - "DB Instance Class: (( .properties.rds_broker_plan_large_db_instance_class.value ))"
+                      - "Allocated Storage: (( .properties.rds_broker_plan_large_allocated_storage.value ))Gb"
+                      - "(( .properties.rds_broker_plan_large_storage_type_description.value ))"
+                  free: true
+                  rds_properties:
+                    db_instance_class: (( .properties.rds_broker_plan_large_db_instance_class.value ))
+                    engine: MariaDB
+                    engine_version: 10.0.17
+                    allocated_storage: (( .properties.rds_broker_plan_large_allocated_storage.value ))
+                    storage_type: (( .properties.rds_broker_plan_large_storage_type.value ))
+                    iops: (( .properties.rds_broker_plan_large_storage_iops.value ))
+                    <<: *common_rds_properties
+                    <<: *multi_az_manifest
+            - id: a2c9adda-6511-462c-9934-b3fd8236e9f0
+              name: aws-rds-postgres
+              description: AWS RDS PostgreSQL service
+              bindable: true
+              tags:
+                - postgres
+                - postgresql
+                - relational
+              metadata:
+                displayName: AWS RDS PostgreSQL
+                imageUrl: data:image/png;base64,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
+                longDescription: AWS RDS PostgreSQL service
+                providerDisplayName: Amazon Web Services
+                documentationUrl: https://aws.amazon.com/documentation/rds/
+                supportUrl: https://forums.aws.amazon.com/forum.jspa?forumID=60
+              plan_updateable: true
+              plans:
+                - id: d03b544e-3be5-4aca-bb3b-11544247f313
+                  name: 9.4-bronze
+                  description: AWS RDS PostgreSQL 9.4 - (( .properties.rds_broker_plan_small_db_instance_class.value )) - (( .properties.rds_broker_plan_small_allocated_storage.value ))Gb
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS RDS PostgreSQL 9.4 DB Instance"
+                      - "DB Instance Class: (( .properties.rds_broker_plan_small_db_instance_class.value ))"
+                      - "Allocated Storage: (( .properties.rds_broker_plan_small_allocated_storage.value ))Gb"
+                      - "(( .properties.rds_broker_plan_small_storage_type_description.value ))"
+                  free: true
+                  rds_properties:
+                    db_instance_class: (( .properties.rds_broker_plan_small_db_instance_class.value ))
+                    engine: postgres
+                    engine_version: 9.4.4
+                    allocated_storage: (( .properties.rds_broker_plan_small_allocated_storage.value ))
+                    storage_type: (( .properties.rds_broker_plan_small_storage_type.value ))
+                    <<: *common_rds_properties
+                    <<: *multi_az_manifest
+                - id: 65cfcd68-625d-4635-a828-4ccef50af986
+                  name: 9.4-silver
+                  description: AWS RDS PostgreSQL 9.4 - (( .properties.rds_broker_plan_medium_db_instance_class.value )) - (( .properties.rds_broker_plan_medium_allocated_storage.value ))Gb SSD
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS RDS PostgreSQL 9.4 DB Instance"
+                      - "DB Instance Class: (( .properties.rds_broker_plan_medium_db_instance_class.value ))"
+                      - "Allocated Storage: (( .properties.rds_broker_plan_medium_allocated_storage.value ))Gb"
+                      - "(( .properties.rds_broker_plan_medium_storage_type_description.value ))"
+                  free: true
+                  rds_properties:
+                    db_instance_class: (( .properties.rds_broker_plan_medium_db_instance_class.value ))
+                    engine: postgres
+                    engine_version: 9.4.4
+                    allocated_storage: (( .properties.rds_broker_plan_medium_allocated_storage.value ))
+                    storage_type: (( .properties.rds_broker_plan_medium_storage_type.value ))
+                    <<: *common_rds_properties
+                    <<: *multi_az_manifest
+                - id: 8f8d8ed7-ddd3-4b1f-befa-976cf7fc4116
+                  name: 9.4-gold
+                  description: AWS RDS PostgreSQL 9.4 - (( .properties.rds_broker_plan_large_db_instance_class.value )) - (( .properties.rds_broker_plan_large_allocated_storage.value ))Gb SSD
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS RDS PostgreSQL 9.4 DB Instance"
+                      - "DB Instance Class: (( .properties.rds_broker_plan_large_db_instance_class.value ))"
+                      - "Allocated Storage: (( .properties.rds_broker_plan_large_allocated_storage.value ))Gb"
+                      - "(( .properties.rds_broker_plan_large_storage_type_description.value ))"
+                  free: true
+                  rds_properties:
+                    db_instance_class: (( .properties.rds_broker_plan_large_db_instance_class.value ))
+                    engine: postgres
+                    engine_version: 9.4.4
+                    allocated_storage: (( .properties.rds_broker_plan_large_allocated_storage.value ))
+                    storage_type: (( .properties.rds_broker_plan_large_storage_type.value ))
+                    iops: (( .properties.rds_broker_plan_large_storage_iops.value ))
+                    <<: *common_rds_properties
+                    <<: *multi_az_manifest
+        cf:
+          api_url: "https://api.(( ..cf.cloud_controller.system_domain.value ))"
+          skip_cert_verify: (( ..cf.ha_proxy.skip_cert_verify.value ))
+          admin_username: "(( ..cf.uaa.admin_credentials.identity ))"
+          admin_password: "(( ..cf.uaa.admin_credentials.password ))"
+          app:
+            organization: "(( .properties.rds_broker_organization.value ))"
+            space: "(( .properties.rds_broker_space.value ))"
+            name: "(( .properties.rds_broker_name.value ))"
+            hostname: "(( .properties.rds_broker_name.value ))"
+            domain: "(( ..cf.cloud_controller.system_domain.value ))"
+
+  - name: rds-broker-registrar
+    resource_label: Register AWS RDS Service Broker
+    description: Registers the AWS RDS Service Broker
+
+    templates:
+      - name: broker-registrar
+        release: aws-broker
+
+    errand: true
+    static_ip: 0
+    dynamic_ip: 1
+    max_in_flight: 1
+
+    instance_definitions:
+      - name: instances
+        label: Instances
+        type: integer
+        configurable: false
+        default: 1
+        constraints:
+          min: 1
+
+    resource_definitions:
+      - name: cpu
+        label: CPU
+        type: integer
+        configurable: true
+        default: 2
+        constraints:
+          min: 1
+      - name: ram
+        label: RAM
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: ephemeral_disk
+        label: Ephemeral Disk
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: persistent_disk
+        label: Persistent Disk
+        type: integer
+        configurable: false
+        default: 0
+
+    property_blueprints:
+      - name: vm_credentials
+        type: salted_credentials
+        label: VM credentials
+        default:
+          identity: vcap
+
+    manifest: |
+      cf:
+        api_url: "https://api.(( ..cf.cloud_controller.system_domain.value ))"
+        admin_username: "(( ..cf.uaa.admin_credentials.identity ))"
+        admin_password: "(( ..cf.uaa.admin_credentials.password ))"
+      broker:
+        name: "(( .properties.rds_broker_name.value ))"
+        host: "(( .properties.rds_broker_name.value )).(( ..cf.cloud_controller.system_domain.value ))"
+        username: "(( .deploy-rds-broker.broker_auth_credentials.identity ))"
+        password: "(( .deploy-rds-broker.broker_auth_credentials.password ))"
+
+  - name: rds-broker-deregistrar
+    resource_label: Deregister AWS RDS Service Broker
+    description: Deregisters the AWS RDS Service Broker
+
+    templates:
+      - name: broker-deregistrar
+        release: aws-broker
+
+    errand: true
+    static_ip: 0
+    dynamic_ip: 1
+    max_in_flight: 1
+
+    instance_definitions:
+      - name: instances
+        label: Instances
+        type: integer
+        configurable: false
+        default: 1
+        constraints:
+          min: 1
+
+    resource_definitions:
+      - name: cpu
+        label: CPU
+        type: integer
+        configurable: true
+        default: 2
+        constraints:
+          min: 1
+      - name: ram
+        label: RAM
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: ephemeral_disk
+        label: Ephemeral Disk
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: persistent_disk
+        label: Persistent Disk
+        type: integer
+        configurable: false
+        default: 0
+
+    property_blueprints:
+      - name: vm_credentials
+        type: salted_credentials
+        label: VM credentials
+        default:
+          identity: vcap
+
+    manifest: |
+      cf:
+        api_url: "https://api.(( ..cf.cloud_controller.system_domain.value ))"
+        admin_username: "(( ..cf.uaa.admin_credentials.identity ))"
+        admin_password: "(( ..cf.uaa.admin_credentials.password ))"
+      broker:
+        name: "(( .properties.rds_broker_name.value ))"
+        host: "(( .properties.rds_broker_name.value )).(( ..cf.cloud_controller.system_domain.value ))"
+        username: "(( .deploy-rds-broker.broker_auth_credentials.identity ))"
+        password: "(( .deploy-rds-broker.broker_auth_credentials.password ))"
+
+  - name: destroy-rds-broker
+    resource_label: Delete AWS RDS Service Broker
+    description: Deletes the AWS RDS Service Broker application
+
+    templates:
+      - name: destroy-rds-broker
+        release: aws-broker
+
+    errand: true
+    static_ip: 0
+    dynamic_ip: 1
+    max_in_flight: 1
+
+    instance_definitions:
+      - name: instances
+        label: Instances
+        type: integer
+        configurable: false
+        default: 1
+        constraints:
+          min: 1
+
+    resource_definitions:
+      - name: cpu
+        label: CPU
+        type: integer
+        configurable: true
+        default: 2
+        constraints:
+          min: 1
+      - name: ram
+        label: RAM
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: ephemeral_disk
+        label: Ephemeral Disk
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: persistent_disk
+        label: Persistent Disk
+        type: integer
+        configurable: false
+        default: 0
+
+    property_blueprints:
+      - name: vm_credentials
+        type: salted_credentials
+        label: VM credentials
+        default:
+          identity: vcap
+
+    manifest: |
+      rds-broker:
+        cf:
+          api_url: "https://api.(( ..cf.cloud_controller.system_domain.value ))"
+          skip_cert_verify: (( ..cf.ha_proxy.skip_cert_verify.value ))
+          admin_username: "(( ..cf.uaa.admin_credentials.identity ))"
+          admin_password: "(( ..cf.uaa.admin_credentials.password ))"
+          app:
+            organization: "(( .properties.rds_broker_organization.value ))"
+            space: "(( .properties.rds_broker_space.value ))"
+            name: "(( .properties.rds_broker_name.value ))"
+
+  - name: deploy-sqs-broker
+    resource_label: Deploy AWS SQS Service Broker
+    description: Deploys the AWS SQS Service Broker application
+
+    templates:
+      - name: deploy-sqs-broker
+        release: aws-broker
+
+    errand: true
+    static_ip: 0
+    dynamic_ip: 1
+    max_in_flight: 1
+
+    instance_definitions:
+      - name: instances
+        label: Instances
+        type: integer
+        configurable: false
+        default: 1
+        constraints:
+          min: 1
+
+    resource_definitions:
+      - name: cpu
+        label: CPU
+        type: integer
+        configurable: true
+        default: 2
+        constraints:
+          min: 1
+      - name: ram
+        label: RAM
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: ephemeral_disk
+        label: Ephemeral Disk
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: persistent_disk
+        label: Persistent Disk
+        type: integer
+        configurable: false
+        default: 0
+
+    property_blueprints:
+      - name: vm_credentials
+        type: salted_credentials
+        label: VM credentials
+        default:
+          identity: vcap
+      - name: broker_auth_credentials
+        type: simple_credentials
+        label: Broker Auth Credentials
+
+    manifest: |
+      sqs-broker:
+        log_level: "(( .properties.sqs_broker_log_level.value ))"
+        username: "(( broker_auth_credentials.identity ))"
+        password: "(( broker_auth_credentials.password ))"
+        aws_access_key_id: "(( .properties.aws_access_key_id.value ))"
+        aws_secret_access_key: "(( .properties.aws_secret_access_key.value ))"
+        aws_region: "(( .properties.aws_region.value ))"
+        sqs_prefix: "(( .properties.sqs_broker_prefix.value ))"
+        allow_user_provision_parameters: (( .properties.sqs_broker_allow_user_provision_parameters.value ))
+        allow_user_update_parameters: (( .properties.sqs_broker_allow_user_update_parameters.value ))
+        catalog:
+          services:
+            - id: "3c5ff4fd-3a27-4e66-a94d-f7d38558405d"
+              name: "aws-sqs"
+              description: "AWS SQS service"
+              bindable: true
+              tags:
+                - "sqs"
+                - "jms"
+              metadata:
+                displayName: "AWS SQS"
+                imageUrl: "data:image/png;base64,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"
+                longDescription: "AWS Simple Queue Service (SQS)"
+                providerDisplayName: "Amazon Web Services"
+                documentationUrl: "https://aws.amazon.com/documentation/sqs/"
+                supportUrl: "https://forums.aws.amazon.com/forum.jspa?forumID=12"
+              plan_updateable: true
+              plans:
+                - id: "7105c0ec-5238-45d4-a08d-3d682fbb4587"
+                  name: "queue"
+                  description: "AWS SQS Queue"
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS SQS queue"
+                      - "AWS SQS"
+                  free: true
+                  sqs_properties:
+                    delay_seconds: "(( .properties.sqs_broker_delay_seconds.value ))"
+                    maximum_message_size: "(( .properties.sqs_broker_maximum_message_size.value ))"
+                    message_retention_period: "(( .properties.sqs_broker_message_retention_period.value ))"
+                    receive_message_wait_time_seconds: "(( .properties.sqs_broker_receive_message_wait_time_seconds.value ))"
+                    visibility_timeout: "(( .properties.sqs_broker_visibility_timeout.value ))"
+        cf:
+          api_url: "https://api.(( ..cf.cloud_controller.system_domain.value ))"
+          skip_cert_verify: (( ..cf.ha_proxy.skip_cert_verify.value ))
+          admin_username: "(( ..cf.uaa.admin_credentials.identity ))"
+          admin_password: "(( ..cf.uaa.admin_credentials.password ))"
+          app:
+            organization: "(( .properties.sqs_broker_organization.value ))"
+            space: "(( .properties.sqs_broker_space.value ))"
+            name: "(( .properties.sqs_broker_name.value ))"
+            hostname: "(( .properties.sqs_broker_name.value ))"
+            domain: "(( ..cf.cloud_controller.system_domain.value ))"
+
+  - name: sqs-broker-registrar
+    resource_label: Register AWS SQS Service Broker
+    description: Registers the AWS SQS Service Broker
+
+    templates:
+      - name: broker-registrar
+        release: aws-broker
+
+    errand: true
+    static_ip: 0
+    dynamic_ip: 1
+    max_in_flight: 1
+
+    instance_definitions:
+      - name: instances
+        label: Instances
+        type: integer
+        configurable: false
+        default: 1
+        constraints:
+          min: 1
+
+    resource_definitions:
+      - name: cpu
+        label: CPU
+        type: integer
+        configurable: true
+        default: 2
+        constraints:
+          min: 1
+      - name: ram
+        label: RAM
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: ephemeral_disk
+        label: Ephemeral Disk
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: persistent_disk
+        label: Persistent Disk
+        type: integer
+        configurable: false
+        default: 0
+
+    property_blueprints:
+      - name: vm_credentials
+        type: salted_credentials
+        label: VM credentials
+        default:
+          identity: vcap
+
+    manifest: |
+      cf:
+        api_url: "https://api.(( ..cf.cloud_controller.system_domain.value ))"
+        admin_username: "(( ..cf.uaa.admin_credentials.identity ))"
+        admin_password: "(( ..cf.uaa.admin_credentials.password ))"
+      broker:
+        name: "(( .properties.sqs_broker_name.value ))"
+        host: "(( .properties.sqs_broker_name.value )).(( ..cf.cloud_controller.system_domain.value ))"
+        username: "(( .deploy-sqs-broker.broker_auth_credentials.identity ))"
+        password: "(( .deploy-sqs-broker.broker_auth_credentials.password ))"
+
+  - name: sqs-broker-deregistrar
+    resource_label: Deregister AWS SQS Service Broker
+    description: Deregisters the AWS SQS Service Broker
+
+    templates:
+      - name: broker-deregistrar
+        release: aws-broker
+
+    errand: true
+    static_ip: 0
+    dynamic_ip: 1
+    max_in_flight: 1
+
+    instance_definitions:
+      - name: instances
+        label: Instances
+        type: integer
+        configurable: false
+        default: 1
+        constraints:
+          min: 1
+
+    resource_definitions:
+      - name: cpu
+        label: CPU
+        type: integer
+        configurable: true
+        default: 2
+        constraints:
+          min: 1
+      - name: ram
+        label: RAM
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: ephemeral_disk
+        label: Ephemeral Disk
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: persistent_disk
+        label: Persistent Disk
+        type: integer
+        configurable: false
+        default: 0
+
+    property_blueprints:
+      - name: vm_credentials
+        type: salted_credentials
+        label: VM credentials
+        default:
+          identity: vcap
+
+    manifest: |
+      cf:
+        api_url: "https://api.(( ..cf.cloud_controller.system_domain.value ))"
+        admin_username: "(( ..cf.uaa.admin_credentials.identity ))"
+        admin_password: "(( ..cf.uaa.admin_credentials.password ))"
+      broker:
+        name: "(( .properties.sqs_broker_name.value ))"
+        host: "(( .properties.sqs_broker_name.value )).(( ..cf.cloud_controller.system_domain.value ))"
+        username: "(( .deploy-sqs-broker.broker_auth_credentials.identity ))"
+        password: "(( .deploy-sqs-broker.broker_auth_credentials.password ))"
+
+  - name: destroy-sqs-broker
+    resource_label: Delete AWS SQS Service Broker
+    description: Deletes the AWS SQS Service Broker application
+
+    templates:
+      - name: destroy-sqs-broker
+        release: aws-broker
+
+    errand: true
+    static_ip: 0
+    dynamic_ip: 1
+    max_in_flight: 1
+
+    instance_definitions:
+      - name: instances
+        label: Instances
+        type: integer
+        configurable: false
+        default: 1
+        constraints:
+          min: 1
+
+    resource_definitions:
+      - name: cpu
+        label: CPU
+        type: integer
+        configurable: true
+        default: 2
+        constraints:
+          min: 1
+      - name: ram
+        label: RAM
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: ephemeral_disk
+        label: Ephemeral Disk
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: persistent_disk
+        label: Persistent Disk
+        type: integer
+        configurable: false
+        default: 0
+
+    property_blueprints:
+      - name: vm_credentials
+        type: salted_credentials
+        label: VM credentials
+        default:
+          identity: vcap
+
+    manifest: |
+      sqs-broker:
+        cf:
+          api_url: "https://api.(( ..cf.cloud_controller.system_domain.value ))"
+          skip_cert_verify: (( ..cf.ha_proxy.skip_cert_verify.value ))
+          admin_username: "(( ..cf.uaa.admin_credentials.identity ))"
+          admin_password: "(( ..cf.uaa.admin_credentials.password ))"
+          app:
+            organization: "(( .properties.sqs_broker_organization.value ))"
+            space: "(( .properties.sqs_broker_space.value ))"
+            name: "(( .properties.sqs_broker_name.value ))"
+
+  - name: deploy-s3-broker
+    resource_label: Deploy AWS S3 Service Broker
+    description: Deploys the AWS S3 Service Broker application
+
+    templates:
+      - name: deploy-cloudformation-broker
+        release: aws-broker
+
+    errand: true
+    static_ip: 0
+    dynamic_ip: 1
+    max_in_flight: 1
+
+    instance_definitions:
+      - name: instances
+        label: Instances
+        type: integer
+        configurable: false
+        default: 1
+        constraints:
+          min: 1
+
+    resource_definitions:
+      - name: cpu
+        label: CPU
+        type: integer
+        configurable: true
+        default: 2
+        constraints:
+          min: 1
+      - name: ram
+        label: RAM
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: ephemeral_disk
+        label: Ephemeral Disk
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: persistent_disk
+        label: Persistent Disk
+        type: integer
+        configurable: false
+        default: 0
+
+    property_blueprints:
+      - name: vm_credentials
+        type: salted_credentials
+        label: VM credentials
+        default:
+          identity: vcap
+      - name: broker_auth_credentials
+        type: simple_credentials
+        label: Broker Auth Credentials
+
+    manifest: |
+      cloudformation-broker:
+        log_level: "(( .properties.s3_broker_log_level.value ))"
+        username: "(( broker_auth_credentials.identity ))"
+        password: "(( broker_auth_credentials.password ))"
+        aws_access_key_id: "(( .properties.aws_access_key_id.value ))"
+        aws_secret_access_key: "(( .properties.aws_secret_access_key.value ))"
+        aws_region: "(( .properties.aws_region.value ))"
+        cloudformation_prefix: "(( .properties.s3_broker_prefix.value ))"
+        allow_user_provision_parameters: (( .properties.s3_broker_allow_user_provision_parameters.value ))
+        allow_user_update_parameters: (( .properties.s3_broker_allow_user_update_parameters.value ))
+        catalog:
+          services:
+            - id: "91a53118-16fd-4865-b273-0257dbea0fe8"
+              name: "aws-s3"
+              description: "AWS S3 service"
+              bindable: true
+              tags:
+                - "s3"
+              metadata:
+                displayName: "AWS S3"
+                imageUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAHpklEQVR42u2bC1BU1R/HL+azv38cKSZg2afL67JPHgvLvu4uywqxXHZNm3J8RA9nsEhN/VuT4/6dPwK7yyOxsrLMKYNNRXtBzlhRY2OTFWmaisLeVfNfiVn272Fh9/c/ZwVCCUaMjF3vmfnO7LD3Hs73c86e8ztnfocguMKVv6NEuAhifItUOmELQdxw3bhGpscsIYhJFalxOrdC1LRdL9/nL6KWMfnZoo8JYlxYG192C/EPbNyjEG7xKiU/V6skbDOVxgZm5ELAYfm8kzY9FLBpxAdJcjweIWFj3BUVFVmVGKt3KwSNQePqaRBUfwA98jvMBzuLDIvbCzMkxwqkEyCEQUS4oqMnV5ECvVsp3OxVin83PgSAPjks+xnauKhjulbaMyJCrOeRebdc+ICnf48PB0CPGKdlX6DIaAk5ANWJsTd7VaJ/D2r+CgEEITiou0Lup8AB4ACEGYBZKFrbnCWNPEiRk1sJYuwoBBBRTxATnpZMnbJHGz9pxIDhMNUlio6pU/AsDdqUxQxtLvXbjTbm1hxVF62LO0Lr/tlKDQRyDQBEuETERBcZGVVLxku9cp62mhTMXKuWPPRJXtacE4WUDHfWnwqoXFIi0iPj21DIWlejEv/YqJP9r6dRvzHF5i8Zp2ljoNhUFqDNhSeKTJmn7DrBNwVZkZCePm6kAcwKdgQxsSKZd5NbJkyplvON1Qr+nR6lYJVbId6N4owfcH316QlnD9iN3YyT2osiy9KOwhxZK0WNHb55NMwrU+KsvQFMXdq0C/0AXKLjCAgKXL5CDW1gik1LkJwf2jT2pzIS1o8EgA+mZ5d75QKrWyaYWyWXrEZt2usdJL7oBdDXNgf1zrECQ/TwAZDEeI9CMK+34qEADJDTwh6hjd+/alB+NRIAthnk59Gz3UPWNQgAxmnuardbeNcWANIR2gRvUOpLGufFUknAg6UUs+Vy0S+NOYqf9hcaL7TTFNvpMOPIL6j+dW01KOBKzI9KAL2Gq5QSKFeIwSUTwkpSACuS+Oz902LPLU3kn16Xlnzep1Oyr5vS4V1rFrTdqkfvU9ALZKs+BAG0IwDNCEAlMr2KFMKKZD4sSuDBveJYmCeMGVSLE/iwNi0J0MgADOS9vCx4QZsaegA6UO/tzsuG5zSpUKNOhEplArhSJbBIGg8LEIS7RTEwXxjDzrso/BlKkO5D3y2cFgdlUl4QGB41NVdoflQBuFx+NJTx0N5uUMMzmalQn5aMJsFE9lFSxGKjS5CWJcaj0SKAKmQa/3Sqh2F81AMYbLVoQavA1RjlAIQagN7lDcuP5oeOYgqO0ia22aRma1H9NeEGABvFEyFeDj8rNMD7tmx425oZ1K7cDNhpSQfc+2ipZF81qWCHUQVNRmVQL+vlsDE7BR5PT4C6YcIZNQCOIfMf5mvRUqYGn04GT2QkDmgsMsa2mAdGgkfR6PgIvbsLQXoDvf+MJjl0A6GhGjsYgMsV0pEgB4ADwAHgAHAAOAAcAA4AB4ADcJ0BwDvBtgIdvNNv99dMpcEraLf3YjYJ9WnSPgD48BPvGFvRs/gc8TW0AdqBnttmuKj1mUmhuR0O7v2RsMFjaIfXjnSoyIjA5MBuWxa8a81kkWHWp1cEDz7Xox3jWgSm7iKc8D0R6jsccZjZFgSAOxK7HgGcKJkJ/13xALt/WSm7bTYNT+iVYQrgjgI4WTYfvnQtha8rV8Lp2nLoWlsFZ55+DL7d/Bx7pmEje3zDOjhUUw6frlkJe1cth/eWlkLzfbPh2Twt1KD5ICQB4GOtPWhm33mbDfY9UgZnNj0F3215Ec41NcC5HT74HuuVl/uE//bd9kY4u3UznG54Hjpr10Bb6VzY47TCphxZaMYBLZYMqEez+warBhpn5MGOOU546/4S+NztgrO+TZcA6Hr+STi15lH44l8L4YuyEjh+z+3AzC4C/0wbbDEowyMQqkXL3LpeIA4ri4D8+snC+T+ferCk+8Q9t7OB2XZgZtmAwQ3vUdhGgjgIqstIuLDTqukO3Gb9Db3Dhn4k6LR0o394FK3v9Z/ma5dvzErxjUSCRGtu5gaPXPSwRyl8vVop/ga/95cDwMlFbl5UfJVcsNqjknT9EQBmhuXXgIM6FCimvIzdVBKgTeaOQkrmz826pUktFtaqxf8ZCQDtRcYFlYIpUyuTY0SVqfxMN8mn3aRwKc46R2073R/IJQAc1K4O2nAHQ1ETrzrhuTY+MqoimaetVopW+3LIo36HuY1xmCr8xaa5nXad3k/rknAOzsf29BuBIMZciyyxBQQxboVk6hSXghe/huSpPKQo3ysTPOhWCF9Ae4zDbfnaN/00NeckrZXilLmRyJYbg3vAp5EkHi/USw7nam46iSp29TP8d+YJ4oQuVzQx2UNGxzypiEs6YMvknxwh41ymKAeAA8AB4ABcbXZ5pTRajZaml7wqyfmrAYACqgNMkWFxYHp6LBGKJXhjDC1PFUlxOhTJ+Qbk9w4GoOcK3RGbMXiFDkL9Ch0EAypiUlVyXE7wzqCqB8RlABiH5XDvJUqgiLFEGJaIMoKY4EWRpUcpasKZ6BgA47S0+2nTcpxuD9fLNVo8R7gVvOyXNOSsTqtOMFRUyZW/uPwf9ncNF/8b0y0AAAAASUVORK5CYII="
+                longDescription: "Amazon Simple Storage Service (S3)"
+                providerDisplayName: "Amazon Web Services"
+                documentationUrl: "https://aws.amazon.com/documentation/s3/"
+                supportUrl: "https://forums.aws.amazon.com/forum.jspa?forumID=24"
+              plan_updateable: true
+              plans:
+                - id: "fa5b59d8-e137-48b8-b696-6100d9cea722"
+                  name: "bucket"
+                  description: "Amazon S3 Bucket"
+                  metadata:
+                    bullets:
+                      - "Dedicated AWS S3 bucket"
+                      - "AWS S3"
+                  free: true
+                  cloudformation_properties:
+                    capabilities:
+                      - "CAPABILITY_IAM"
+                    on_failure: "ROLLBACK"
+                    template_url: "https://s3.amazonaws.com/aws-cloudformation-service-broker/sample-s3-cftemplate.json"
+                    timeout_in_minutes: 10
+        cf:
+          api_url: "https://api.(( ..cf.cloud_controller.system_domain.value ))"
+          skip_cert_verify: (( ..cf.ha_proxy.skip_cert_verify.value ))
+          admin_username: "(( ..cf.uaa.admin_credentials.identity ))"
+          admin_password: "(( ..cf.uaa.admin_credentials.password ))"
+          app:
+            organization: "(( .properties.s3_broker_organization.value ))"
+            space: "(( .properties.s3_broker_space.value ))"
+            name: "(( .properties.s3_broker_name.value ))"
+            hostname: "(( .properties.s3_broker_name.value ))"
+            domain: "(( ..cf.cloud_controller.system_domain.value ))"
+
+  - name: s3-broker-registrar
+    resource_label: Register AWS S3 Service Broker
+    description: Registers the AWS S3 Service Broker
+
+    templates:
+      - name: broker-registrar
+        release: aws-broker
+
+    errand: true
+    static_ip: 0
+    dynamic_ip: 1
+    max_in_flight: 1
+
+    instance_definitions:
+      - name: instances
+        label: Instances
+        type: integer
+        configurable: false
+        default: 1
+        constraints:
+          min: 1
+
+    resource_definitions:
+      - name: cpu
+        label: CPU
+        type: integer
+        configurable: true
+        default: 2
+        constraints:
+          min: 1
+      - name: ram
+        label: RAM
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: ephemeral_disk
+        label: Ephemeral Disk
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: persistent_disk
+        label: Persistent Disk
+        type: integer
+        configurable: false
+        default: 0
+
+    property_blueprints:
+      - name: vm_credentials
+        type: salted_credentials
+        label: VM credentials
+        default:
+          identity: vcap
+
+    manifest: |
+      cf:
+        api_url: "https://api.(( ..cf.cloud_controller.system_domain.value ))"
+        admin_username: "(( ..cf.uaa.admin_credentials.identity ))"
+        admin_password: "(( ..cf.uaa.admin_credentials.password ))"
+      broker:
+        name: "(( .properties.s3_broker_name.value ))"
+        host: "(( .properties.s3_broker_name.value )).(( ..cf.cloud_controller.system_domain.value ))"
+        username: "(( .deploy-s3-broker.broker_auth_credentials.identity ))"
+        password: "(( .deploy-s3-broker.broker_auth_credentials.password ))"
+
+  - name: s3-broker-deregistrar
+    resource_label: Deregister AWS S3 Service Broker
+    description: Deregisters the AWS S3 Service Broker
+
+    templates:
+      - name: broker-deregistrar
+        release: aws-broker
+
+    errand: true
+    static_ip: 0
+    dynamic_ip: 1
+    max_in_flight: 1
+
+    instance_definitions:
+      - name: instances
+        label: Instances
+        type: integer
+        configurable: false
+        default: 1
+        constraints:
+          min: 1
+
+    resource_definitions:
+      - name: cpu
+        label: CPU
+        type: integer
+        configurable: true
+        default: 2
+        constraints:
+          min: 1
+      - name: ram
+        label: RAM
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: ephemeral_disk
+        label: Ephemeral Disk
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: persistent_disk
+        label: Persistent Disk
+        type: integer
+        configurable: false
+        default: 0
+
+    property_blueprints:
+      - name: vm_credentials
+        type: salted_credentials
+        label: VM credentials
+        default:
+          identity: vcap
+
+    manifest: |
+      cf:
+        api_url: "https://api.(( ..cf.cloud_controller.system_domain.value ))"
+        admin_username: "(( ..cf.uaa.admin_credentials.identity ))"
+        admin_password: "(( ..cf.uaa.admin_credentials.password ))"
+      broker:
+        name: "(( .properties.s3_broker_name.value ))"
+        host: "(( .properties.s3_broker_name.value )).(( ..cf.cloud_controller.system_domain.value ))"
+        username: "(( .deploy-s3-broker.broker_auth_credentials.identity ))"
+        password: "(( .deploy-s3-broker.broker_auth_credentials.password ))"
+
+  - name: destroy-s3-broker
+    resource_label: Delete AWS S3 Service Broker
+    description: Deletes the AWS S3 Service Broker application
+
+    templates:
+      - name: destroy-cloudformation-broker
+        release: aws-broker
+
+    errand: true
+    static_ip: 0
+    dynamic_ip: 1
+    max_in_flight: 1
+
+    instance_definitions:
+      - name: instances
+        label: Instances
+        type: integer
+        configurable: false
+        default: 1
+        constraints:
+          min: 1
+
+    resource_definitions:
+      - name: cpu
+        label: CPU
+        type: integer
+        configurable: true
+        default: 2
+        constraints:
+          min: 1
+      - name: ram
+        label: RAM
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: ephemeral_disk
+        label: Ephemeral Disk
+        type: integer
+        configurable: true
+        default: 2_048
+        constraints:
+          min: 1_024
+      - name: persistent_disk
+        label: Persistent Disk
+        type: integer
+        configurable: false
+        default: 0
+
+    property_blueprints:
+      - name: vm_credentials
+        type: salted_credentials
+        label: VM credentials
+        default:
+          identity: vcap
+
+    manifest: |
+      cloudformation-broker:
+        cf:
+          api_url: "https://api.(( ..cf.cloud_controller.system_domain.value ))"
+          skip_cert_verify: (( ..cf.ha_proxy.skip_cert_verify.value ))
+          admin_username: "(( ..cf.uaa.admin_credentials.identity ))"
+          admin_password: "(( ..cf.uaa.admin_credentials.password ))"
+          app:
+            organization: "(( .properties.s3_broker_organization.value ))"
+            space: "(( .properties.s3_broker_space.value ))"
+            name: "(( .properties.s3_broker_name.value ))"

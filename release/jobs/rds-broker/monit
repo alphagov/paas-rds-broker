@@ -1,0 +1,5 @@
+check process rds-broker
+  with pidfile /var/vcap/sys/run/rds-broker/rds-broker.pid
+  start program "/var/vcap/packages/bosh-helpers/monit_debugger rds-broker-ctl '/var/vcap/jobs/rds-broker/bin/rds-broker-ctl start'"
+  stop program "/var/vcap/packages/bosh-helpers/monit_debugger rds-broker-ctl '/var/vcap/jobs/rds-broker/bin/rds-broker-ctl stop'"
+  group vcap

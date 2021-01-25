@@ -1,0 +1,59 @@
+---
+name: rds-broker
+
+packages:
+  - bosh-helpers
+  - rds-broker
+
+templates:
+  bin/job_properties.sh.erb: bin/job_properties.sh
+  bin/rds-broker-ctl.erb: bin/rds-broker-ctl
+  config/rds-config.json.erb: config/rds-config.json
+
+properties:
+  rds-broker.log_level:
+    description: "Broker Log Level (DEBUG, INFO, ERROR, FATAL)"
+    default: "DEBUG"
+  rds-broker.port:
+    description: "Broker Listen Port"
+    default: 80
+  rds-broker.username:
+    description: "Broker Auth Username"
+    default: "rds-broker"
+  rds-broker.password:
+    description: "Broker Auth Password"
+    default: "rds-broker"
+  rds-broker.state_encryption_key:
+    description: "Key to use to encrypt any stored secrets"
+  rds-broker.aws_access_key_id:
+    description: "AWS Access Key ID"
+  rds-broker.aws_secret_access_key:
+    description: "AWS Secret Access Key"
+  rds-broker.aws_region:
+    description: "AWS RDS Region"
+    default: "us-east-1"
+  rds-broker.db_prefix:
+    description: "Prefix to add to RDS DB Identifiers"
+    default: "cf"
+  rds-broker.master_password_seed:
+    description: "Secret seed to be used when generating the master RDS DB password"
+  rds-broker.broker_name:
+    description: "Unique name of RDS broker, used to construct a tag for instance identification"
+  rds-broker.allow_user_provision_parameters:
+    description: "Allow users to send arbitrary parameters on provision calls"
+    default: false
+  rds-broker.allow_user_update_parameters:
+    description: "Allow users to send arbitrary parameters on update calls"
+    default: false
+  rds-broker.allow_user_bind_parameters:
+    description: "Allow users to send arbitrary parameters on bind calls"
+    default: false
+  rds-broker.catalog:
+    description: "RDS Broker catalog"
+    default: {}
+  rds-broker.cron_schedule:
+    description: "Schedule for cron jobs. A crontab-like expression with seconds precision (e.g. '0 0 * * * *' or '@hourly'), with fields: 'second minute hour dom month dow'"
+    default: "@hourly"
+  rds-broker.keep_snapshots_for_days:
+    description: "Number of days to keep old RDS snapshots for"
+    default: 35

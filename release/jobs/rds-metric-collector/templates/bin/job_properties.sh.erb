@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+#
+# RDS Metric Collector properties
+#
+
+# Directory to store the RDS Metric Collector configuration files
+export RDS_METRIC_COLLECTOR_CONF_DIR=${JOB_DIR}/config
+
+# Directory to store the RDS Metric Collector log files
+export RDS_METRIC_COLLECTOR_LOG_DIR=${LOG_DIR}
+
+# Directory to store the RDS Metric Collector process IDs
+export RDS_METRIC_COLLECTOR_PID_DIR=${RUN_DIR}
+
+# Directory to store the RDS Metric Collector data files
+export RDS_METRIC_COLLECTOR_STORE_DIR=${STORE_DIR}
+
+# Directory to store the RDS Metric Collector temp files
+export RDS_METRIC_COLLECTOR_TMP_DIR=${TMP_DIR}
+
+<%- if_p('rds-metric-collector.aws.aws_access_key_id') do |access_key| %>
+# AWS Access Key ID
+export AWS_ACCESS_KEY_ID="<%= access_key %>"
+<%- end %>
+
+<%- if_p('rds-metric-collector.aws.aws_secret_access_key') do |secret_key| %>
+# AWS Secret Access Key
+export AWS_SECRET_ACCESS_KEY="<%= secret_key %>"
+<%- end %>

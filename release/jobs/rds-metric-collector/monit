@@ -1,0 +1,5 @@
+check process rds-metric-collector
+  with pidfile /var/vcap/sys/run/rds-metric-collector/rds-metric-collector.pid
+  start program "/var/vcap/packages/bosh-helpers/monit_debugger rds-metric-collector-ctl '/var/vcap/jobs/rds-metric-collector/bin/rds-metric-collector-ctl start'"
+  stop program "/var/vcap/packages/bosh-helpers/monit_debugger rds-metric-collector-ctl '/var/vcap/jobs/rds-metric-collector/bin/rds-metric-collector-ctl stop'"
+  group vcap

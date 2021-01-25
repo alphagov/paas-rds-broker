@@ -1,0 +1,6 @@
+---
+name: rds-metric-collector
+dependencies:
+  - golang
+files:
+  - github.com/alphagov/paas-rds-metric-collector/**/*
