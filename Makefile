@@ -3,7 +3,7 @@ MYSQL_PASSWORD=toor
 
 .PHONY: integration
 integration:
-	ginkgo -p --nodes=9 -r ci/blackbox --slowSpecThreshold=900 -stream
+	ginkgo -p --nodes=18 -r ci/blackbox --slowSpecThreshold=$$((60*30)) -stream -failFast
 
 .PHONY: unit
 unit: test_unit test_all_sql
