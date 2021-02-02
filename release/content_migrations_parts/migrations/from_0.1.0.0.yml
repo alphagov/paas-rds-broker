@@ -1,0 +1,6 @@
+---
+from_version: 0.1.0.0
+rules:
+  - type: update
+    selector: product_version
+    to: 0.1.1.0

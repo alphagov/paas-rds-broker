@@ -3,7 +3,7 @@ MYSQL_PASSWORD=toor
 
 .PHONY: integration
 integration:
-	ginkgo -p --nodes=9 -r ci/blackbox --slowSpecThreshold=900 -stream
+	ginkgo -p --nodes=18 -r ci/blackbox --slowSpecThreshold=$$((60*30)) -stream -failFast
 
 .PHONY: unit
 unit: test_unit test_all_sql
@@ -95,3 +95,45 @@ stop_dbs:
 	docker rm -f postgres-10 || true
 	docker rm -f postgres-11 || true
 	docker rm -f postgres-12 || true
+
+.PHONY: bosh_release
+bosh_release:
+	$(eval export VERSION ?= 0.0.$(shell date +"%s"))
+	$(eval export REGION ?= ${AWS_DEFAULT_REGION})
+	$(eval export BUCKET ?= gds-paas-build-releases)
+	$(eval export TARBALL_DIR ?= bosh-release-tarballs)
+	$(eval export TARBALL_NAME = rds-broker-${VERSION}.tgz)
+	$(eval export TARBALL_PATH = ${TARBALL_DIR}/${TARBALL_NAME})
+
+	@[ -d "${TARBALL_DIR}" ] || mkdir "${TARBALL_DIR}"
+	@[ -d "release/src/github.com/alphagov/paas-rds-broker" ] || mkdir "release/src/github.com/alphagov/paas-rds-broker"
+
+	@rm -rf release/src/github.com/alphagov/paas-rds-broker/*
+
+	# rsync doesn't exist in the container
+	# which is used in CI for building the
+	# bosh release. Creating and extracting
+	# a tar archive is a simple enough replacement.
+	git ls-files \
+	| grep -v "release/" \
+	| tar cf broker.tz -T -
+
+	tar xf broker.tz -C release/src/github.com/alphagov/paas-rds-broker
+	rm broker.tz
+
+	bosh create-release \
+		--name "rds-broker" \
+		--version "${VERSION}" \
+		--tarball "${TARBALL_PATH}" \
+		--dir release \
+		--force
+
+	ls -al ${TARBALL_DIR}
+
+	@# Can't use heredoc in Make target
+	@echo "releases:"
+	@echo "  - name: rds-broker"
+	@echo "    version: ${VERSION}"
+	@echo "    url: https://s3-${REGION}.amazonaws.com/$${BUCKET}/rds-broker-${VERSION}.tgz"
+	@echo "    sha1: $$(openssl sha1 "${TARBALL_PATH}" | cut -d' ' -f 2)"
+

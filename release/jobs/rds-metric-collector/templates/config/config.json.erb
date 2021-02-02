@@ -1,0 +1,26 @@
+{
+  "log_level": "<%= p('rds-metric-collector.log_level') %>",
+  "aws": {
+    "region": "<%= p('rds-metric-collector.aws.aws_region') %>"
+  },
+  "rds_broker": {
+    "broker_name": "<%= p('rds-metric-collector.rds-broker.broker_name') %>",
+    "db_prefix": "<%= p('rds-metric-collector.rds-broker.db_prefix') %>",
+    "master_password_seed": "<%= p('rds-metric-collector.rds-broker.master_password_seed') %>"
+  },
+  "scheduler": {
+    "instance_refresh_interval": <%= p('rds-metric-collector.scheduler.instance_refresh_interval') %>,
+    "sql_metrics_collector_interval": <%= p('rds-metric-collector.scheduler.sql_metrics_collector_interval') %>,
+    "cloudwatch_metrics_collector_interval": <%= p('rds-metric-collector.scheduler.cloudwatch_metrics_collector_interval') %>
+  },
+  "loggregator_emitter": {
+      "url": "<%= p('rds-metric-collector.loggregator.url') %>",
+      "ca_cert": "/var/vcap/jobs/rds-metric-collector/config/loggregator.ca_cert.crt",
+      "client_cert": "/var/vcap/jobs/rds-metric-collector/config/loggregator.client_cert.crt",
+      "client_key": "/var/vcap/jobs/rds-metric-collector/config/loggregator.client_key.key"
+  },
+  "locket_address": "<%= p('rds-metric-collector.locket.api_location') %>",
+  "locket_ca_cert_file": "/var/vcap/jobs/rds-metric-collector/config/locket.ca_cert.crt",
+  "locket_client_cert_file": "/var/vcap/jobs/rds-metric-collector/config/locket.client_cert.crt",
+  "locket_client_key_file": "/var/vcap/jobs/rds-metric-collector/config/locket.client_key.key"
+}

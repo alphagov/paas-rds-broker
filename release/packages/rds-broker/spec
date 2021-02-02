@@ -1,0 +1,6 @@
+---
+name: rds-broker
+dependencies:
+  - golang
+files:
+  - github.com/alphagov/paas-rds-broker/**/*

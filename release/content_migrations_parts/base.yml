@@ -1,0 +1,5 @@
+---
+product: p-aws-broker
+installation_version: "1.6"
+to_version: 0.1.1.0
+migrations: []

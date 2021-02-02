@@ -22,7 +22,7 @@ $ rds-broker -config=<path-to-your-config-file>
 
 ### BOSH
 
-This broker can be deployed using the [AWS Service Broker BOSH Release](https://github.com/cf-platform-eng/aws-broker-boshrelease).
+This broker can be deployed using the Bosh release built in this repository (`make bosh_release`). On the GOV.UK PaaS, the release is created in the `paas-rds-broker` pipeline of the CI env. 
 
 ## Configuration
 

@@ -87,3 +87,10 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+### Bosh release related files  ###
+release/src/github.com/alphagov/paas-rds-broker
+bosh-release-tarballs
+release/.dev_builds
+release/blobs
+release/dev_releases

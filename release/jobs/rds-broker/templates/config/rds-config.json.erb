@@ -1,0 +1,20 @@
+{
+  "port": <%= p('rds-broker.port') %>,
+  "log_level": "<%= p('rds-broker.log_level') %>",
+  "username": "<%= p('rds-broker.username') %>",
+  "password": "<%= p('rds-broker.password') %>",
+  "run_housekeeping": <%= spec.bootstrap %>,
+  "cron_schedule": "<%= p('rds-broker.cron_schedule') %>",
+  "keep_snapshots_for_days": <%= p('rds-broker.keep_snapshots_for_days') %>,
+  "state_encryption_key": "<%= p('rds-broker.state_encryption_key') %>",
+  "rds_config": {
+    "region": "<%= p('rds-broker.aws_region') %>",
+    "db_prefix": "<%= p('rds-broker.db_prefix') %>",
+    "master_password_seed": "<%= p('rds-broker.master_password_seed') %>",
+    "broker_name": "<%= p('rds-broker.broker_name') %>",
+    "allow_user_provision_parameters": <%= p('rds-broker.allow_user_provision_parameters') %>,
+    "allow_user_update_parameters": <%= p('rds-broker.allow_user_update_parameters') %>,
+    "allow_user_bind_parameters": <%= p('rds-broker.allow_user_bind_parameters') %>,
+    "catalog": <%= JSON.dump(p('rds-broker.catalog')) %>
+  }
+}

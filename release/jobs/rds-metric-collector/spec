@@ -1,0 +1,63 @@
+---
+name: rds-metric-collector
+
+packages:
+  - bosh-helpers
+  - rds-metric-collector
+
+templates:
+  bin/job_properties.sh.erb: bin/job_properties.sh
+  bin/rds-metric-collector-ctl.erb: bin/rds-metric-collector-ctl
+  config/config.json.erb: config/config.json
+  config/loggregator.ca_cert.crt.erb: config/loggregator.ca_cert.crt
+  config/loggregator.client_cert.crt.erb: config/loggregator.client_cert.crt
+  config/loggregator.client_key.key.erb: config/loggregator.client_key.key
+  config/locket.ca_cert.crt.erb: config/locket.ca_cert.crt
+  config/locket.client_cert.crt.erb: config/locket.client_cert.crt
+  config/locket.client_key.key.erb: config/locket.client_key.key
+
+properties:
+  rds-metric-collector.log_level:
+    description: "RDS Metric Collector Log Level (DEBUG, INFO, ERROR, FATAL)"
+    default: "INFO"
+  rds-metric-collector.aws.aws_access_key_id:
+    description: "AWS Access Key ID"
+  rds-metric-collector.aws.aws_secret_access_key:
+    description: "AWS Secret Access Key"
+  rds-metric-collector.aws.aws_region:
+    description: "AWS RDS Region"
+    default: "us-east-1"
+  rds-metric-collector.rds-broker.broker_name:
+    description: "Unique name of RDS broker, used to construct a tag for instance identification. Should be the same as rds-broker.db_prefix."
+  rds-metric-collector.rds-broker.db_prefix:
+    description: "Prefix to add to RDS DB Identifiers. Should be the same as rds-broker.db_prefix."
+    default: "cf"
+  rds-metric-collector.rds-broker.master_password_seed:
+    description: "Secret seed to be used when generating the master RDS DB password. Should be the same as rds-broker.db_prefix."
+  rds-metric-collector.scheduler.instance_refresh_interval:
+    description: "Interval to check for new provisioned instances"
+    default: 300
+  rds-metric-collector.scheduler.sql_metrics_collector_interval:
+    description: "Interval to query for SQL metrics in each intance"
+    default: 60
+  rds-metric-collector.scheduler.cloudwatch_metrics_collector_interval:
+    description: "Interval to query for Cloudwatch metrics in each intance"
+    default: 300
+  rds-metric-collector.loggregator.url:
+    description: "URL to loggregator ingress endpoint, usually metron agent."
+    default: localhost:3458
+  rds-metric-collector.loggregator.ca_cert:
+    description: "CA Cert for the loggregator ingress endpoint as a string"
+  rds-metric-collector.loggregator.client_cert:
+    description: "Client certificate for loggregator ingress traffic as a string"
+  rds-metric-collector.loggregator.client_key:
+    description: "Client certificate key for loggregator ingress traffic as a string"
+  rds-metric-collector.locket.api_location:
+    description: "The host and port for the Locket server"
+    example: "127.0.0.1:8891"
+  rds-metric-collector.locket.ca_cert:
+    description: "A PEM formatted certificate of a CA the Locket client will trust"
+  rds-metric-collector.locket.client_cert:
+    description: "A PEM formatted certificate used for client connections to the Locket server"
+  rds-metric-collector.locket.client_key:
+    description: "A PEM formatted key used for client connections to the Locket server"
