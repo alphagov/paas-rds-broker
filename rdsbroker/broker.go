@@ -548,22 +548,6 @@ func (b *RDSBroker) Update(
 	}
 	tagsByName := awsrds.RDSTagsValues(tags)
 
-	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
-		previousVersion := aws.StringValue(previousServicePlan.RDSProperties.EngineVersion)
-		newVersion := aws.StringValue(servicePlan.RDSProperties.EngineVersion)
-		if strings.HasPrefix(previousVersion, "9.") && !strings.HasPrefix(newVersion, "9.") {
-
-			if postgisIsEnabled(tagsByName) {
-				return brokerapi.UpdateServiceSpec{},
-					apiresponses.NewFailureResponse(
-						fmt.Errorf("Cannot upgrade from postgres 9 when the postgis extension is enabled. Disable the extension, or contact support."),
-						http.StatusBadRequest,
-						"upgrade",
-					)
-			}
-		}
-	}
-
 	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
 		if extensionsTag != "" {
 			extensions = mergeExtensions(extensions, strings.Split(extensionsTag, ":"))
