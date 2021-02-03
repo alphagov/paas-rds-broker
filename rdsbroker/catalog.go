@@ -160,20 +160,26 @@ func (sp ServicePlan) IsUpgradeFrom(oldPlan ServicePlan) (bool, error) {
 		)
 	}
 
-	oldPlanVersionStr := *oldPlan.RDSProperties.EngineVersion
-	newPlanVersionStr := *sp.RDSProperties.EngineVersion
-
-	oldPlanSemVer, err := semver.NewVersion(oldPlanVersionStr)
+	oldPlanSemVer, err := oldPlan.EngineVersion()
 	if err != nil {
-		return false, fmt.Errorf("old engine version must be a semantic version number: '%s'", oldPlanVersionStr)
+		return false, err
 	}
 
-	newPlanSemVer, err := semver.NewVersion(newPlanVersionStr)
+	newPlanSemVer, err := sp.EngineVersion()
 	if err != nil {
-		return false, fmt.Errorf("new engine version must be a semantic version number: '%s'", newPlanVersionStr)
+		return false, err
 	}
 
 	return newPlanSemVer.GreaterThan(oldPlanSemVer), nil
+}
+
+func (sp ServicePlan) EngineVersion() (*semver.Version, error) {
+	ver, err := semver.NewVersion(*sp.RDSProperties.EngineVersion)
+	if err != nil {
+		return nil, fmt.Errorf("engine version must be a semantic version number: '%s'", ver)
+	}
+
+	return ver, nil
 }
 
 func (rp RDSProperties) Validate(c Catalog) error {
