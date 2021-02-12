@@ -40,8 +40,9 @@ const lastOperationResponseLogKey = "lastOperationResponse"
 const extensionsLogKey = "requestedExtensions"
 
 var (
-	ErrEncryptionNotUpdateable            = errors.New("instance can not be updated to a plan with different encryption settings")
-	ErrCannotUpgradePostgres9To11OrHigher = errors.New("cannot upgrade from Postgres 9.5 directly to Postgres 11 or higher. The database must be upgraded to Postgres 10 first")
+	ErrEncryptionNotUpdateable = errors.New("instance can not be updated to a plan with different encryption settings")
+	ErrCannotSkipMajorVersion  = errors.New("cannot skip major Postgres versions. Please upgrade one major version at a time (e.g. 10, to 11, to 12)")
+	ErrCannotDowngrade         = errors.New("cannot downgrade major versions")
 )
 
 var rdsStatus2State = map[string]brokerapi.LastOperationState{
@@ -477,11 +478,30 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, err
 	}
 
-	previousPlanIs9x := strings.HasPrefix(*previousServicePlan.RDSProperties.EngineVersion, "9.")
-	newPlanIs11OrNewer := !strings.HasPrefix(*servicePlan.RDSProperties.EngineVersion, "9.") && !strings.HasPrefix(*servicePlan.RDSProperties.EngineVersion, "10")
+	oldVersion, err := previousServicePlan.EngineVersion()
+	if err != nil {
+		return brokerapi.UpdateServiceSpec{}, err
+	}
+	newVersion, err := servicePlan.EngineVersion()
+	if err != nil {
+		return brokerapi.UpdateServiceSpec{}, err
+	}
+
+	if newVersion.Major() < oldVersion.Major() {
+		err := ErrCannotDowngrade
+		b.logger.Error("downgrade-attempted", err)
+		return brokerapi.UpdateServiceSpec{},
+			apiresponses.NewFailureResponse(
+				err,
+				http.StatusBadRequest,
+				"upgrade",
+			)
+	}
+
 	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
-		if previousPlanIs9x && newPlanIs11OrNewer {
-			err := ErrCannotUpgradePostgres9To11OrHigher
+		majorVersionDifference := newVersion.Major() - oldVersion.Major()
+		if majorVersionDifference > 1 {
+			err := ErrCannotSkipMajorVersion
 			b.logger.Error("invalid-upgrade-path", err)
 			return brokerapi.UpdateServiceSpec{},
 				apiresponses.NewFailureResponse(
@@ -527,22 +547,6 @@ func (b *RDSBroker) Update(
 		return brokerapi.UpdateServiceSpec{}, err
 	}
 	tagsByName := awsrds.RDSTagsValues(tags)
-
-	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
-		previousVersion := aws.StringValue(previousServicePlan.RDSProperties.EngineVersion)
-		newVersion := aws.StringValue(servicePlan.RDSProperties.EngineVersion)
-		if strings.HasPrefix(previousVersion, "9.") && !strings.HasPrefix(newVersion, "9.") {
-
-			if postgisIsEnabled(tagsByName) {
-				return brokerapi.UpdateServiceSpec{},
-					apiresponses.NewFailureResponse(
-						fmt.Errorf("Cannot upgrade from postgres 9 when the postgis extension is enabled. Disable the extension, or contact support."),
-						http.StatusBadRequest,
-						"upgrade",
-					)
-			}
-		}
-	}
 
 	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
 		if extensionsTag != "" {

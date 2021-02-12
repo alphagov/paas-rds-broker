@@ -34,12 +34,14 @@ var _ = Describe("RDS Broker", func() {
 		rdsPropertiesPSQL9  RDSProperties
 		rdsPropertiesPSQL10 RDSProperties
 		rdsPropertiesPSQL11 RDSProperties
+		rdsPropertiesPSQL12 RDSProperties
 		plan1               ServicePlan
 		plan2               ServicePlan
 		plan3               ServicePlan
 		planPSQL9           ServicePlan
 		planPSQL10          ServicePlan
 		planPSQL11          ServicePlan
+		planPSQL12          ServicePlan
 		service1            Service
 		service2            Service
 		service3            Service
@@ -158,7 +160,6 @@ var _ = Describe("RDS Broker", func() {
 			AllocatedStorage:  int64Pointer(200),
 			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
 			DefaultExtensions: []*string{
-				stringPointer("postgis"),
 				stringPointer("pg_stat_statements"),
 			},
 			AllowedExtensions: []*string{
@@ -174,7 +175,6 @@ var _ = Describe("RDS Broker", func() {
 			AllocatedStorage:  int64Pointer(200),
 			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
 			DefaultExtensions: []*string{
-				stringPointer("postgis"),
 				stringPointer("pg_stat_statements"),
 			},
 			AllowedExtensions: []*string{
@@ -190,7 +190,21 @@ var _ = Describe("RDS Broker", func() {
 			AllocatedStorage:  int64Pointer(200),
 			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
 			DefaultExtensions: []*string{
+				stringPointer("pg_stat_statements"),
+			},
+			AllowedExtensions: []*string{
 				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+				stringPointer("postgres_super_extension"),
+			},
+		}
+		rdsPropertiesPSQL12 = RDSProperties{
+			DBInstanceClass:   stringPointer("db.t3.small"),
+			Engine:            stringPointer("postgres"),
+			EngineVersion:     stringPointer("12"),
+			AllocatedStorage:  int64Pointer(200),
+			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
+			DefaultExtensions: []*string{
 				stringPointer("pg_stat_statements"),
 			},
 			AllowedExtensions: []*string{
@@ -244,6 +258,14 @@ var _ = Describe("RDS Broker", func() {
 			Metadata:      nil,
 			RDSProperties: rdsPropertiesPSQL11,
 		}
+		planPSQL12 = ServicePlan{
+			ID:            "plan-psql12",
+			Name:          "Plan PSQL 12",
+			Description:   "",
+			Free:          nil,
+			Metadata:      nil,
+			RDSProperties: rdsPropertiesPSQL12,
+		}
 
 		service1 = Service{
 			ID:            "Service-1",
@@ -275,6 +297,7 @@ var _ = Describe("RDS Broker", func() {
 				planPSQL9,
 				planPSQL10,
 				planPSQL11,
+				planPSQL12,
 			},
 		}
 
@@ -998,9 +1021,39 @@ var _ = Describe("RDS Broker", func() {
 				Expect(aws.StringValue(input.EngineVersion)).To(Equal("4.5.6"))
 				Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal(newParamGroupName))
 			})
+
+			It("cannot be downgraded", func() {
+				updateDetails.PlanID = planPSQL10.ID
+				updateDetails.ServiceID = servicePSQL.ID
+				updateDetails.PreviousValues = domain.PreviousValues{
+					PlanID:    planPSQL12.ID,
+					ServiceID: servicePSQL.ID,
+					OrgID:     updateDetails.PreviousValues.OrgID,
+					SpaceID:   updateDetails.PreviousValues.SpaceID,
+				}
+
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal(ErrCannotDowngrade.Error()))
+			})
+
+			It("cannot be changed by more than 1 major version", func() {
+				updateDetails.PlanID = planPSQL12.ID
+				updateDetails.ServiceID = servicePSQL.ID
+				updateDetails.PreviousValues = domain.PreviousValues{
+					PlanID:    planPSQL10.ID,
+					ServiceID: servicePSQL.ID,
+					OrgID:     updateDetails.PreviousValues.OrgID,
+					SpaceID:   updateDetails.PreviousValues.SpaceID,
+				}
+
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal(ErrCannotSkipMajorVersion.Error()))
+			})
 		})
 
-		Context("if an extension is in both enable_extensions and disable_enxtension", func() {
+		Context("if an extension is in both enable_extensions and disable_extension", func() {
 			It("returns an error", func() {
 				updateDetails.RawParameters = json.RawMessage(`{"disable_extensions": ["postgres_super_extension"], "enable_extensions": ["postgres_super_extension"]}`)
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
@@ -1187,62 +1240,6 @@ var _ = Describe("RDS Broker", func() {
 					Value: aws.String("postgis:pg_stat_statements"),
 				}))
 				Expect(rdsInstance.RebootCallCount()).To(Equal(0))
-			})
-		})
-
-		Context("when the postgres version is being changed away from 9", func() {
-			BeforeEach(func() {
-				updateDetails.PlanID = planPSQL10.ID
-				updateDetails.ServiceID = servicePSQL.ID
-				updateDetails.PreviousValues = domain.PreviousValues{
-					PlanID:    planPSQL9.ID,
-					ServiceID: servicePSQL.ID,
-					OrgID:     updateDetails.PreviousValues.OrgID,
-					SpaceID:   updateDetails.PreviousValues.SpaceID,
-				}
-
-				rdsInstance.GetResourceTagsCalls(func(resourceArn string, opts ...awsrds.DescribeOption) ([]*rds.Tag, error) {
-					if resourceArn == "arn:aws:rds::i-have-postgis-enabled" {
-						return []*rds.Tag{
-							&rds.Tag{
-								Key:   aws.String("Extensions"),
-								Value: aws.String("postgis:someother"),
-							},
-						}, nil
-					}
-
-					return []*rds.Tag{}, nil
-				})
-			})
-
-			It("when the postgis extension is enabled, returns an error", func() {
-				existingDbInstance.DBInstanceArn = aws.String("arn:aws:rds::i-have-postgis-enabled")
-
-				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(err).To(MatchError("Cannot upgrade from postgres 9 when the postgis extension is enabled. Disable the extension, or contact support."))
-			})
-
-			It("when the postgis extension is not enabled, does not return an error", func() {
-				existingDbInstance.DBInstanceArn = aws.String("arn:aws:rds::i-do-not-have-postgis-enabled")
-
-				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(err).ToNot(HaveOccurred())
-			})
-
-			It("it must be upgraded to postgres 10", func() {
-				updateDetails.PlanID = planPSQL11.ID
-				updateDetails.ServiceID = servicePSQL.ID
-				updateDetails.PreviousValues = domain.PreviousValues{
-					PlanID:    planPSQL9.ID,
-					ServiceID: servicePSQL.ID,
-					OrgID:     updateDetails.PreviousValues.OrgID,
-					SpaceID:   updateDetails.PreviousValues.SpaceID,
-				}
-
-				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(err).To(BeAssignableToTypeOf(&brokerapi.FailureResponse{}))
-				failureResponse := err.(*brokerapi.FailureResponse)
-				Expect(failureResponse.Error()).To(Equal(ErrCannotUpgradePostgres9To11OrHigher.Error()))
 			})
 		})
 

@@ -336,92 +336,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 		}
 
 		Describe("Postgres 9.5 to 10", func() {
-			Describe("when postgis extension is enabled", func() {
-				var (
-					instanceID string
-					serviceID  = "postgres"
-					startPlan  = "postgres-micro-without-snapshot"
-					endPlan    = "postgres-micro-without-snapshot-10"
-				)
-
-				BeforeEach(func() {
-					instanceID = uuid.NewV4().String()
-
-					brokerAPIClient.AcceptsIncomplete = true
-
-					params := `{
-						"enable_extensions": ["postgis"]
-					}`
-
-					code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlan, params)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(code).To(Equal(202))
-					state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlan, operation)
-					Expect(state).To(Equal("succeeded"))
-				})
-
-				AfterEach(func() {
-					brokerAPIClient.AcceptsIncomplete = true
-					code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, endPlan)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(code).To(Equal(202))
-					state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, endPlan, operation)
-					Expect(state).To(Equal("gone"))
-				})
-
-				It("cannot be upgraded", func() {
-					code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlan, endPlan, `{}`)
-					Expect(err).ToNot(HaveOccurred(), "the 400 status code should not be an error")
-					Expect(code).To(Equal(400))
-					result := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, endPlan, operation)
-					Expect(result).To(
-						Equal("succeeded"),
-						"the status should be 'succeeded' because the state of the instance hasn't changed",
-					)
-				})
-			})
-
-			Describe("when postgis extension is not enabled", func() {
-				var (
-					instanceID string
-					serviceID  = "postgres"
-					startPlan  = "postgres-micro-without-snapshot"
-					endPlan    = "postgres-micro-without-snapshot-10"
-				)
-
-				BeforeEach(func() {
-					instanceID = uuid.NewV4().String()
-
-					brokerAPIClient.AcceptsIncomplete = true
-
-					params := `{
-						"enable_extensions": []
-					}`
-
-					code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlan, params)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(code).To(Equal(202))
-					state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlan, operation)
-					Expect(state).To(Equal("succeeded"))
-				})
-
-				AfterEach(func() {
-					brokerAPIClient.AcceptsIncomplete = true
-					code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, endPlan)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(code).To(Equal(202))
-					state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, endPlan, operation)
-					Expect(state).To(Equal("gone"))
-				})
-
-				It("can be upgraded", func() {
-					code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlan, endPlan, `{}`)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(code).To(Equal(202))
-					result := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, endPlan, operation)
-					Expect(result).To(Equal("succeeded"))
-				})
-			})
+			TestUpdatePlan("postgres", "postgres-micro-without-snapshot", "postgres-micro-without-snapshot-10")
 		})
 
 		Describe("Postgres 9.5 to 11 or higher", func() {
@@ -457,6 +372,10 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 		Describe("Postgres 10 to 11", func() {
 			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-10", "postgres-micro-without-snapshot-11")
+		})
+
+		Describe("Postgres 11 to 12", func() {
+			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-11", "postgres-micro-without-snapshot-12")
 		})
 
 		Describe("MySQL 5.7 to 8.0", func() {
