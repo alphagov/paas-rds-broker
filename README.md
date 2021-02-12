@@ -1,5 +1,4 @@
-# AWS RDS Service Broker [![Build Status](https://travis-ci.org/alphagov/paas-rds-broker.png)](https://travis-ci.org/alphagov/paas-rds-broker)
-
+# AWS RDS Service Broker [![Build Status](https://github.com/alphagov/paas-rds-broker/workflows/Go/badge.svg)](https://github.com/alphagov/paas-rds-broker/actions)
 
 This is a fork of [AWS RDS Service Broker](https://github.com/cf-platform-eng/rds-broker) written by Pivotal Software Inc.
 
