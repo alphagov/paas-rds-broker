@@ -224,107 +224,110 @@ var _ = Describe("ParameterGroupsSource", func() {
 				Expect(err).To(HaveOccurred())
 			})
 
-			Describe("it modifies the created parameter group", func() {
-				It("does not make any changes to the parameter group for MySQL databases", func() {
-					servicePlan.RDSProperties.Engine = aws.String("mysql")
-					servicePlan.RDSProperties.EngineVersion = aws.String("5.7")
-					servicePlan.RDSProperties.EngineFamily = aws.String("mysql5.7")
+			Describe("when it is for a Postgres database", func() {
+				Describe("it modifies the created parameter group", func() {
+					It("does not make any changes to the parameter group for MySQL databases", func() {
+						servicePlan.RDSProperties.Engine = aws.String("mysql")
+						servicePlan.RDSProperties.EngineVersion = aws.String("5.7")
+						servicePlan.RDSProperties.EngineFamily = aws.String("mysql5.7")
 
-					rdsFake.ModifyParameterGroupReturns(nil)
+						rdsFake.ModifyParameterGroupReturns(nil)
 
-					parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
+						parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 
-					Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(0), "ModifyParameterGroup was called when it shouldn't have been")
+						Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(0), "ModifyParameterGroup was called when it shouldn't have been")
+					})
+
+					It("and sets the force SSL property", func() {
+						rdsFake.ModifyParameterGroupReturns(nil)
+
+						parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
+						Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
+
+						modifyInput := rdsFake.ModifyParameterGroupArgsForCall(0)
+
+						var relevantParam *rds.Parameter = nil
+						for _, param := range modifyInput.Parameters {
+							if aws.StringValue(param.ParameterName) == "rds.force_ssl" {
+								relevantParam = param
+							}
+						}
+
+						Expect(relevantParam).ToNot(BeNil())
+						Expect(aws.StringValue(relevantParam.ParameterValue)).To(Equal("1"))
+						Expect(aws.StringValue(relevantParam.ApplyMethod)).To(Equal("pending-reboot"))
+					})
+
+					It("and sets the log retention period", func() {
+						rdsFake.ModifyParameterGroupReturns(nil)
+
+						parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
+						Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
+
+						modifyInput := rdsFake.ModifyParameterGroupArgsForCall(0)
+
+						var relevantParam *rds.Parameter = nil
+						for _, param := range modifyInput.Parameters {
+							if aws.StringValue(param.ParameterName) == "rds.log_retention_period" {
+								relevantParam = param
+							}
+						}
+
+						Expect(relevantParam).ToNot(BeNil())
+						Expect(aws.StringValue(relevantParam.ParameterValue)).To(Equal("10080"))
+						Expect(aws.StringValue(relevantParam.ApplyMethod)).To(Equal("immediate"))
+					})
 				})
 
-				It("and sets the force SSL property", func() {
+				It("when an extension requires a preload library, it modifies the parameter group to add it", func() {
+					extensions = []string{"pg_stat_statements", "pg_super_ext"}
+
+					supportedPreloads["postgres10"] = append(supportedPreloads["postgres10"], DBExtension{
+						Name:                   "pg_super_ext",
+						RequiresPreloadLibrary: true,
+					})
+
 					rdsFake.ModifyParameterGroupReturns(nil)
 
 					parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
+
 					Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
 
 					modifyInput := rdsFake.ModifyParameterGroupArgsForCall(0)
 
 					var relevantParam *rds.Parameter = nil
 					for _, param := range modifyInput.Parameters {
-						if aws.StringValue(param.ParameterName) == "rds.force_ssl" {
+						if aws.StringValue(param.ParameterName) == "shared_preload_libraries" {
 							relevantParam = param
 						}
 					}
 
 					Expect(relevantParam).ToNot(BeNil())
-					Expect(aws.StringValue(relevantParam.ParameterValue)).To(Equal("1"))
+					Expect(aws.StringValue(relevantParam.ParameterValue)).To(Equal("pg_stat_statements,pg_super_ext"))
 					Expect(aws.StringValue(relevantParam.ApplyMethod)).To(Equal("pending-reboot"))
 				})
 
-				It("and sets the log retention period", func() {
+				It("when no preload libraries are needed, it does not set the shared_preload_libraries parameter, because it's value cannot be empty", func() {
+					extensions = []string{"postgis"}
+					servicePlan.RDSProperties.AllowedExtensions = []*string{aws.String("postgis")}
+
 					rdsFake.ModifyParameterGroupReturns(nil)
 
 					parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
 					Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
 
 					modifyInput := rdsFake.ModifyParameterGroupArgsForCall(0)
-
-					var relevantParam *rds.Parameter = nil
+					discovered := false
 					for _, param := range modifyInput.Parameters {
-						if aws.StringValue(param.ParameterName) == "rds.log_retention_period" {
-							relevantParam = param
+						if aws.StringValue(param.ParameterName) == "shared_preload_libraries" {
+							discovered = true
+							break
 						}
 					}
 
-					Expect(relevantParam).ToNot(BeNil())
-					Expect(aws.StringValue(relevantParam.ParameterValue)).To(Equal("10080"))
-					Expect(aws.StringValue(relevantParam.ApplyMethod)).To(Equal("immediate"))
-				})
-			})
-
-			It("when an extension requires a preload library, it modifies the parameter group to add it", func() {
-				extensions = []string{"pg_stat_statements", "pg_super_ext"}
-
-				supportedPreloads["postgres10"] = append(supportedPreloads["postgres10"], DBExtension{
-					Name:                   "pg_super_ext",
-					RequiresPreloadLibrary: true,
+					Expect(discovered).To(BeFalse(), "The shared_preload_libraries property was set when it shouldn't have been")
 				})
 
-				rdsFake.ModifyParameterGroupReturns(nil)
-
-				parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
-
-				Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
-
-				modifyInput := rdsFake.ModifyParameterGroupArgsForCall(0)
-
-				var relevantParam *rds.Parameter = nil
-				for _, param := range modifyInput.Parameters {
-					if aws.StringValue(param.ParameterName) == "shared_preload_libraries" {
-						relevantParam = param
-					}
-				}
-
-				Expect(relevantParam).ToNot(BeNil())
-				Expect(aws.StringValue(relevantParam.ParameterValue)).To(Equal("pg_stat_statements,pg_super_ext"))
-				Expect(aws.StringValue(relevantParam.ApplyMethod)).To(Equal("pending-reboot"))
-			})
-
-			It("when no preload libraries are needed, it does not set the shared_preload_libraries parameter, because it's value cannot be empty", func() {
-				extensions = []string{"postgis"}
-				servicePlan.RDSProperties.AllowedExtensions = []*string{aws.String("postgis")}
-
-				rdsFake.ModifyParameterGroupReturns(nil)
-
-				parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
-				Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
-
-				modifyInput := rdsFake.ModifyParameterGroupArgsForCall(0)
-				discovered := false
-				for _, param := range modifyInput.Parameters {
-					if aws.StringValue(param.ParameterName) == "shared_preload_libraries" {
-						discovered = true
-						break
-					}
-				}
-
-				Expect(discovered).To(BeFalse(), "The shared_preload_libraries property was set when it shouldn't have been")
 			})
 
 		})
