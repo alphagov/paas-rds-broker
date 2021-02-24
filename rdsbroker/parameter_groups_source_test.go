@@ -2,6 +2,7 @@ package rdsbroker
 
 import (
 	"errors"
+	"strconv"
 
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
@@ -226,18 +227,6 @@ var _ = Describe("ParameterGroupsSource", func() {
 
 			Describe("when it is for a Postgres database", func() {
 				Describe("it modifies the created parameter group", func() {
-					It("does not make any changes to the parameter group for MySQL databases", func() {
-						servicePlan.RDSProperties.Engine = aws.String("mysql")
-						servicePlan.RDSProperties.EngineVersion = aws.String("5.7")
-						servicePlan.RDSProperties.EngineFamily = aws.String("mysql5.7")
-
-						rdsFake.ModifyParameterGroupReturns(nil)
-
-						parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
-
-						Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(0), "ModifyParameterGroup was called when it shouldn't have been")
-					})
-
 					It("and sets the force SSL property", func() {
 						rdsFake.ModifyParameterGroupReturns(nil)
 
@@ -327,9 +316,32 @@ var _ = Describe("ParameterGroupsSource", func() {
 
 					Expect(discovered).To(BeFalse(), "The shared_preload_libraries property was set when it shouldn't have been")
 				})
-
 			})
 
+			Describe("when it is for a MySQL database", func() {
+				BeforeEach(func() {
+					servicePlan.RDSProperties.Engine = aws.String("mysql")
+				})
+
+				It("will set the 'max_allowed_packet' property to 256mb", func() {
+					rdsFake.ModifyParameterGroupReturns(nil)
+
+					parameterGroupSource.SelectParameterGroup(servicePlan, extensions)
+					Expect(rdsFake.ModifyParameterGroupCallCount()).To(Equal(1), "ModifyParameterGroup was not called")
+
+					modifyInput := rdsFake.ModifyParameterGroupArgsForCall(0)
+
+					var relevantParam *rds.Parameter = nil
+					for _, param := range modifyInput.Parameters {
+						if aws.StringValue(param.ParameterName) == "max_allowed_packet" {
+							relevantParam = param
+						}
+					}
+
+					Expect(relevantParam).ToNot(BeNil())
+					Expect(aws.StringValue(relevantParam.ParameterValue)).To(Equal(strconv.Itoa(1024 * 1024 * 256)))
+				})
+			})
 		})
 
 	})
