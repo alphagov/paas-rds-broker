@@ -80,7 +80,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service2.Description).To(Equal("AWS RDS PostgreSQL service"))
 			Expect(service2.Bindable).To(BeTrue())
 			Expect(service2.PlanUpdatable).To(BeTrue())
-			Expect(service2.Plans).To(HaveLen(8))
+			Expect(service2.Plans).To(HaveLen(6))
 		})
 	})
 
@@ -212,10 +212,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 9.5", func() {
-			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot")
-		})
-
 		Describe("Postgres 10.5", func() {
 			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-10")
 		})
@@ -281,10 +277,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 9.5", func() {
-			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot")
-		})
-
 		Describe("Postgres 10.5", func() {
 			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-10")
 		})
@@ -334,41 +326,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(extensions).To(Equal("succeeded"))
 			})
 		}
-
-		Describe("Postgres 9.5 to 10", func() {
-			TestUpdatePlan("postgres", "postgres-micro-without-snapshot", "postgres-micro-without-snapshot-10")
-		})
-
-		Describe("Postgres 9.5 to 11 or higher", func() {
-			var (
-				instanceID string
-				serviceID  = "postgres"
-				startPlan  = "postgres-micro"
-				endPlan    = "postgres-micro-11"
-			)
-
-			BeforeEach(func() {
-				instanceID = uuid.NewV4().String()
-
-				brokerAPIClient.AcceptsIncomplete = true
-
-				params := `{
-						"enable_extensions": []
-					}`
-
-				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlan, params)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlan, operation)
-				Expect(state).To(Equal("succeeded"))
-			})
-
-			It("cannot be upgraded", func() {
-				code, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlan, endPlan, `{}`)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(code).To(Equal(400))
-			})
-		})
 
 		Describe("Postgres 10 to 11", func() {
 			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-10", "postgres-micro-without-snapshot-11")
@@ -477,10 +434,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(err).To(HaveOccurred())
 			})
 		}
-
-		Describe("Postgres 9.5", func() {
-			TestFinalSnapshot("postgres", "postgres-micro")
-		})
 
 		Describe("Postgres 10.5", func() {
 			TestFinalSnapshot("postgres", "postgres-micro-10")
@@ -608,10 +561,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 				secondInstance.Wait()
 			})
 		}
-
-		Describe("Postgres 9.5", func() {
-			TestRestoreFromSnapshot("postgres", "postgres-micro")
-		})
 
 		Describe("Postgres 10.5", func() {
 			TestRestoreFromSnapshot("postgres", "postgres-micro-10")
