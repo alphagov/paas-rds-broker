@@ -404,12 +404,13 @@ var _ = Describe("RDS Broker", func() {
 
 			tagsByName := awsrds.RDSTagsValues(tags)
 
-			Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
-			Expect(tagsByName["Broker Name"]).To(Equal("mybroker"))
-			Expect(tagsByName["Updated by"]).To(Equal("AWS RDS Service Broker"))
+			Expect(tagsByName).To(HaveKeyWithValue("Owner", "Cloud Foundry"))
+			Expect(tagsByName).To(HaveKeyWithValue("Broker Name", "mybroker"))
+			Expect(tagsByName).To(HaveKeyWithValue("Updated by", "AWS RDS Service Broker"))
 			Expect(tagsByName).To(HaveKey("Updated at"))
-			Expect(tagsByName["Service ID"]).To(Equal("Service-2"))
-			Expect(tagsByName["Plan ID"]).To(Equal("Plan-2"))
+			Expect(tagsByName).To(HaveKeyWithValue("Service ID", "Service-2"))
+			Expect(tagsByName).To(HaveKeyWithValue("Plan ID", "Plan-2"))
+			Expect(tagsByName).To(HaveKeyWithValue("chargeable_entity", instanceID))
 		})
 
 		Context("when custom update parameters are not provided", func() {
@@ -789,7 +790,7 @@ var _ = Describe("RDS Broker", func() {
 				_, tags := rdsInstance.AddTagsToResourceArgsForCall(0)
 				tagValues := awsrds.RDSTagsValues(tags)
 				Expect(tagValues).To(HaveKey("SkipFinalSnapshot"))
-				Expect(tagValues["SkipFinalSnapshot"]).To(Equal("true"))
+				Expect(tagValues).To(HaveKeyWithValue("SkipFinalSnapshot", "true"))
 			})
 		})
 

@@ -533,16 +533,17 @@ var _ = Describe("RDS Broker", func() {
 				input := rdsInstance.RestoreToPointInTimeArgsForCall(0)
 
 				tagsByName := awsrds.RDSTagsValues(input.Tags)
-				Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
-				Expect(tagsByName["Restored by"]).To(Equal("AWS RDS Service Broker"))
+				Expect(tagsByName).To(HaveKeyWithValue("Owner", "Cloud Foundry"))
+				Expect(tagsByName).To(HaveKeyWithValue("Restored by", "AWS RDS Service Broker"))
 				Expect(tagsByName).To(HaveKey("Restored at"))
-				Expect(tagsByName["Service ID"]).To(Equal("Service-1"))
-				Expect(tagsByName["Plan ID"]).To(Equal("Plan-1"))
-				Expect(tagsByName["Organization ID"]).To(Equal("organization-id"))
-				Expect(tagsByName["Space ID"]).To(Equal("space-id"))
-				Expect(tagsByName["Restored From Database"]).To(Equal(restoreFromPointInTimeDBInstanceID))
-				Expect(tagsByName["PendingResetUserPassword"]).To(Equal("true"))
-				Expect(tagsByName["PendingUpdateSettings"]).To(Equal("true"))
+				Expect(tagsByName).To(HaveKeyWithValue("Service ID", "Service-1"))
+				Expect(tagsByName).To(HaveKeyWithValue("Plan ID", "Plan-1"))
+				Expect(tagsByName).To(HaveKeyWithValue("Organization ID", "organization-id"))
+				Expect(tagsByName).To(HaveKeyWithValue("Space ID", "space-id"))
+				Expect(tagsByName).To(HaveKeyWithValue("Restored From Database", restoreFromPointInTimeDBInstanceID))
+				Expect(tagsByName).To(HaveKeyWithValue("PendingResetUserPassword", "true"))
+				Expect(tagsByName).To(HaveKeyWithValue("PendingUpdateSettings", "true"))
+				Expect(tagsByName).To(HaveKeyWithValue("chargeable_entity", instanceID))
 			})
 
 			Context("when restoring before a particular point in time", func() {
@@ -581,7 +582,7 @@ var _ = Describe("RDS Broker", func() {
 					input := rdsInstance.RestoreToPointInTimeArgsForCall(0)
 
 					tagsByName := awsrds.RDSTagsValues(input.Tags)
-					Expect(tagsByName["Restored From Database"]).To(Equal(restoreFromPointInTimeDBInstanceID))
+					Expect(tagsByName).To(HaveKeyWithValue("Restored From Database", restoreFromPointInTimeDBInstanceID))
 					tagTime := tagsByName["Restored From Time"]
 					tagParsedTime, err := time.Parse(time.RFC3339, tagTime)
 					Expect(err).NotTo(HaveOccurred())
@@ -665,16 +666,17 @@ var _ = Describe("RDS Broker", func() {
 					input := rdsInstance.RestoreArgsForCall(0)
 
 					tagsByName := awsrds.RDSTagsValues(input.Tags)
-					Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
-					Expect(tagsByName["Restored by"]).To(Equal("AWS RDS Service Broker"))
+					Expect(tagsByName).To(HaveKeyWithValue("Owner", "Cloud Foundry"))
+					Expect(tagsByName).To(HaveKeyWithValue("Restored by", "AWS RDS Service Broker"))
 					Expect(tagsByName).To(HaveKey("Restored at"))
-					Expect(tagsByName["Service ID"]).To(Equal("Service-1"))
-					Expect(tagsByName["Plan ID"]).To(Equal("Plan-1"))
-					Expect(tagsByName["Organization ID"]).To(Equal("organization-id"))
-					Expect(tagsByName["Space ID"]).To(Equal("space-id"))
-					Expect(tagsByName["Restored From Snapshot"]).To(Equal(restoreFromSnapshotDBInstanceID + "-1"))
-					Expect(tagsByName["PendingResetUserPassword"]).To(Equal("true"))
-					Expect(tagsByName["PendingUpdateSettings"]).To(Equal("true"))
+					Expect(tagsByName).To(HaveKeyWithValue("Service ID", "Service-1"))
+					Expect(tagsByName).To(HaveKeyWithValue("Plan ID", "Plan-1"))
+					Expect(tagsByName).To(HaveKeyWithValue("Organization ID", "organization-id"))
+					Expect(tagsByName).To(HaveKeyWithValue("Space ID", "space-id"))
+					Expect(tagsByName).To(HaveKeyWithValue("Restored From Snapshot", restoreFromSnapshotDBInstanceID+"-1"))
+					Expect(tagsByName).To(HaveKeyWithValue("PendingResetUserPassword", "true"))
+					Expect(tagsByName).To(HaveKeyWithValue("PendingUpdateSettings", "true"))
+					Expect(tagsByName).To(HaveKeyWithValue("chargeable_entity", instanceID))
 				})
 
 				It("selects the latest snapshot", func() {
@@ -952,14 +954,15 @@ var _ = Describe("RDS Broker", func() {
 
 				tagsByName := awsrds.RDSTagsValues(input.Tags)
 
-				Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
-				Expect(tagsByName["Created by"]).To(Equal("AWS RDS Service Broker"))
+				Expect(tagsByName).To(HaveKeyWithValue("Owner", "Cloud Foundry"))
+				Expect(tagsByName).To(HaveKeyWithValue("Created by", "AWS RDS Service Broker"))
 				Expect(tagsByName).To(HaveKey("Created at"))
-				Expect(tagsByName["Service ID"]).To(Equal("Service-3"))
-				Expect(tagsByName["Plan ID"]).To(Equal("Plan-3"))
-				Expect(tagsByName["Organization ID"]).To(Equal("organization-id"))
-				Expect(tagsByName["Space ID"]).To(Equal("space-id"))
-				Expect(tagsByName["Extensions"]).To(Equal("postgis:pg_stat_statements"))
+				Expect(tagsByName).To(HaveKeyWithValue("Service ID", "Service-3"))
+				Expect(tagsByName).To(HaveKeyWithValue("Plan ID", "Plan-3"))
+				Expect(tagsByName).To(HaveKeyWithValue("Organization ID", "organization-id"))
+				Expect(tagsByName).To(HaveKeyWithValue("Space ID", "space-id"))
+				Expect(tagsByName).To(HaveKeyWithValue("Extensions", "postgis:pg_stat_statements"))
+				Expect(tagsByName).To(HaveKeyWithValue("chargeable_entity", instanceID))
 			})
 
 			It("does not set a 'Restored From Snapshot' tag", func() {
@@ -1000,7 +1003,7 @@ var _ = Describe("RDS Broker", func() {
 						Expect(input).ToNot(BeNil())
 
 						tagsByName := awsrds.RDSTagsValues(input.Tags)
-						Expect(tagsByName["SkipFinalSnapshot"]).To(Equal("false"))
+						Expect(tagsByName).To(HaveKeyWithValue("SkipFinalSnapshot", "false"))
 					})
 
 					It("allows the user to override this", func() {
@@ -1014,7 +1017,7 @@ var _ = Describe("RDS Broker", func() {
 						Expect(input).ToNot(BeNil())
 
 						tagsByName := awsrds.RDSTagsValues(input.Tags)
-						Expect(tagsByName["SkipFinalSnapshot"]).To(Equal("true"))
+						Expect(tagsByName).To(HaveKeyWithValue("SkipFinalSnapshot", "true"))
 					})
 				})
 
@@ -1032,7 +1035,7 @@ var _ = Describe("RDS Broker", func() {
 						Expect(input).ToNot(BeNil())
 
 						tagsByName := awsrds.RDSTagsValues(input.Tags)
-						Expect(tagsByName["SkipFinalSnapshot"]).To(Equal("true"))
+						Expect(tagsByName).To(HaveKeyWithValue("SkipFinalSnapshot", "true"))
 					})
 
 					It("allows the user to override this", func() {
@@ -1046,7 +1049,7 @@ var _ = Describe("RDS Broker", func() {
 						Expect(input).ToNot(BeNil())
 
 						tagsByName := awsrds.RDSTagsValues(input.Tags)
-						Expect(tagsByName["SkipFinalSnapshot"]).To(Equal("false"))
+						Expect(tagsByName).To(HaveKeyWithValue("SkipFinalSnapshot", "false"))
 					})
 				})
 			})
@@ -2420,12 +2423,13 @@ var _ = Describe("RDS Broker", func() {
 					Expect(id).To(Equal(dbInstanceArn))
 					tagsByName := awsrds.RDSTagsValues(tags)
 
-					Expect(tagsByName["Owner"]).To(Equal("Cloud Foundry"))
-					Expect(tagsByName["Broker Name"]).To(Equal("mybroker"))
-					Expect(tagsByName["Restored by"]).To(Equal("AWS RDS Service Broker"))
+					Expect(tagsByName).To(HaveKeyWithValue("Owner", "Cloud Foundry"))
+					Expect(tagsByName).To(HaveKeyWithValue("Broker Name", "mybroker"))
+					Expect(tagsByName).To(HaveKeyWithValue("Restored by", "AWS RDS Service Broker"))
 					Expect(tagsByName).To(HaveKey("Restored at"))
-					Expect(tagsByName["Service ID"]).To(Equal("Service-1"))
-					Expect(tagsByName["Plan ID"]).To(Equal("Plan-1"))
+					Expect(tagsByName).To(HaveKeyWithValue("Service ID", "Service-1"))
+					Expect(tagsByName).To(HaveKeyWithValue("Plan ID", "Plan-1"))
+					Expect(tagsByName).To(HaveKeyWithValue("chargeable_entity", instanceID))
 				})
 
 				Context("when the master password needs to be rotated", func() {
