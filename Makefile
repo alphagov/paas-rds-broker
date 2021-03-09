@@ -10,7 +10,7 @@ unit: test_unit test_all_sql
 
 .PHONY: test_unit
 test_unit:
-	ginkgo -r --skipPackage=ci,sqlengine
+	ginkgo -r --skipPackage=ci,sqlengine,release
 .PHONY: test_all_sql
 test_all_sql: test_postgres test_mysql
 .PHONY: test_postgres
