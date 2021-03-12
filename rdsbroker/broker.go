@@ -113,6 +113,7 @@ type RDSInstanceTags struct {
 	OriginDatabaseIdentifier string
 	OriginPointInTime        string
 	Extensions               []string
+	ChargeableEntity         string
 }
 
 func New(
@@ -635,10 +636,11 @@ func (b *RDSBroker) Update(
 	}
 
 	instanceTags := RDSInstanceTags{
-		Action:     "Updated",
-		ServiceID:  details.ServiceID,
-		PlanID:     details.PlanID,
-		Extensions: extensions,
+		Action:           "Updated",
+		ServiceID:        details.ServiceID,
+		PlanID:           details.PlanID,
+		Extensions:       extensions,
+		ChargeableEntity: instanceID,
 	}
 
 	if updateParameters.SkipFinalSnapshot != nil {
@@ -1068,12 +1070,13 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 	}
 
 	tags := b.dbTags(RDSInstanceTags{
-		Action:         "Restored",
-		ServiceID:      serviceID,
-		PlanID:         planID,
-		OrganizationID: organizationID,
-		SpaceID:        spaceID,
-		Extensions:     extensions,
+		Action:           "Restored",
+		ServiceID:        serviceID,
+		PlanID:           planID,
+		OrganizationID:   organizationID,
+		SpaceID:          spaceID,
+		Extensions:       extensions,
+		ChargeableEntity: instanceID,
 	})
 
 	rdsTags := awsrds.BuilRDSTags(tags)
@@ -1270,6 +1273,7 @@ func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan Serv
 		SpaceID:           details.SpaceGUID,
 		SkipFinalSnapshot: strconv.FormatBool(skipFinalSnapshot),
 		Extensions:        provisionParameters.Extensions,
+		ChargeableEntity:  instanceID,
 	}
 
 	parameterGroupName, err := b.parameterGroupsSelector.SelectParameterGroup(servicePlan, provisionParameters.Extensions)
@@ -1341,6 +1345,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		SkipFinalSnapshot:        skipFinalSnapshotStr,
 		OriginSnapshotIdentifier: snapshotIdentifier,
 		Extensions:               provisionParameters.Extensions,
+		ChargeableEntity:         instanceID,
 	}
 
 	return &rds.RestoreDBInstanceFromDBSnapshotInput{
@@ -1387,6 +1392,7 @@ func (b *RDSBroker) restoreDBInstancePointInTimeInput(instanceID, originDBIdenti
 		SkipFinalSnapshot:        skipFinalSnapshotStr,
 		OriginDatabaseIdentifier: b.dbInstanceIdentifier(originDBIdentifier),
 		Extensions:               provisionParameters.Extensions,
+		ChargeableEntity:         instanceID,
 	}
 
 	if originTime != nil {
@@ -1467,6 +1473,8 @@ func (b *RDSBroker) dbTags(instanceTags RDSInstanceTags) map[string]string {
 	tags := make(map[string]string)
 
 	tags["Owner"] = "Cloud Foundry"
+
+	tags["chargeable_entity"] = instanceTags.ChargeableEntity
 
 	tags[awsrds.TagBrokerName] = b.brokerName
 
