@@ -46,7 +46,7 @@ jobs:
 
       - name: Run tests
         run: |
-          make unit
+          make test_unit
 
       - name: Run postgres 10 tests
         run: |
