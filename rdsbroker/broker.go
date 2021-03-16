@@ -666,14 +666,6 @@ func (b *RDSBroker) Update(
 	return brokerapi.UpdateServiceSpec{IsAsync: true}, nil
 }
 
-func postgisIsEnabled(tagsByName map[string]string) bool {
-	if extsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
-		exts := strings.Split(extsTag, ":")
-		return searchExtension(exts, "postgis")
-	}
-	return false
-}
-
 func (b *RDSBroker) Deprovision(
 	ctx context.Context,
 	instanceID string,

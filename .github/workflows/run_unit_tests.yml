@@ -48,10 +48,6 @@ jobs:
         run: |
           make unit
 
-      - name: Run postgres 9 tests
-        run: |
-          make start_postgres_9 run_postgres_sql_tests stop_postgres_9
-
       - name: Run postgres 10 tests
         run: |
           make start_postgres_10 run_postgres_sql_tests stop_postgres_10

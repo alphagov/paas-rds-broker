@@ -31,14 +31,12 @@ var _ = Describe("RDS Broker", func() {
 		rdsProperties1      RDSProperties
 		rdsProperties2      RDSProperties
 		rdsProperties3      RDSProperties
-		rdsPropertiesPSQL9  RDSProperties
 		rdsPropertiesPSQL10 RDSProperties
 		rdsPropertiesPSQL11 RDSProperties
 		rdsPropertiesPSQL12 RDSProperties
 		plan1               ServicePlan
 		plan2               ServicePlan
 		plan3               ServicePlan
-		planPSQL9           ServicePlan
 		planPSQL10          ServicePlan
 		planPSQL11          ServicePlan
 		planPSQL12          ServicePlan
@@ -153,21 +151,6 @@ var _ = Describe("RDS Broker", func() {
 			},
 		}
 
-		rdsPropertiesPSQL9 = RDSProperties{
-			DBInstanceClass:   stringPointer("db.t2.small"),
-			Engine:            stringPointer("postgres"),
-			EngineVersion:     stringPointer("9.5"),
-			AllocatedStorage:  int64Pointer(200),
-			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
-			DefaultExtensions: []*string{
-				stringPointer("pg_stat_statements"),
-			},
-			AllowedExtensions: []*string{
-				stringPointer("postgis"),
-				stringPointer("pg_stat_statements"),
-				stringPointer("postgres_super_extension"),
-			},
-		}
 		rdsPropertiesPSQL10 = RDSProperties{
 			DBInstanceClass:   stringPointer("db.t2.small"),
 			Engine:            stringPointer("postgres"),
@@ -234,14 +217,6 @@ var _ = Describe("RDS Broker", func() {
 			Description:   "This is the Plan 3",
 			RDSProperties: rdsProperties3,
 		}
-		planPSQL9 = ServicePlan{
-			ID:            "plan-psql9",
-			Name:          "Plan PSQL 9",
-			Description:   "",
-			Free:          nil,
-			Metadata:      nil,
-			RDSProperties: rdsPropertiesPSQL9,
-		}
 		planPSQL10 = ServicePlan{
 			ID:            "plan-psql10",
 			Name:          "Plan PSQL 10",
@@ -294,7 +269,6 @@ var _ = Describe("RDS Broker", func() {
 			Description:   "Provides Postgres",
 			PlanUpdatable: planUpdateable,
 			Plans: []ServicePlan{
-				planPSQL9,
 				planPSQL10,
 				planPSQL11,
 				planPSQL12,
@@ -1244,20 +1218,6 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
-		Context("when the postgres version is being changed from 9 to 9", func() {
-			BeforeEach(func() {
-				rdsProperties1.Engine = aws.String("postgres")
-				rdsProperties1.EngineVersion = aws.String("9.5")
-				rdsProperties2.Engine = aws.String("postgres")
-				rdsProperties2.EngineVersion = aws.String("9.6")
-			})
-
-			It("successfully upgrades the plan", func() {
-				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
-				Expect(err).NotTo(HaveOccurred())
-			})
-		})
-
 		Context("when upgrade minor version to latest", func() {
 			BeforeEach(func() {
 				updateDetails.RawParameters = json.RawMessage(`{"update_minor_version_to_latest": true}`)
@@ -1266,18 +1226,18 @@ var _ = Describe("RDS Broker", func() {
 
 			JustBeforeEach(func() {
 				existingDbInstance.Engine = aws.String("postgres")
-				existingDbInstance.EngineVersion = aws.String("9.5")
+				existingDbInstance.EngineVersion = aws.String("11")
 			})
 
 			It("successfully upgrades the plan", func() {
-				rdsInstance.GetLatestMinorVersionReturns(stringPointer("9.999"), nil)
+				rdsInstance.GetLatestMinorVersionReturns(stringPointer("11.999"), nil)
 
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
 				input := rdsInstance.ModifyArgsForCall(0)
-				Expect(aws.StringValue(input.EngineVersion)).To(Equal("9.999"))
+				Expect(aws.StringValue(input.EngineVersion)).To(Equal("11.999"))
 			})
 
 			Context("when reboot is specified", func() {
