@@ -3,7 +3,7 @@ MYSQL_PASSWORD=toor
 
 .PHONY: integration
 integration:
-	ginkgo -p --nodes=18 -r ci/blackbox --slowSpecThreshold=$$((60*30)) -stream -failFast
+	ginkgo -p --nodes=10 -r ci/blackbox --slowSpecThreshold=$$((60*30)) -stream -failFast
 
 .PHONY: unit
 unit: test_unit test_all_sql
@@ -14,7 +14,7 @@ test_unit:
 .PHONY: test_all_sql
 test_all_sql: test_postgres test_mysql
 .PHONY: test_postgres
-test_postgres: start_postgres_9 run_postgres_sql_tests stop_postgres_9 start_postgres_10 run_postgres_sql_tests stop_postgres_10 start_postgres_11 run_postgres_sql_tests stop_postgres_11 start_postgres_12 run_postgres_sql_tests stop_postgres_12
+test_postgres: run_postgres_sql_tests start_postgres_10 run_postgres_sql_tests stop_postgres_10 start_postgres_11 run_postgres_sql_tests stop_postgres_11 start_postgres_12 run_postgres_sql_tests stop_postgres_12
 .PHONY: test_mysql
 test_mysql: start_mysql_80 run_mysql_sql_tests stop_mysql_80 start_mysql_57 run_mysql_sql_tests stop_mysql_57
 
@@ -25,11 +25,6 @@ run_mysql_sql_tests:
 .PHONY: run_postgres_sql_tests
 run_postgres_sql_tests:
 	POSTGRESQL_PASSWORD=$(POSTGRESQL_PASSWORD) ginkgo -focus=PostgresEngine.* sqlengine/
-
-.PHONY: start_postgres_9
-start_postgres_9:
-	docker run -p 5432:5432 --name postgres-9 -e POSTGRES_PASSWORD=$(POSTGRESQL_PASSWORD) -d postgres:9.5; \
-	sleep 5
 
 .PHONY: start_postgres_10
 start_postgres_10:
@@ -45,10 +40,6 @@ start_postgres_11:
 start_postgres_12:
 	docker run -p 5432:5432 --name postgres-12 -e POSTGRES_PASSWORD=$(POSTGRESQL_PASSWORD) -d postgres:12.5; \
 	sleep 5
-
-.PHONY: stop_postgres_9
-stop_postgres_9:
-	docker rm -f postgres-9
 
 .PHONY: stop_postgres_10
 stop_postgres_10:
@@ -91,7 +82,6 @@ stop_mysql_80:
 stop_dbs:
 	docker rm -f mysql-57 || true
 	docker rm -f mysql-80 || true
-	docker rm -f postgres-9 || true
 	docker rm -f postgres-10 || true
 	docker rm -f postgres-11 || true
 	docker rm -f postgres-12 || true

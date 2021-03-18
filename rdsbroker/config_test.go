@@ -130,14 +130,14 @@ var _ = Describe("ServicePlan", func() {
 			planA := ServicePlan{
 				RDSProperties: RDSProperties{
 					Engine:        aws.String("postgres"),
-					EngineVersion: aws.String("10"),
+					EngineVersion: aws.String("12"),
 				},
 			}
 
 			planB := ServicePlan{
 				RDSProperties: RDSProperties{
 					Engine:        aws.String("postgres"),
-					EngineVersion: aws.String("9.5"),
+					EngineVersion: aws.String("11"),
 				},
 			}
 
