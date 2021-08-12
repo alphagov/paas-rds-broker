@@ -583,6 +583,120 @@ var _ = Describe("RDS Broker Daemon", func() {
 		})
 	})
 
+	Describe("Restore from before a point in time", func() {
+		TestRestoreFromPointInTime := func(serviceID, planID string) {
+			var (
+				instanceID           string
+				restoredInstanceID   string
+				snapshotCreationTime *time.Time
+			)
+
+			BeforeEach(func() {
+				instanceID = uuid.NewV4().String()
+				restoredInstanceID = uuid.NewV4().String()
+				brokerAPIClient.AcceptsIncomplete = true
+			})
+
+			It("should create a final snapshot by default", func() {
+				firstInstance := ProvisionManager{
+					Provisioner: func() (WaitFunc, CleanFunc) {
+						By("creating a first instance")
+						code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, `{"skip_final_snapshot":true}`)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(code).To(Equal(202))
+						waiter := func() {
+							state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
+							Expect(state).To(Equal("succeeded"))
+						}
+						cleaner := func() {
+							By("deleting the first instance")
+							code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(code).To(Equal(202))
+							state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
+							Expect(state).To(Equal("gone"))
+						}
+						return waiter, cleaner
+					},
+				}
+
+				firstInstance.Provision()
+				defer firstInstance.CleanUp()
+				firstInstance.Wait()
+
+				snapshot := ProvisionManager{
+					Provisioner: func() (WaitFunc, CleanFunc) {
+						By("creating a snapshot and recording its creation time")
+						snapshotID, err := rdsClient.CreateDBSnapshot(instanceID)
+						Expect(err).ToNot(HaveOccurred())
+						waiter := func() {
+							Eventually(
+								func() string {
+									s, err := rdsClient.GetDBSnapshot(snapshotID)
+									Expect(err).ToNot(HaveOccurred())
+									snapshotCreationTime = s.DBSnapshots[0].SnapshotCreateTime
+									return aws.StringValue(s.DBSnapshots[0].Status)
+								},
+								10*time.Minute,
+								20*time.Second,
+							).Should(
+								Equal("available"),
+							)
+						}
+						cleaner := func() {
+							By("deleting the snapshot")
+							snapshotDeletionOutput, err := rdsClient.DeleteDBSnapshot(snapshotID)
+							fmt.Fprintf(GinkgoWriter, "Snapshot deletion output for %s:\n", instanceID)
+							fmt.Fprint(GinkgoWriter, snapshotDeletionOutput)
+							Expect(err).ToNot(HaveOccurred())
+						}
+						return waiter, cleaner
+					},
+				}
+
+				snapshot.Provision()
+				defer snapshot.CleanUp()
+				snapshot.Wait()
+
+				firstInstance.CleanUp()
+
+				secondInstance := ProvisionManager{
+					Provisioner: func() (WaitFunc, CleanFunc) {
+						By("restoring a second instance from a snapshot taken before a point in time")
+						By("using earlier snapshot creation time + 1 minute for these test purposes")
+						snapshotTimePlus1Minute := snapshotCreationTime.Add(1 * time.Minute).Format(time.RFC3339)
+						code, operation, err := brokerAPIClient.ProvisionInstance(
+							restoredInstanceID, serviceID, planID,
+							fmt.Sprintf(`{"skip_final_snapshot":true, "restore_from_latest_snapshot_of": "%s", "restore_from_point_in_time_before": "%s"}`, instanceID, snapshotTimePlus1Minute),
+						)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(code).To(Equal(202))
+						waiter := func() {
+							state := pollForOperationCompletion(brokerAPIClient, restoredInstanceID, serviceID, planID, operation)
+							Expect(state).To(Equal("succeeded"))
+						}
+						cleaner := func() {
+							By("deleting the second instance ")
+							code, operation, err := brokerAPIClient.DeprovisionInstance(restoredInstanceID, serviceID, planID)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(code).To(Equal(202))
+							state := pollForOperationCompletion(brokerAPIClient, restoredInstanceID, serviceID, planID, operation)
+							Expect(state).To(Equal("gone"))
+						}
+						return waiter, cleaner
+					},
+				}
+
+				secondInstance.Provision()
+				defer secondInstance.CleanUp()
+				secondInstance.Wait()
+			})
+		}
+
+		Describe("Postgres 12", func() {
+			TestRestoreFromPointInTime("postgres", "postgres-micro-12")
+		})
+	})
 })
 
 func pollForOperationCompletion(brokerAPIClient *BrokerAPIClient, instanceID, serviceID, planID, operation string) string {
