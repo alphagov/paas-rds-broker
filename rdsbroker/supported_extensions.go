@@ -41,10 +41,6 @@ var SupportedPreloadExtensions = map[string][]DBExtension{
 
 	"postgres12": {
 		DBExtension{
-			Name:                   "auto_explain",
-			RequiresPreloadLibrary: true,
-		},
-		DBExtension{
 			Name:                   "orafce",
 			RequiresPreloadLibrary: true,
 		},
