@@ -260,8 +260,10 @@ func (b *RDSBroker) restoreFromPointInTime(
 	provisionParameters ProvisionParameters,
 	servicePlan ServicePlan,
 ) error {
-	if servicePlan.RDSProperties.Engine != nil && *servicePlan.RDSProperties.Engine != "postgres" {
-		return fmt.Errorf("Restore from snapshot not supported for engine '%s'", *servicePlan.RDSProperties.Engine)
+	if engine := servicePlan.RDSProperties.Engine; engine != nil {
+		if *engine != "postgres" && *engine != "mysql" {
+			return fmt.Errorf("Restore from snapshot not supported for engine '%s'", *engine)
+		}
 	}
 	if *provisionParameters.RestoreFromPointInTimeOf == "" {
 		return fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromPointInTimeOf)
@@ -326,8 +328,10 @@ func (b *RDSBroker) restoreFromSnapshot(
 	if *provisionParameters.RestoreFromLatestSnapshotOf == "" {
 		return fmt.Errorf("Invalid guid: '%s'", *provisionParameters.RestoreFromLatestSnapshotOf)
 	}
-	if servicePlan.RDSProperties.Engine != nil && *servicePlan.RDSProperties.Engine != "postgres" {
-		return fmt.Errorf("Restore from snapshot not supported for engine '%s'", *servicePlan.RDSProperties.Engine)
+	if engine := servicePlan.RDSProperties.Engine; engine != nil {
+		if *engine != "postgres" && *engine != "mysql" {
+			return fmt.Errorf("Restore from snapshot not supported for engine '%s'", *engine)
+		}
 	}
 	restoreFromDBInstanceID := b.dbInstanceIdentifier(*provisionParameters.RestoreFromLatestSnapshotOf)
 	snapshots, err := b.dbInstance.DescribeSnapshots(restoreFromDBInstanceID)
