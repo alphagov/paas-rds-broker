@@ -574,11 +574,11 @@ var _ = Describe("RDS Broker Daemon", func() {
 			TestRestoreFromSnapshot("postgres", "postgres-micro-12")
 		})
 
-		PDescribe("MySQL 5.7", func() {
+		Describe("MySQL 5.7", func() {
 			TestRestoreFromSnapshot("mysql", "mysql-5.7-micro")
 		})
 
-		PDescribe("MySQL 8.0", func() {
+		Describe("MySQL 8.0", func() {
 			TestRestoreFromSnapshot("mysql", "mysql-8.0-micro")
 		})
 	})
@@ -695,6 +695,14 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 		Describe("Postgres 12", func() {
 			TestRestoreFromPointInTime("postgres", "postgres-micro-12")
+		})
+
+		Describe("MySQL 5.7", func() {
+			TestRestoreFromPointInTime("mysql", "mysql-5.7-micro")
+		})
+
+		Describe("MySQL 8.0", func() {
+			TestRestoreFromPointInTime("mysql", "mysql-8.0-micro")
 		})
 	})
 })
