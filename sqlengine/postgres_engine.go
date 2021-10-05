@@ -348,9 +348,9 @@ func (d *PostgresEngine) DropExtensions(extensions []string) error {
 	return nil
 }
 
-const ensureGroupPattern = `
-	do
-	$body$
+const doWrapperPattern = "DO {{.bodyStr}}"
+
+const ensureGroupBodyPattern = `
 	begin
 		IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = {{.managerRoleStr}}) THEN
 			CREATE ROLE {{.managerRoleIden}};
@@ -360,18 +360,25 @@ const ensureGroupPattern = `
 			CREATE ROLE {{.readerRoleIden}} NOINHERIT;
 		END IF;
 	end
-	$body$
-	`
+`
 
-var ensureGroupTemplate = template.Must(template.New("ensureGroup").Parse(ensureGroupPattern))
+var doWrapperTemplate = template.Must(template.New("doWrapper").Parse(doWrapperPattern))
+var ensureGroupBodyTemplate = template.Must(template.New("ensureGroupBody").Parse(ensureGroupBodyPattern))
 
 func (d *PostgresEngine) ensureGroup(tx *sql.Tx, dbname string) error {
-	var ensureGroupStatement bytes.Buffer
-	if err := ensureGroupTemplate.Execute(&ensureGroupStatement, map[string]string{
+	var ensureGroupBody bytes.Buffer
+	if err := ensureGroupBodyTemplate.Execute(&ensureGroupBody, map[string]string{
 		"managerRoleStr": pq.QuoteLiteral(dbname + "_manager"),
 		"managerRoleIden": pq.QuoteIdentifier(dbname + "_manager"),
 		"readerRoleStr": pq.QuoteLiteral(dbname + "_reader"),
 		"readerRoleIden": pq.QuoteIdentifier(dbname + "_reader"),
+	}); err != nil {
+		return err
+	}
+
+	var ensureGroupStatement bytes.Buffer
+	if err := doWrapperTemplate.Execute(&ensureGroupStatement, map[string]string{
+		"bodyStr": pq.QuoteLiteral(ensureGroupBody.String()),
 	}); err != nil {
 		return err
 	}
@@ -385,8 +392,7 @@ func (d *PostgresEngine) ensureGroup(tx *sql.Tx, dbname string) error {
 	return nil
 }
 
-const ensurePermissionsTriggersPattern = `
-	create or replace function reassign_owned() returns event_trigger language plpgsql set search_path to public as $$
+const reassignOwnedBodyPattern = `
 	begin
 		-- do not execute if member of rds_superuser
 		IF EXISTS (select 1 from pg_catalog.pg_roles where rolname = 'rds_superuser')
@@ -408,8 +414,9 @@ const ensurePermissionsTriggersPattern = `
 
 		RETURN;
 	end
-	$$;
-	create or replace function make_readable_generic() returns void language plpgsql set search_path to public as $$
+`
+
+const makeReadableGenericBodyPattern = `
 	declare
 		r record;
 	begin
@@ -443,14 +450,9 @@ const ensurePermissionsTriggersPattern = `
 
 		RETURN;
 	end
-	$$;
-	create or replace function make_readable() returns event_trigger language plpgsql set search_path to public as $$
-	begin
-		EXECUTE 'select make_readable_generic()';
-		RETURN;
-	end
-	$$;
-	create or replace function forbid_ddl_reader() returns event_trigger language plpgsql set search_path to public as $$
+`
+
+const forbidDDLReaderBodyPattern = `
 	begin
 		-- do not execute if member of rds_superuser
 		IF EXISTS (select 1 from pg_catalog.pg_roles where rolname = 'rds_superuser')
@@ -472,16 +474,55 @@ const ensurePermissionsTriggersPattern = `
 			RAISE EXCEPTION 'executing % is disabled for read only bindings', tg_tag;
 		END IF;
 	end
+`
+
+const ensurePermissionsTriggersPattern = `
+	create or replace function reassign_owned() returns event_trigger language plpgsql set search_path to public as {{.reassignOwnedBodyStr}};
+	create or replace function make_readable_generic() returns void language plpgsql set search_path to public as {{.makeReadableGenericBodyStr}};
+	create or replace function make_readable() returns event_trigger language plpgsql set search_path to public as $$
+	begin
+		EXECUTE 'select make_readable_generic()';
+		RETURN;
+	end
 	$$;
+	create or replace function forbid_ddl_reader() returns event_trigger language plpgsql set search_path to public as {{.forbidDDLReaderBodyStr}};
 	`
 
+var reassignOwnedBodyTemplate = template.Must(template.New("reassignOwnedBody").Parse(reassignOwnedBodyPattern))
+var makeReadableGenericBodyTemplate = template.Must(template.New("makeReadableGenericBody").Parse(makeReadableGenericBodyPattern))
+var forbidDDLReaderBodyTemplate = template.Must(template.New("forbidDDLReaderBody").Parse(forbidDDLReaderBodyPattern))
 var ensurePermissionsTriggersTemplate = template.Must(template.New("ensurePermissionsTriggers").Parse(ensurePermissionsTriggersPattern))
 
 func (d *PostgresEngine) ensurePermissionsTriggers(tx *sql.Tx, dbname string) error {
-	var ensurePermissionsTriggersStatement bytes.Buffer
-	if err := ensurePermissionsTriggersTemplate.Execute(&ensurePermissionsTriggersStatement, map[string]string{
+	var reassignOwnedBody bytes.Buffer
+	if err := reassignOwnedBodyTemplate.Execute(&reassignOwnedBody, map[string]string{
 		"managerRoleStr": pq.QuoteLiteral(dbname + "_manager"),
 		"readerRoleStr": pq.QuoteLiteral(dbname + "_reader"),
+	}); err != nil {
+		return err
+	}
+
+	var makeReadableGenericBody bytes.Buffer
+	if err := makeReadableGenericBodyTemplate.Execute(&makeReadableGenericBody, map[string]string{
+		"managerRoleStr": pq.QuoteLiteral(dbname + "_manager"),
+		"readerRoleStr": pq.QuoteLiteral(dbname + "_reader"),
+	}); err != nil {
+		return err
+	}
+
+	var forbidDDLReaderBody bytes.Buffer
+	if err := forbidDDLReaderBodyTemplate.Execute(&forbidDDLReaderBody, map[string]string{
+		"managerRoleStr": pq.QuoteLiteral(dbname + "_manager"),
+		"readerRoleStr": pq.QuoteLiteral(dbname + "_reader"),
+	}); err != nil {
+		return err
+	}
+
+	var ensurePermissionsTriggersStatement bytes.Buffer
+	if err := ensurePermissionsTriggersTemplate.Execute(&ensurePermissionsTriggersStatement, map[string]string{
+		"reassignOwnedBodyStr": pq.QuoteLiteral(reassignOwnedBody.String()),
+		"makeReadableGenericBodyStr": pq.QuoteLiteral(makeReadableGenericBody.String()),
+		"forbidDDLReaderBodyStr": pq.QuoteLiteral(forbidDDLReaderBody.String()),
 	}); err != nil {
 		return err
 	}
@@ -508,9 +549,7 @@ func (d *PostgresEngine) ensurePermissionsTriggers(tx *sql.Tx, dbname string) er
 	return nil
 }
 
-const ensureCreateUserPattern = `
-	DO
-	$body$
+const ensureCreateUserBodyPattern = `
 	BEGIN
 	   IF NOT EXISTS (
 		  SELECT *
@@ -520,30 +559,43 @@ const ensureCreateUserPattern = `
 		  CREATE USER {{.userIden}} WITH PASSWORD {{.passwordStr}};
 	   END IF;
 	END
-	$body$;`
+`
 
-var ensureCreateUserTemplate = template.Must(template.New("ensureUser").Parse(ensureCreateUserPattern))
+var ensureCreateUserBodyTemplate = template.Must(template.New("ensureUserBody").Parse(ensureCreateUserBodyPattern))
 
 func (d *PostgresEngine) ensureUser(tx *sql.Tx, dbname string, username string, password string) error {
-	var ensureUserStatement bytes.Buffer
-	if err := ensureCreateUserTemplate.Execute(&ensureUserStatement, map[string]string{
+	var ensureCreateUserBody bytes.Buffer
+	if err := ensureCreateUserBodyTemplate.Execute(&ensureCreateUserBody, map[string]string{
 		"passwordStr": pq.QuoteLiteral(password),
 		"userStr": pq.QuoteLiteral(username),
 		"userIden": pq.QuoteIdentifier(username),
 	}); err != nil {
 		return err
 	}
-	var ensureUserStatementSanitized bytes.Buffer
-	if err := ensureCreateUserTemplate.Execute(&ensureUserStatementSanitized, map[string]string{
+	var ensureCreateUserStatement bytes.Buffer
+	if err := doWrapperTemplate.Execute(&ensureCreateUserStatement, map[string]string{
+		"bodyStr": pq.QuoteLiteral(ensureCreateUserBody.String()),
+	}); err != nil {
+		return err
+	}
+
+	var ensureCreateUserBodySanitized bytes.Buffer
+	if err := ensureCreateUserBodyTemplate.Execute(&ensureCreateUserBodySanitized, map[string]string{
 		"passwordStr": "REDACTED",
 		"userStr": pq.QuoteLiteral(username),
 		"userIden": pq.QuoteIdentifier(username),
 	}); err != nil {
 		return err
 	}
-	d.logger.Debug("ensure-user", lager.Data{"statement": ensureUserStatementSanitized.String()})
+	var ensureCreateUserStatementSanitized bytes.Buffer
+	if err := doWrapperTemplate.Execute(&ensureCreateUserStatementSanitized, map[string]string{
+		"bodyStr": pq.QuoteLiteral(ensureCreateUserBodySanitized.String()),
+	}); err != nil {
+		return err
+	}
+	d.logger.Debug("ensure-user", lager.Data{"statement": ensureCreateUserStatementSanitized.String()})
 
-	if _, err := tx.Exec(ensureUserStatement.String()); err != nil {
+	if _, err := tx.Exec(ensureCreateUserStatement.String()); err != nil {
 		d.logger.Error("sql-error", err)
 		return err
 	}
