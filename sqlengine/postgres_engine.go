@@ -87,7 +87,11 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, re
 	}
 
 	if readOnly {
-		grantPrivilegesStatement := fmt.Sprintf(`grant "%s_reader" to "%s"`, dbname, username)
+		grantPrivilegesStatement := fmt.Sprintf(
+			`grant %s to %s`,
+			pq.QuoteIdentifier(dbname + "_reader"),
+			pq.QuoteIdentifier(username),
+		)
 		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 		if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
@@ -95,7 +99,11 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, re
 			return "", "", err
 		}
 
-		grantConnectOnDatabaseStatement := fmt.Sprintf(`grant connect on database "%s" to "%s_reader"`, dbname, dbname)
+		grantConnectOnDatabaseStatement := fmt.Sprintf(
+			`grant connect on database %s to %s`,
+			pq.QuoteIdentifier(dbname),
+			pq.QuoteIdentifier(dbname + "_reader"),
+		)
 		d.logger.Debug("grant-connect", lager.Data{"statement": grantConnectOnDatabaseStatement})
 
 		if _, err := tx.Exec(grantConnectOnDatabaseStatement); err != nil {
@@ -111,7 +119,11 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, re
 			return "", "", err
 		}
 	} else {
-		grantPrivilegesStatement := fmt.Sprintf(`grant "%s_manager" to "%s"`, dbname, username)
+		grantPrivilegesStatement := fmt.Sprintf(
+			`grant %s to %s`,
+			pq.QuoteIdentifier(dbname + "_manager"),
+			pq.QuoteIdentifier(username),
+		)
 		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 		if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
@@ -119,7 +131,11 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, re
 			return "", "", err
 		}
 
-		grantAllOnDatabaseStatement := fmt.Sprintf(`grant all privileges on database "%s" to "%s_manager"`, dbname, dbname)
+		grantAllOnDatabaseStatement := fmt.Sprintf(
+			`grant all privileges on database %s to %s`,
+			pq.QuoteIdentifier(dbname),
+			pq.QuoteIdentifier(dbname + "_manager"),
+		)
 		d.logger.Debug("grant-privileges", lager.Data{"statement": grantAllOnDatabaseStatement})
 
 		if _, err := tx.Exec(grantAllOnDatabaseStatement); err != nil {
@@ -168,7 +184,10 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string, readOnly bool) (us
 
 func (d *PostgresEngine) DropUser(bindingID string) error {
 	username := d.UsernameGenerator(bindingID)
-	dropUserStatement := fmt.Sprintf(`drop role "%s"`, username)
+	dropUserStatement := fmt.Sprintf(
+		`drop role %s`,
+		pq.QuoteIdentifier(username),
+	)
 
 	_, err := d.db.Exec(dropUserStatement)
 	if err == nil {
@@ -183,7 +202,10 @@ func (d *PostgresEngine) DropUser(bindingID string) error {
 		d.logger.Info("warning", lager.Data{"warning": "User " + username + " does not exist"})
 
 		username = generateUsernameOld(bindingID)
-		dropUserStatement = fmt.Sprintf(`drop role "%s"`, username)
+		dropUserStatement = fmt.Sprintf(
+			`drop role %s`,
+			pq.QuoteIdentifier(username),
+		)
 		if _, err = d.db.Exec(dropUserStatement); err != nil {
 			if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "42704" {
 				d.logger.Info("warning", lager.Data{"warning": "User " + username + " does not exist"})
@@ -222,7 +244,10 @@ func (d *PostgresEngine) ResetState() error {
 	}
 
 	for _, username := range users {
-		dropUserStatement := fmt.Sprintf(`drop role "%s"`, username)
+		dropUserStatement := fmt.Sprintf(
+			`drop role %s`,
+			pq.QuoteIdentifier(username),
+		)
 		d.logger.Debug("reset-state", lager.Data{"statement": dropUserStatement})
 		if _, err = tx.Exec(dropUserStatement); err != nil {
 			d.logger.Error("sql-error", err)
@@ -245,7 +270,9 @@ func (d *PostgresEngine) ResetState() error {
 func (d *PostgresEngine) listNonSuperUsers() ([]string, error) {
 	users := []string{}
 
-	rows, err := d.db.Query("select usename from pg_user where usesuper != true and usename != current_user")
+	rows, err := d.db.Query(
+		"select usename from pg_user where usesuper != true and usename != current_user",
+	)
 	if err != nil {
 		d.logger.Error("sql-error", err)
 		return nil, err
@@ -282,14 +309,18 @@ func (d *PostgresEngine) JDBCURI(address string, port int64, dbname string, user
 	return fmt.Sprintf("jdbc:postgresql://%s:%d/%s?%s", address, port, dbname, params.Encode())
 }
 
-const createExtensionPattern = `CREATE EXTENSION IF NOT EXISTS "{{.extension}}"`
-const dropExtensionPattern = `DROP EXTENSION IF EXISTS "{{.extension}}"`
+const createExtensionPattern = `CREATE EXTENSION IF NOT EXISTS {{.extensionIden}}`
+const dropExtensionPattern = `DROP EXTENSION IF EXISTS {{.extensionIden}}`
 
 func (d *PostgresEngine) CreateExtensions(extensions []string) error {
 	for _, extension := range extensions {
-		createExtensionTemplate := template.Must(template.New(extension + "Extension").Parse(createExtensionPattern))
+		createExtensionTemplate := template.Must(template.New(
+			extension + "Extension",
+		).Parse(createExtensionPattern))
 		var createExtensionStatement bytes.Buffer
-		if err := createExtensionTemplate.Execute(&createExtensionStatement, map[string]string{"extension": extension}); err != nil {
+		if err := createExtensionTemplate.Execute(&createExtensionStatement, map[string]string{
+			"extensionIden": pq.QuoteIdentifier(extension),
+		}); err != nil {
 			return err
 		}
 		if _, err := d.db.Exec(createExtensionStatement.String()); err != nil {
@@ -301,9 +332,13 @@ func (d *PostgresEngine) CreateExtensions(extensions []string) error {
 
 func (d *PostgresEngine) DropExtensions(extensions []string) error {
 	for _, extension := range extensions {
-		dropExtensionTemplate := template.Must(template.New(extension + "Extension").Parse(dropExtensionPattern))
+		dropExtensionTemplate := template.Must(template.New(
+			extension + "Extension",
+		).Parse(dropExtensionPattern))
 		var dropExtensionStatement bytes.Buffer
-		if err := dropExtensionTemplate.Execute(&dropExtensionStatement, map[string]string{"extension": extension}); err != nil {
+		if err := dropExtensionTemplate.Execute(&dropExtensionStatement, map[string]string{
+			"extensionIden": pq.QuoteIdentifier(extension),
+		}); err != nil {
 			return err
 		}
 		if _, err := d.db.Exec(dropExtensionStatement.String()); err != nil {
@@ -317,12 +352,12 @@ const ensureGroupPattern = `
 	do
 	$body$
 	begin
-		IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = '{{.dbname}}_manager') THEN
-			CREATE ROLE "{{.dbname}}_manager";
+		IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = {{.managerRoleStr}}) THEN
+			CREATE ROLE {{.managerRoleIden}};
 		END IF;
 
-		IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = '{{.dbname}}_reader') THEN
-			CREATE ROLE "{{.dbname}}_reader" NOINHERIT;
+		IF NOT EXISTS (select 1 from pg_catalog.pg_roles where rolname = {{.readerRoleStr}}) THEN
+			CREATE ROLE {{.readerRoleIden}} NOINHERIT;
 		END IF;
 	end
 	$body$
@@ -333,7 +368,10 @@ var ensureGroupTemplate = template.Must(template.New("ensureGroup").Parse(ensure
 func (d *PostgresEngine) ensureGroup(tx *sql.Tx, dbname string) error {
 	var ensureGroupStatement bytes.Buffer
 	if err := ensureGroupTemplate.Execute(&ensureGroupStatement, map[string]string{
-		"dbname": dbname,
+		"managerRoleStr": pq.QuoteLiteral(dbname + "_manager"),
+		"managerRoleIden": pq.QuoteIdentifier(dbname + "_manager"),
+		"readerRoleStr": pq.QuoteLiteral(dbname + "_reader"),
+		"readerRoleIden": pq.QuoteIdentifier(dbname + "_reader"),
 	}); err != nil {
 		return err
 	}
@@ -362,11 +400,11 @@ const ensurePermissionsTriggersPattern = `
 		END IF;
 
 		-- do not execute if not member of manager role
-		IF NOT pg_has_role(current_user, '{{.dbname}}_manager', 'member') THEN
+		IF NOT pg_has_role(current_user, {{.managerRoleStr}}, 'member') THEN
 			RETURN;
 		END IF;
 
-		EXECUTE 'reassign owned by "' || current_user || '" to "{{.dbname}}_manager"';
+		EXECUTE format('REASSIGN OWNED BY %I TO %I', current_user, {{.managerRoleStr}});
 
 		RETURN;
 	end
@@ -387,15 +425,15 @@ const ensurePermissionsTriggersPattern = `
 		END IF;
 
 		-- do not execute if not member of manager role
-		IF NOT pg_has_role(current_user, '{{.dbname}}_manager', 'member') THEN
+		IF NOT pg_has_role(current_user, {{.managerRoleStr}}, 'member') THEN
 			RETURN;
 		END IF;
 
 		FOR r in (select schema_name from information_schema.schemata) LOOP
 			BEGIN
-				EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %s TO "{{.dbname}}_reader"', r.schema_name);
-				EXECUTE format('GRANT SELECT ON ALL SEQUENCES IN SCHEMA %s TO "{{.dbname}}_reader"', r.schema_name);
-				EXECUTE format('GRANT USAGE ON SCHEMA %s TO "{{.dbname}}_reader"', r.schema_name);
+				EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO %I', r.schema_name, {{.readerRoleStr}});
+				EXECUTE format('GRANT SELECT ON ALL SEQUENCES IN SCHEMA %I TO %I', r.schema_name, {{.readerRoleStr}});
+				EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', r.schema_name, {{.readerRoleStr}});
 
 				RAISE NOTICE 'GRANTED READ ONLY IN SCHEMA %s', r.schema_name;
 			EXCEPTION WHEN OTHERS THEN
@@ -426,11 +464,11 @@ const ensurePermissionsTriggersPattern = `
 		END IF;
 
 		-- do not execute if member of manager role
-		IF pg_has_role(current_user, '{{.dbname}}_manager', 'member') THEN
+		IF pg_has_role(current_user, {{.managerRoleStr}}, 'member') THEN
 			RETURN;
 		END IF;
 
-		IF pg_has_role(current_user, '{{.dbname}}_reader', 'member') THEN
+		IF pg_has_role(current_user, {{.readerRoleStr}}, 'member') THEN
 			RAISE EXCEPTION 'executing % is disabled for read only bindings', tg_tag;
 		END IF;
 	end
@@ -442,7 +480,8 @@ var ensurePermissionsTriggersTemplate = template.Must(template.New("ensurePermis
 func (d *PostgresEngine) ensurePermissionsTriggers(tx *sql.Tx, dbname string) error {
 	var ensurePermissionsTriggersStatement bytes.Buffer
 	if err := ensurePermissionsTriggersTemplate.Execute(&ensurePermissionsTriggersStatement, map[string]string{
-		"dbname": dbname,
+		"managerRoleStr": pq.QuoteLiteral(dbname + "_manager"),
+		"readerRoleStr": pq.QuoteLiteral(dbname + "_reader"),
 	}); err != nil {
 		return err
 	}
@@ -476,9 +515,9 @@ const ensureCreateUserPattern = `
 	   IF NOT EXISTS (
 		  SELECT *
 		  FROM   pg_catalog.pg_user
-		  WHERE  usename = '{{.user}}') THEN
+		  WHERE  usename = {{.userStr}}) THEN
 
-		  CREATE USER {{.user}} WITH PASSWORD '{{.password}}';
+		  CREATE USER {{.userIden}} WITH PASSWORD {{.passwordStr}};
 	   END IF;
 	END
 	$body$;`
@@ -488,15 +527,17 @@ var ensureCreateUserTemplate = template.Must(template.New("ensureUser").Parse(en
 func (d *PostgresEngine) ensureUser(tx *sql.Tx, dbname string, username string, password string) error {
 	var ensureUserStatement bytes.Buffer
 	if err := ensureCreateUserTemplate.Execute(&ensureUserStatement, map[string]string{
-		"password": password,
-		"user":     username,
+		"passwordStr": pq.QuoteLiteral(password),
+		"userStr": pq.QuoteLiteral(username),
+		"userIden": pq.QuoteIdentifier(username),
 	}); err != nil {
 		return err
 	}
 	var ensureUserStatementSanitized bytes.Buffer
 	if err := ensureCreateUserTemplate.Execute(&ensureUserStatementSanitized, map[string]string{
-		"password": "REDACTED",
-		"user":     username,
+		"passwordStr": "REDACTED",
+		"userStr": pq.QuoteLiteral(username),
+		"userIden": pq.QuoteIdentifier(username),
 	}); err != nil {
 		return err
 	}
