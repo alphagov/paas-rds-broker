@@ -19,6 +19,9 @@ const (
 	pqErrDuplicateContent = "42710"
 	pqErrInternalError    = "XX000"
 	pqErrInvalidPassword  = "28P01"
+
+	bindingIDLogKey = "binding-id"
+	extensionsLogKey = "extensions"
 )
 
 type PostgresEngine struct {
@@ -37,9 +40,12 @@ func NewPostgresEngine(logger lager.Logger) *PostgresEngine {
 }
 
 func (d *PostgresEngine) Open(address string, port int64, dbname string, username string, password string) error {
+	logger := d.logger.Session("open")
+	logger.Debug("start")
+
 	connectionString := d.URI(address, port, dbname, username, password)
 	sanitizedConnectionString := d.URI(address, port, dbname, username, "REDACTED")
-	d.logger.Debug("sql-open", lager.Data{"connection-string": sanitizedConnectionString})
+	logger.Debug("sql-open", lager.Data{"connection-string": sanitizedConnectionString})
 
 	db, err := sql.Open("postgres", connectionString)
 	if err != nil {
@@ -65,24 +71,27 @@ func (d *PostgresEngine) Open(address string, port int64, dbname string, usernam
 }
 
 func (d *PostgresEngine) Close() {
+	logger := d.logger.Session("close")
+	logger.Debug("start")
+
 	if d.db != nil {
 		d.db.Close()
 	}
 }
 
-func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, readOnly bool) (username, password string, err error) {
-	if err = d.ensureGroup(tx, dbname); err != nil {
+func (d *PostgresEngine) execCreateUser(logger lager.Logger, tx *sql.Tx, bindingID, dbname string, readOnly bool) (username, password string, err error) {
+	if err = d.ensureGroup(logger, tx, dbname); err != nil {
 		return "", "", err
 	}
 
-	if err = d.ensurePermissionsTriggers(tx, dbname); err != nil {
+	if err = d.ensurePermissionsTriggers(logger, tx, dbname); err != nil {
 		return "", "", err
 	}
 
 	username = d.UsernameGenerator(bindingID)
 	password = generatePassword()
 
-	if err = d.ensureUser(tx, dbname, username, password); err != nil {
+	if err = d.ensureUser(logger, tx, dbname, username, password); err != nil {
 		return "", "", err
 	}
 
@@ -92,10 +101,10 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, re
 			pq.QuoteIdentifier(dbname + "_reader"),
 			pq.QuoteIdentifier(username),
 		)
-		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+		logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 		if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
-			d.logger.Error("Grant sql-error", err)
+			logger.Error("Grant sql-error", err)
 			return "", "", err
 		}
 
@@ -104,18 +113,18 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, re
 			pq.QuoteIdentifier(dbname),
 			pq.QuoteIdentifier(dbname + "_reader"),
 		)
-		d.logger.Debug("grant-connect", lager.Data{"statement": grantConnectOnDatabaseStatement})
+		logger.Debug("grant-connect", lager.Data{"statement": grantConnectOnDatabaseStatement})
 
 		if _, err := tx.Exec(grantConnectOnDatabaseStatement); err != nil {
-			d.logger.Error("Grant sql-error", err)
+			logger.Error("Grant sql-error", err)
 			return "", "", err
 		}
 
 		makeReadableStatement := `select make_readable_generic()`
-		d.logger.Debug("make-readable", lager.Data{"statement": makeReadableStatement})
+		logger.Debug("make-readable", lager.Data{"statement": makeReadableStatement})
 
 		if _, err := tx.Exec(makeReadableStatement); err != nil {
-			d.logger.Error("Make readable-error", err)
+			logger.Error("Make readable-error", err)
 			return "", "", err
 		}
 	} else {
@@ -124,10 +133,10 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, re
 			pq.QuoteIdentifier(dbname + "_manager"),
 			pq.QuoteIdentifier(username),
 		)
-		d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+		logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 		if _, err := tx.Exec(grantPrivilegesStatement); err != nil {
-			d.logger.Error("Grant sql-error", err)
+			logger.Error("Grant sql-error", err)
 			return "", "", err
 		}
 
@@ -136,10 +145,10 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, re
 			pq.QuoteIdentifier(dbname),
 			pq.QuoteIdentifier(dbname + "_manager"),
 		)
-		d.logger.Debug("grant-privileges", lager.Data{"statement": grantAllOnDatabaseStatement})
+		logger.Debug("grant-privileges", lager.Data{"statement": grantAllOnDatabaseStatement})
 
 		if _, err := tx.Exec(grantAllOnDatabaseStatement); err != nil {
-			d.logger.Error("Grant sql-error", err)
+			logger.Error("Grant sql-error", err)
 			return "", "", err
 		}
 	}
@@ -147,13 +156,13 @@ func (d *PostgresEngine) execCreateUser(tx *sql.Tx, bindingID, dbname string, re
 	return username, password, nil
 }
 
-func (d *PostgresEngine) createUser(bindingID, dbname string, readOnly bool) (username, password string, err error) {
+func (d *PostgresEngine) createUser(logger lager.Logger, bindingID, dbname string, readOnly bool) (username, password string, err error) {
 	tx, err := d.db.Begin()
 	if err != nil {
-		d.logger.Error("sql-error", err)
+		logger.Error("sql-error", err)
 		return "", "", err
 	}
-	username, password, err = d.execCreateUser(tx, bindingID, dbname, readOnly)
+	username, password, err = d.execCreateUser(logger, tx, bindingID, dbname, readOnly)
 	if err != nil {
 		_ = tx.Rollback()
 		return "", "", err
@@ -162,11 +171,14 @@ func (d *PostgresEngine) createUser(bindingID, dbname string, readOnly bool) (us
 }
 
 func (d *PostgresEngine) CreateUser(bindingID, dbname string, readOnly bool) (username, password string, err error) {
+	logger := d.logger.Session("create-user", lager.Data{bindingIDLogKey: bindingID})
+	logger.Debug("start")
+
 	var pqErr *pq.Error
 	tries := 0
 	for tries < 10 {
 		tries++
-		username, password, err := d.createUser(bindingID, dbname, readOnly)
+		username, password, err := d.createUser(logger, bindingID, dbname, readOnly)
 		if err != nil {
 			var ok bool
 			pqErr, ok = err.(*pq.Error)
@@ -183,6 +195,9 @@ func (d *PostgresEngine) CreateUser(bindingID, dbname string, readOnly bool) (us
 }
 
 func (d *PostgresEngine) DropUser(bindingID string) error {
+	logger := d.logger.Session("drop-user", lager.Data{bindingIDLogKey: bindingID})
+	logger.Debug("start")
+
 	username := d.UsernameGenerator(bindingID)
 	dropUserStatement := fmt.Sprintf(
 		`drop role %s`,
@@ -199,7 +214,7 @@ func (d *PostgresEngine) DropUser(bindingID string) error {
 	// Also we changed how we generate usernames so we have to try to drop the username generated
 	// the old way. If none of the usernames exist then we swallow the error
 	if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "42704" {
-		d.logger.Info("warning", lager.Data{"warning": "User " + username + " does not exist"})
+		logger.Info("warning", lager.Data{"warning": "User " + username + " does not exist"})
 
 		username = generateUsernameOld(bindingID)
 		dropUserStatement = fmt.Sprintf(
@@ -208,27 +223,28 @@ func (d *PostgresEngine) DropUser(bindingID string) error {
 		)
 		if _, err = d.db.Exec(dropUserStatement); err != nil {
 			if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "42704" {
-				d.logger.Info("warning", lager.Data{"warning": "User " + username + " does not exist"})
+				logger.Info("warning", lager.Data{"warning": "User " + username + " does not exist"})
 				return nil
 			}
-			d.logger.Error("sql-error", err)
+			logger.Error("sql-error", err)
 			return err
 		}
 
 		return nil
 	}
 
-	d.logger.Error("sql-error", err)
+	logger.Error("sql-error", err)
 
 	return err
 }
 
 func (d *PostgresEngine) ResetState() error {
-	d.logger.Debug("reset-state.start")
+	logger := d.logger.Session("reset-state")
+	logger.Debug("start")
 
 	tx, err := d.db.Begin()
 	if err != nil {
-		d.logger.Error("sql-error", err)
+		logger.Error("sql-error", err)
 		return err
 	}
 	commitCalled := false
@@ -238,7 +254,7 @@ func (d *PostgresEngine) ResetState() error {
 		}
 	}()
 
-	users, err := d.listNonSuperUsers()
+	users, err := d.listNonSuperUsers(logger)
 	if err != nil {
 		return err
 	}
@@ -248,33 +264,31 @@ func (d *PostgresEngine) ResetState() error {
 			`drop role %s`,
 			pq.QuoteIdentifier(username),
 		)
-		d.logger.Debug("reset-state", lager.Data{"statement": dropUserStatement})
+		logger.Debug("drop-role", lager.Data{"statement": dropUserStatement})
 		if _, err = tx.Exec(dropUserStatement); err != nil {
-			d.logger.Error("sql-error", err)
+			logger.Error("sql-error", err)
 			return err
 		}
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		d.logger.Error("commit.sql-error", err)
+		logger.Error("commit.sql-error", err)
 		return err
 	}
 	commitCalled = true // Prevent Rollback being called in deferred function
 
-	d.logger.Debug("reset-state.finish")
-
 	return nil
 }
 
-func (d *PostgresEngine) listNonSuperUsers() ([]string, error) {
+func (d *PostgresEngine) listNonSuperUsers(logger lager.Logger) ([]string, error) {
 	users := []string{}
 
 	rows, err := d.db.Query(
 		"select usename from pg_user where usesuper != true and usename != current_user",
 	)
 	if err != nil {
-		d.logger.Error("sql-error", err)
+		logger.Error("sql-error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -282,7 +296,7 @@ func (d *PostgresEngine) listNonSuperUsers() ([]string, error) {
 		var username string
 		err = rows.Scan(&username)
 		if err != nil {
-			d.logger.Error("sql-error", err)
+			logger.Error("sql-error", err)
 			return nil, err
 		}
 		users = append(users, username)
@@ -313,6 +327,9 @@ const createExtensionPattern = `CREATE EXTENSION IF NOT EXISTS {{.extensionIden}
 const dropExtensionPattern = `DROP EXTENSION IF EXISTS {{.extensionIden}}`
 
 func (d *PostgresEngine) CreateExtensions(extensions []string) error {
+	logger := d.logger.Session("create-extensions", lager.Data{extensionsLogKey: extensions})
+	logger.Debug("start")
+
 	for _, extension := range extensions {
 		createExtensionTemplate := template.Must(template.New(
 			extension + "Extension",
@@ -331,6 +348,9 @@ func (d *PostgresEngine) CreateExtensions(extensions []string) error {
 }
 
 func (d *PostgresEngine) DropExtensions(extensions []string) error {
+	logger := d.logger.Session("drop-extensions", lager.Data{extensionsLogKey: extensions})
+	logger.Debug("start")
+
 	for _, extension := range extensions {
 		dropExtensionTemplate := template.Must(template.New(
 			extension + "Extension",
@@ -365,7 +385,7 @@ const ensureGroupBodyPattern = `
 var doWrapperTemplate = template.Must(template.New("doWrapper").Parse(doWrapperPattern))
 var ensureGroupBodyTemplate = template.Must(template.New("ensureGroupBody").Parse(ensureGroupBodyPattern))
 
-func (d *PostgresEngine) ensureGroup(tx *sql.Tx, dbname string) error {
+func (d *PostgresEngine) ensureGroup(logger lager.Logger, tx *sql.Tx, dbname string) error {
 	var ensureGroupBody bytes.Buffer
 	if err := ensureGroupBodyTemplate.Execute(&ensureGroupBody, map[string]string{
 		"managerRoleStr": pq.QuoteLiteral(dbname + "_manager"),
@@ -382,10 +402,10 @@ func (d *PostgresEngine) ensureGroup(tx *sql.Tx, dbname string) error {
 	}); err != nil {
 		return err
 	}
-	d.logger.Debug("ensure-group", lager.Data{"statement": ensureGroupStatement.String()})
+	logger.Debug("ensure-group", lager.Data{"statement": ensureGroupStatement.String()})
 
 	if _, err := tx.Exec(ensureGroupStatement.String()); err != nil {
-		d.logger.Error("sql-error", err)
+		logger.Error("sql-error", err)
 		return err
 	}
 
@@ -493,7 +513,7 @@ var makeReadableGenericBodyTemplate = template.Must(template.New("makeReadableGe
 var forbidDDLReaderBodyTemplate = template.Must(template.New("forbidDDLReaderBody").Parse(forbidDDLReaderBodyPattern))
 var ensurePermissionsTriggersTemplate = template.Must(template.New("ensurePermissionsTriggers").Parse(ensurePermissionsTriggersPattern))
 
-func (d *PostgresEngine) ensurePermissionsTriggers(tx *sql.Tx, dbname string) error {
+func (d *PostgresEngine) ensurePermissionsTriggers(logger lager.Logger, tx *sql.Tx, dbname string) error {
 	var reassignOwnedBody bytes.Buffer
 	if err := reassignOwnedBodyTemplate.Execute(&reassignOwnedBody, map[string]string{
 		"managerRoleStr": pq.QuoteLiteral(dbname + "_manager"),
@@ -538,10 +558,10 @@ func (d *PostgresEngine) ensurePermissionsTriggers(tx *sql.Tx, dbname string) er
 	}
 
 	for _, cmd := range cmds {
-		d.logger.Debug("ensure-permissions-triggers", lager.Data{"statement": cmd})
+		logger.Debug("ensure-permissions-triggers", lager.Data{"statement": cmd})
 		_, err := tx.Exec(cmd)
 		if err != nil {
-			d.logger.Error("sql-error", err)
+			logger.Error("sql-error", err)
 			return err
 		}
 	}
@@ -563,7 +583,7 @@ const ensureCreateUserBodyPattern = `
 
 var ensureCreateUserBodyTemplate = template.Must(template.New("ensureUserBody").Parse(ensureCreateUserBodyPattern))
 
-func (d *PostgresEngine) ensureUser(tx *sql.Tx, dbname string, username string, password string) error {
+func (d *PostgresEngine) ensureUser(logger lager.Logger, tx *sql.Tx, dbname string, username string, password string) error {
 	var ensureCreateUserBody bytes.Buffer
 	if err := ensureCreateUserBodyTemplate.Execute(&ensureCreateUserBody, map[string]string{
 		"passwordStr": pq.QuoteLiteral(password),
@@ -593,10 +613,10 @@ func (d *PostgresEngine) ensureUser(tx *sql.Tx, dbname string, username string, 
 	}); err != nil {
 		return err
 	}
-	d.logger.Debug("ensure-user", lager.Data{"statement": ensureCreateUserStatementSanitized.String()})
+	logger.Debug("ensure-user", lager.Data{"statement": ensureCreateUserStatementSanitized.String()})
 
 	if _, err := tx.Exec(ensureCreateUserStatement.String()); err != nil {
-		d.logger.Error("sql-error", err)
+		logger.Error("sql-error", err)
 		return err
 	}
 
