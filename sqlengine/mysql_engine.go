@@ -50,9 +50,12 @@ func checkMySQLIdentifierSafe(s string) error {
 }
 
 func (d *MySQLEngine) Open(address string, port int64, dbname string, username string, password string) error {
+	logger := d.logger.Session("open")
+	logger.Debug("start")
+
 	connectionString := d.connectionString(address, port, dbname, username, password)
 	sanitizedConnectionString := d.connectionString(address, port, dbname, username, "REDACTED")
-	d.logger.Debug("sql-open", lager.Data{"connection-string": sanitizedConnectionString})
+	logger.Debug("sql-open", lager.Data{"connection-string": sanitizedConnectionString})
 
 	db, err := sql.Open("mysql", connectionString)
 	if err != nil {
@@ -75,9 +78,9 @@ func (d *MySQLEngine) Open(address string, port int64, dbname string, username s
 
 	// let's not make sanitizing literals any more complex
 	noBackslashEscapesStatement := "SET SESSION sql_mode = 'NO_BACKSLASH_ESCAPES'"
-	d.logger.Debug("sql-open", lager.Data{"statement": noBackslashEscapesStatement})
+	logger.Debug("sql-open", lager.Data{"statement": noBackslashEscapesStatement})
 	if _, err := d.db.Exec(noBackslashEscapesStatement); err != nil {
-		d.logger.Error("sql-error", err)
+		logger.Error("sql-error", err)
 		return err
 	}
 
@@ -85,12 +88,18 @@ func (d *MySQLEngine) Open(address string, port int64, dbname string, username s
 }
 
 func (d *MySQLEngine) Close() {
+	logger := d.logger.Session("close")
+	logger.Debug("start")
+
 	if d.db != nil {
 		d.db.Close()
 	}
 }
 
 func (d *MySQLEngine) CreateUser(bindingID, dbname string, readOnly bool) (username, password string, err error) {
+	logger := d.logger.Session("create-user", lager.Data{bindingIDLogKey: bindingID})
+	logger.Debug("start")
+
 	username = d.UsernameGenerator(bindingID)
 	password = generatePassword()
 	options := []string{
@@ -131,18 +140,18 @@ func (d *MySQLEngine) CreateUser(bindingID, dbname string, readOnly bool) (usern
 
 	createUserStatement := "CREATE USER `" + username + "`@`%` IDENTIFIED BY '" + password + "'" + userRequireSSL + ";"
 	sanitizedCreateUserStatement := "CREATE USER `" + username + "`@`%` IDENTIFIED BY 'REDACTED'" + userRequireSSL + ";"
-	d.logger.Debug("create-user", lager.Data{"statement": sanitizedCreateUserStatement})
+	logger.Debug("create-user", lager.Data{"statement": sanitizedCreateUserStatement})
 
 	if _, err := d.db.Exec(createUserStatement); err != nil {
-		d.logger.Error("sql-error", err)
+		logger.Error("sql-error", err)
 		return "", "", err
 	}
 
 	grantPrivilegesStatement := "GRANT " + strings.Join(options, ", ") + " ON `" + dbname + "`.* TO `" + username + "`@`%`;"
-	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
+	logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
-		d.logger.Error("sql-error", err)
+		logger.Error("sql-error", err)
 		return "", "", err
 	}
 
@@ -150,6 +159,9 @@ func (d *MySQLEngine) CreateUser(bindingID, dbname string, readOnly bool) (usern
 }
 
 func (d *MySQLEngine) DropUser(bindingID string) error {
+	logger := d.logger.Session("drop-user", lager.Data{bindingIDLogKey: bindingID})
+	logger.Debug("start")
+
 	username := d.UsernameGenerator(bindingID)
 
 	if err := checkMySQLIdentifierSafe(username); err != nil {
@@ -157,14 +169,14 @@ func (d *MySQLEngine) DropUser(bindingID string) error {
 	}
 
 	dropUserStatement := "DROP USER `" + username + "`@`%`;"
-	d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
+	logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
 
 	_, err := d.db.Exec(dropUserStatement)
 	if err == nil {
 		return nil
 	}
 
-	d.logger.Error("sql-error", err)
+	logger.Error("sql-error", err)
 
 	// Try to drop the username generated the old way
 
@@ -175,11 +187,11 @@ func (d *MySQLEngine) DropUser(bindingID string) error {
 	}
 
 	dropUserStatement = "DROP USER `" + username + "`@`%`;"
-	d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
+	logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
 
 	_, err = d.db.Exec(dropUserStatement)
 	if err != nil {
-		d.logger.Error("sql-error", err)
+		logger.Error("sql-error", err)
 		return err
 	}
 
@@ -187,9 +199,12 @@ func (d *MySQLEngine) DropUser(bindingID string) error {
 }
 
 func (d *MySQLEngine) ResetState() error {
+	logger := d.logger.Session("reset-state")
+	logger.Debug("start")
+
 	// user management in mysql isn't transactional, so no point in trying
 	// to do this in a transaction.
-	users, err := d.listNonSuperUsers()
+	users, err := d.listNonSuperUsers(logger)
 	if err != nil {
 		return err
 	}
@@ -200,11 +215,11 @@ func (d *MySQLEngine) ResetState() error {
 		}
 
 		dropUserStatement := "DROP USER `" + username + "`@`%`;"
-		d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
+		logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
 
 		_, err = d.db.Exec(dropUserStatement)
 		if err != nil {
-			d.logger.Error("sql-error", err)
+			logger.Error("sql-error", err)
 			return err
 		}
 	}
@@ -212,14 +227,14 @@ func (d *MySQLEngine) ResetState() error {
 	return nil
 }
 
-func (d *MySQLEngine) listNonSuperUsers() ([]string, error) {
+func (d *MySQLEngine) listNonSuperUsers(logger lager.Logger) ([]string, error) {
 	users := []string{}
 
 	rows, err := d.db.Query(
 		"SELECT User FROM mysql.user WHERE Super_priv != 'Y' AND Host = '%' AND User != CURRENT_USER()",
 	)
 	if err != nil {
-		d.logger.Error("sql-error", err)
+		logger.Error("sql-error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -227,7 +242,7 @@ func (d *MySQLEngine) listNonSuperUsers() ([]string, error) {
 		var username string
 		err = rows.Scan(&username)
 		if err != nil {
-			d.logger.Error("sql-error", err)
+			logger.Error("sql-error", err)
 			return nil, err
 		}
 		users = append(users, username)
