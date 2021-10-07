@@ -2,6 +2,7 @@ package sqlengine
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/go-sql-driver/mysql" // MySQL Driver
@@ -28,6 +29,26 @@ func NewMySQLEngine(logger lager.Logger) *MySQLEngine {
 	}
 }
 
+// no real mysql string-escaping function is provided by a widely-used
+// library and prepared statements don't seem to work with CREATE USER
+// so the best we can easily do is a sanity check
+func checkMySQLLiteralSafe(s string) error {
+	if strings.Contains(s, "'") || strings.Contains(s, "\x00") || strings.Contains(s, "\x1a") {
+		return errors.New("String " + s + " contains mysql-literal-unsafe characters")
+	}
+
+	return nil
+}
+
+// the same is doubly true for identifier escaping
+func checkMySQLIdentifierSafe(s string) error {
+	if strings.Contains(s, "`") || strings.Contains(s, "\x00") || strings.Contains(s, "\x1a") {
+		return errors.New("String " + s + " contains mysql-identifier-unsafe characters")
+	}
+
+	return nil
+}
+
 func (d *MySQLEngine) Open(address string, port int64, dbname string, username string, password string) error {
 	connectionString := d.connectionString(address, port, dbname, username, password)
 	sanitizedConnectionString := d.connectionString(address, port, dbname, username, "REDACTED")
@@ -49,6 +70,14 @@ func (d *MySQLEngine) Open(address string, port int64, dbname string, username s
 		if mysqlErr, ok := err.(*mysql.MySQLError); ok && mysqlErr.Number == ER_ACCESS_DENIED_ERROR {
 			return LoginFailedError
 		}
+		return err
+	}
+
+	// let's not make sanitizing literals any more complex
+	noBackslashEscapesStatement := "SET SESSION sql_mode = 'NO_BACKSLASH_ESCAPES'"
+	d.logger.Debug("sql-open", lager.Data{"statement": noBackslashEscapesStatement})
+	if _, err := d.db.Exec(noBackslashEscapesStatement); err != nil {
+		d.logger.Error("sql-error", err)
 		return err
 	}
 
@@ -90,8 +119,18 @@ func (d *MySQLEngine) CreateUser(bindingID, dbname string, readOnly bool) (usern
 		userRequireSSL = " REQUIRE SSL"
 	}
 
-	createUserStatement := "CREATE USER '" + username + "'@'%' IDENTIFIED BY '" + password + "'" + userRequireSSL + ";"
-	sanitizedCreateUserStatement := "CREATE USER '" + username + "'@'%' IDENTIFIED BY 'REDACTED'" + userRequireSSL + ";"
+	if err := checkMySQLIdentifierSafe(username); err != nil {
+		return "", "", err
+	}
+	if err := checkMySQLIdentifierSafe(dbname); err != nil {
+		return "", "", err
+	}
+	if err := checkMySQLLiteralSafe(password); err != nil {
+		return "", "", err
+	}
+
+	createUserStatement := "CREATE USER `" + username + "`@`%` IDENTIFIED BY '" + password + "'" + userRequireSSL + ";"
+	sanitizedCreateUserStatement := "CREATE USER `" + username + "`@`%` IDENTIFIED BY 'REDACTED'" + userRequireSSL + ";"
 	d.logger.Debug("create-user", lager.Data{"statement": sanitizedCreateUserStatement})
 
 	if _, err := d.db.Exec(createUserStatement); err != nil {
@@ -99,7 +138,7 @@ func (d *MySQLEngine) CreateUser(bindingID, dbname string, readOnly bool) (usern
 		return "", "", err
 	}
 
-	grantPrivilegesStatement := "GRANT " + strings.Join(options, ", ") + " ON `" + dbname + "`.* TO '" + username + "'@'%';"
+	grantPrivilegesStatement := "GRANT " + strings.Join(options, ", ") + " ON `" + dbname + "`.* TO `" + username + "`@`%`;"
 	d.logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
 
 	if _, err := d.db.Exec(grantPrivilegesStatement); err != nil {
@@ -113,7 +152,11 @@ func (d *MySQLEngine) CreateUser(bindingID, dbname string, readOnly bool) (usern
 func (d *MySQLEngine) DropUser(bindingID string) error {
 	username := d.UsernameGenerator(bindingID)
 
-	dropUserStatement := "DROP USER '" + username + "'@'%';"
+	if err := checkMySQLIdentifierSafe(username); err != nil {
+		return err
+	}
+
+	dropUserStatement := "DROP USER `" + username + "`@`%`;"
 	d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
 
 	_, err := d.db.Exec(dropUserStatement)
@@ -127,7 +170,11 @@ func (d *MySQLEngine) DropUser(bindingID string) error {
 
 	username = generateUsernameOld(bindingID)
 
-	dropUserStatement = "DROP USER '" + username + "'@'%';"
+	if err := checkMySQLIdentifierSafe(username); err != nil {
+		return err
+	}
+
+	dropUserStatement = "DROP USER `" + username + "`@`%`;"
 	d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
 
 	_, err = d.db.Exec(dropUserStatement)
@@ -148,7 +195,11 @@ func (d *MySQLEngine) ResetState() error {
 	}
 
 	for _, username := range users {
-		dropUserStatement := "DROP USER '" + username + "'@'%';"
+		if err := checkMySQLIdentifierSafe(username); err != nil {
+			return err
+		}
+
+		dropUserStatement := "DROP USER `" + username + "`@`%`;"
 		d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
 
 		_, err = d.db.Exec(dropUserStatement)
