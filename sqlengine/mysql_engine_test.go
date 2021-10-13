@@ -2,9 +2,11 @@ package sqlengine
 
 import (
 	"database/sql"
+	"fmt"
 	"strconv"
 
 	"github.com/alphagov/paas-rds-broker/utils"
+	"github.com/go-sql-driver/mysql"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -39,8 +41,10 @@ var _ = Describe("MySQLEngine", func() {
 		address  string
 		port     int64
 		dbname   string
-		username string
-		password string
+		masterUsername string
+		masterPassword string
+
+		randomTestSuffix string
 
 		template1ConnectionString string
 	)
@@ -49,7 +53,7 @@ var _ = Describe("MySQLEngine", func() {
 		logger = lager.NewLogger("provider_service_test")
 		logger.RegisterSink(lager.NewWriterSink(GinkgoWriter, lager.DEBUG))
 
-		randomTestSuffix := "_" + utils.RandomLowerAlphaNum(6)
+		randomTestSuffix = "_" + utils.RandomLowerAlphaNum(6)
 
 		mysqlEngine = NewMySQLEngine(logger)
 		mysqlEngine.requireSSL = false
@@ -60,12 +64,12 @@ var _ = Describe("MySQLEngine", func() {
 		Expect(err).ToNot(HaveOccurred())
 		port = int64(p)
 
-		username = getEnvOrDefault("MYSQL_USERNAME", "root")
-		password = getEnvOrDefault("MYSQL_PASSWORD", "")
+		masterUsername = getEnvOrDefault("MYSQL_USERNAME", "root")
+		masterPassword = getEnvOrDefault("MYSQL_PASSWORD", "")
 
 		dbname = "mydb" + randomTestSuffix
 
-		template1ConnectionString = mysqlEngine.connectionString(address, port, "", username, password)
+		template1ConnectionString = mysqlEngine.connectionString(address, port, "", masterUsername, masterPassword)
 
 		// Create the test DB
 		createMysqlDB(template1ConnectionString, dbname)
@@ -77,19 +81,19 @@ var _ = Describe("MySQLEngine", func() {
 	})
 
 	It("can connect to the new DB", func() {
-		err := mysqlEngine.Open(address, port, dbname, username, password)
+		err := mysqlEngine.Open(address, port, dbname, masterUsername, masterPassword)
 		defer mysqlEngine.Close()
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("returns error if engine is the database is not reachable", func() {
-		err := mysqlEngine.Open("localhost", 1, dbname, username, password)
+		err := mysqlEngine.Open("localhost", 1, dbname, masterUsername, masterPassword)
 		defer mysqlEngine.Close()
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("returns error LoginFailedError if the credentials are wrong", func() {
-		err := mysqlEngine.Open(address, port, dbname, username, "wrong_password")
+		err := mysqlEngine.Open(address, port, dbname, masterUsername, "wrong_password")
 		defer mysqlEngine.Close()
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(LoginFailedError))
@@ -102,7 +106,7 @@ var _ = Describe("MySQLEngine", func() {
 
 		BeforeEach(func() {
 			bindingID = "binding-id"
-			err := mysqlEngine.Open(address, port, dbname, username, password)
+			err := mysqlEngine.Open(address, port, dbname, masterUsername, masterPassword)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -133,6 +137,66 @@ var _ = Describe("MySQLEngine", func() {
 
 			err = mysqlEngine.DropUser(bindingID)
 			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	Describe("ResetState", func() {
+		var (
+			bindingID       string
+			createdUser     string
+			createdPassword string
+		)
+
+		BeforeEach(func() {
+			bindingID = "binding-id" + randomTestSuffix
+			err := mysqlEngine.Open(address, port, dbname, masterUsername, masterPassword)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Describe("when there was no user created", func() {
+			It("CreateUser() can be called after ResetState()", func() {
+				err := mysqlEngine.ResetState()
+				Expect(err).ToNot(HaveOccurred())
+				_, _, err = mysqlEngine.CreateUser(bindingID, dbname, false)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Describe("when there was already a user created", func() {
+			BeforeEach(func() {
+				var err error
+				createdUser, createdPassword, err = mysqlEngine.CreateUser(bindingID, dbname, false)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = mysqlEngine.ResetState()
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("ResetState() removes the credentials", func() {
+				connectionString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", createdUser, createdPassword, address, port, dbname)
+				db, err := sql.Open("mysql", connectionString)
+				defer db.Close()
+				Expect(err).ToNot(HaveOccurred())
+				err = db.Ping()
+				Expect(err).To(HaveOccurred())
+
+				myErr, ok := err.(*mysql.MySQLError)
+				Expect(ok).To(BeTrue())
+				Expect(myErr.Number).To(SatisfyAny(
+					BeEquivalentTo(1045),
+				))
+				Expect(myErr.Message).To(SatisfyAny(
+					MatchRegexp("Access denied.*"),
+				))
+			})
+
+			It("CreateUser() returns the same user and different password", func() {
+				user, password, err := mysqlEngine.CreateUser(bindingID, dbname, false)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(user).To(Equal(createdUser))
+				Expect(password).ToNot(Equal(createdPassword))
+			})
+
 		})
 	})
 

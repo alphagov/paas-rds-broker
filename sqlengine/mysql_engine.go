@@ -2,7 +2,6 @@ package sqlengine
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/go-sql-driver/mysql" // MySQL Driver
@@ -141,8 +140,48 @@ func (d *MySQLEngine) DropUser(bindingID string) error {
 }
 
 func (d *MySQLEngine) ResetState() error {
-	// TODO: Not implemented
-	return errors.New("Not implemented")
+	// user management in mysql isn't transactional, so no point in trying
+	// to do this in a transaction.
+	users, err := d.listNonSuperUsers()
+	if err != nil {
+		return err
+	}
+
+	for _, username := range users {
+		dropUserStatement := "DROP USER '" + username + "'@'%';"
+		d.logger.Debug("drop-user", lager.Data{"statement": dropUserStatement})
+
+		_, err = d.db.Exec(dropUserStatement)
+		if err != nil {
+			d.logger.Error("sql-error", err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (d *MySQLEngine) listNonSuperUsers() ([]string, error) {
+	users := []string{}
+
+	rows, err := d.db.Query(
+		"SELECT User FROM mysql.user WHERE Super_priv != 'Y' AND Host = '%' AND User != CURRENT_USER()",
+	)
+	if err != nil {
+		d.logger.Error("sql-error", err)
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var username string
+		err = rows.Scan(&username)
+		if err != nil {
+			d.logger.Error("sql-error", err)
+			return nil, err
+		}
+		users = append(users, username)
+	}
+	return users, nil
 }
 
 func (d *MySQLEngine) URI(address string, port int64, dbname string, username string, password string) string {

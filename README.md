@@ -122,7 +122,7 @@ make stop_dbs
 
 ### Running the integration tests
 
-These tests must be run from within an AWS environment as they will attempt to connect directly to the RDS instance to verify it. They will create and delete some supporting resources:
+These tests must be run from *within* an AWS environment as they will attempt to both use the EC2 IMDS and connect directly to the RDS instance to verify it. They will create and delete some supporting resources:
 
 - [DB Subnet Group](http://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.WorkingWithRDSInstanceinaVPC.html#USER_VPC.Subnets) for the RDS instances, based on all of the subnets in the VPC of the instance that the tests run on
 - [EC2 Security Group](http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_SecurityGroups.html) for the test to connect to RDS instances, based on the subnet of the instance that the tests run on
@@ -133,6 +133,8 @@ You can run them with:
 ```
 make integration
 ```
+
+It's best to resist the temptation to raise the tests' parallelism too far as AWS will throttle too many RDS API interactions for an account.
 
 ## Master and Binding Credentials
 
