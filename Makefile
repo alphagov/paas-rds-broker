@@ -14,7 +14,7 @@ test_unit:
 .PHONY: test_all_sql
 test_all_sql: test_postgres test_mysql
 .PHONY: test_postgres
-test_postgres: run_postgres_sql_tests start_postgres_10 run_postgres_sql_tests stop_postgres_10 start_postgres_11 run_postgres_sql_tests stop_postgres_11 start_postgres_12 run_postgres_sql_tests stop_postgres_12
+test_postgres: run_postgres_sql_tests start_postgres_10 run_postgres_sql_tests stop_postgres_10 start_postgres_11 run_postgres_sql_tests stop_postgres_11 start_postgres_12 run_postgres_sql_tests stop_postgres_12 start_postgres_13 run_postgres_sql_tests stop_postgres_13
 .PHONY: test_mysql
 test_mysql: start_mysql_80 run_mysql_sql_tests stop_mysql_80 start_mysql_57 run_mysql_sql_tests stop_mysql_57
 
@@ -41,6 +41,11 @@ start_postgres_12:
 	docker run -p 5432:5432 --name postgres-12 -e POSTGRES_PASSWORD=$(POSTGRESQL_PASSWORD) -d postgres:12.5; \
 	sleep 5
 
+.PHONY: start_postgres_13
+start_postgres_13:
+	docker run -p 5432:5432 --name postgres-13 -e POSTGRES_PASSWORD=$(POSTGRESQL_PASSWORD) -d postgres:13; \
+	sleep 5
+
 .PHONY: stop_postgres_10
 stop_postgres_10:
 	docker rm -f postgres-10
@@ -52,6 +57,10 @@ stop_postgres_11:
 .PHONY: stop_postgres_12
 stop_postgres_12:
 	docker rm -f postgres-12
+
+.PHONY: stop_postgres_13
+stop_postgres_13:
+	docker rm -f postgres-13
 
 .PHONY: start_mysql_57
 start_mysql_57:

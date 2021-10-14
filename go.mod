@@ -1,6 +1,6 @@
 module github.com/alphagov/paas-rds-broker
 
-go 1.13
+go 1.17
 
 require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
@@ -24,4 +24,11 @@ require (
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	golang.org/x/sys v0.0.0-20210927094055-39ccf1dd6fa6 // indirect
 	golang.org/x/text v0.3.7 // indirect
+)
+
+require (
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	github.com/nxadm/tail v1.4.8 // indirect
+	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
