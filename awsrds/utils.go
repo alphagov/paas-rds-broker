@@ -70,7 +70,13 @@ func HandleAWSError(err error, logger lager.Logger) error {
 		if awsErr.Code() == rds.ErrCodeDBInstanceNotFoundFault {
 			return ErrDBInstanceDoesNotExist
 		}
-		return errors.New(awsErr.Code() + ": " + awsErr.Message())
+		if awsErr.Code() == "InvalidParameterCombination" {
+			return NewError(
+				errors.New(awsErr.Code() + ": " + awsErr.Message()),
+				ErrCodeInvalidParameterCombination,
+			)
+		}
+		return NewError(errors.New(awsErr.Code() + ": " + awsErr.Message()), "")
 	}
 	return err
 }

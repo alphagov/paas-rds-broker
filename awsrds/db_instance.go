@@ -45,6 +45,47 @@ func (ct ByCreateTime) Less(i, j int) bool {
 	return aws.TimeValue(ct[i].SnapshotCreateTime).After(aws.TimeValue(ct[j].SnapshotCreateTime))
 }
 
+type awsRdsErr struct {
+	orig error
+	code string
+}
+
+func (a awsRdsErr) Error() string {
+	return a.orig.Error()
+}
+
+func (a awsRdsErr) Code() string {
+	return a.code
+}
+
+func (a awsRdsErr) OrigErr() error {
+	return a.orig
+}
+
+func NewError(err error, code string) Error {
+	return &awsRdsErr{
+		orig: err,
+		code: code,
+	}
+}
+
+type Error interface {
+	// Satisfy the generic error interface.
+	error
+
+	// Returns the short phrase depicting the classification of the error.
+	Code() string
+
+	// Returns the original error if one was set.  Nil is returned if not set.
+	OrigErr() error
+}
+
 var (
-	ErrDBInstanceDoesNotExist = errors.New("rds db instance does not exist")
+	ErrCodeDBInstanceDoesNotExist = "DBInstanceDoesNotExist"
+	ErrCodeInvalidParameterCombination = "InvalidParameterCombination"
+
+	ErrDBInstanceDoesNotExist = NewError(
+		errors.New("rds db instance does not exist"),
+		ErrCodeDBInstanceDoesNotExist,
+	)
 )

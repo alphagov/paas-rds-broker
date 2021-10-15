@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"github.com/pivotal-cf/brokerapi/domain"
+	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/alphagov/paas-rds-broker/rdsbroker/fakes"
@@ -908,6 +910,30 @@ var _ = Describe("RDS Broker", func() {
 					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 					Expect(err).To(HaveOccurred())
 					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+				})
+			})
+
+			Context("when RDS refuses the plan change", func() {
+				BeforeEach(func() {
+					rdsInstance.ModifyReturns(
+						nil,
+						awsrds.NewError(
+							errors.New("InvalidParameterCombination: Cannot upgrade foo from X to Y"),
+							awsrds.ErrCodeInvalidParameterCombination,
+						),
+					)
+				})
+
+				It("returns the proper error", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(MatchError("InvalidParameterCombination: Cannot upgrade foo from X to Y"))
+
+					errFR, ok := err.(*apiresponses.FailureResponse)
+					Expect(ok).To(BeTrue())
+					Expect(errFR.ValidatedStatusCode(logger)).To(
+						Equal(http.StatusUnprocessableEntity),
+					)
 				})
 			})
 		})

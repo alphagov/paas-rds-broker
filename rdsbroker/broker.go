@@ -633,8 +633,19 @@ func (b *RDSBroker) Update(
 
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)
 	if err != nil {
-		if err == awsrds.ErrDBInstanceDoesNotExist {
-			return brokerapi.UpdateServiceSpec{}, brokerapi.ErrInstanceDoesNotExist
+		if awsRdsErr, ok := err.(awsrds.Error); ok {
+			switch code := awsRdsErr.Code(); code {
+				case awsrds.ErrCodeDBInstanceDoesNotExist:
+					return brokerapi.UpdateServiceSpec{},
+						brokerapi.ErrInstanceDoesNotExist
+				case awsrds.ErrCodeInvalidParameterCombination:
+					return brokerapi.UpdateServiceSpec{},
+						apiresponses.NewFailureResponse(
+							err,
+							http.StatusUnprocessableEntity,
+							"upgrade",
+						)
+			}
 		}
 		return brokerapi.UpdateServiceSpec{}, err
 	}
