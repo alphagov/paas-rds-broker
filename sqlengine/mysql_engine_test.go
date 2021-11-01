@@ -110,7 +110,7 @@ var _ = Describe("MySQLEngine", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("CreateUser() should successfully complete it's destiny", func() {
+		It("CreateUser() should successfully complete its destiny", func() {
 			createdUser, createdPassword, err := mysqlEngine.CreateUser(bindingID, dbname, false)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(createdUser).NotTo(BeEmpty())
@@ -197,6 +197,24 @@ var _ = Describe("MySQLEngine", func() {
 				Expect(password).ToNot(Equal(createdPassword))
 			})
 
+		})
+
+		Describe("when someone has somehow managed to create a user with an unsafe name", func() {
+			BeforeEach(func() {
+				connectionString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", masterUsername, masterPassword, address, port, dbname)
+				db, err := sql.Open("mysql", connectionString)
+				Expect(err).ToNot(HaveOccurred())
+
+				// the existence of this user would cause a naive ResetState()
+				// implementation to drop our master user
+				_, err = db.Exec("CREATE USER `" + masterUsername + "``@``%``, ``nonexistent`")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("fails before it runs an unsafe statement", func() {
+				err := mysqlEngine.ResetState()
+				Expect(err).To(HaveOccurred(), "String root`@`%`, `nonexistent contains mysql-identifier-unsafe characters")
+			})
 		})
 	})
 
