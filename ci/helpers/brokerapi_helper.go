@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 	"io"
 	"net/http"
 	"os"
@@ -296,6 +297,30 @@ func (b *BrokerAPIClient) DoBindRequest(instanceID, serviceID, planID, appGUID, 
 	)
 }
 
+func (b *BrokerAPIClient) BindService(instanceID, serviceID, planID, appGUID, bindingID string) (int, *apiresponses.BindingResponse, error) {
+	resp, err := b.DoBindRequest(instanceID, serviceID, planID, appGUID, bindingID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 202 {
+		return resp.StatusCode, nil, nil
+	}
+
+	bindingResponse := apiresponses.BindingResponse{}
+
+	body, err := BodyBytes(resp)
+	if err != nil {
+		return resp.StatusCode, nil, err
+	}
+
+	err = json.Unmarshal(body, &bindingResponse)
+	if err != nil {
+		return resp.StatusCode, nil, err
+	}
+
+	return resp.StatusCode, &bindingResponse, nil
+}
+
 func (b *BrokerAPIClient) DoUnbindRequest(instanceID, serviceID, planID, bindingID string) (*http.Response, error) {
 	path := fmt.Sprintf("/v2/service_instances/%s/service_bindings/%s", instanceID, bindingID)
 
@@ -306,4 +331,28 @@ func (b *BrokerAPIClient) DoUnbindRequest(instanceID, serviceID, planID, binding
 		uriParam{key: "service_id", value: serviceID},
 		uriParam{key: "plan_id", value: planID},
 	)
+}
+
+func (b *BrokerAPIClient) UnbindService(instanceID, serviceID, planID, bindingID string) (int, *apiresponses.UnbindResponse, error) {
+	resp, err := b.DoUnbindRequest(instanceID, serviceID, planID, bindingID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 202 {
+		return resp.StatusCode, nil, nil
+	}
+
+	unbindingResponse := apiresponses.UnbindResponse{}
+
+	body, err := BodyBytes(resp)
+	if err != nil {
+		return resp.StatusCode, nil, err
+	}
+
+	err = json.Unmarshal(body, &unbindingResponse)
+	if err != nil {
+		return resp.StatusCode, nil, err
+	}
+
+	return resp.StatusCode, &unbindingResponse, nil
 }
