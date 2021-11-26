@@ -408,8 +408,10 @@ const ensurePermissionsTriggersPattern = `
 	$$;
 	create or replace function make_readable() returns event_trigger language plpgsql set search_path to public as $$
 	begin
-		EXECUTE 'select make_readable_generic()';
-		RETURN;
+		IF NOT EXISTS (SELECT 1 FROM pg_event_trigger_ddl_commands() WHERE schema_name LIKE 'pg_temp%') THEN
+			EXECUTE 'select make_readable_generic()';
+			RETURN;
+		END IF;
 	end
 	$$;
 	create or replace function forbid_ddl_reader() returns event_trigger language plpgsql set search_path to public as $$
