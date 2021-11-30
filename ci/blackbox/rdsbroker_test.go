@@ -560,6 +560,127 @@ var _ = Describe("RDS Broker Daemon", func() {
 				defer secondInstance.CleanUp()
 				secondInstance.Wait()
 			})
+
+			It("should be able to create a binding to the database", func() {
+				firstInstance := ProvisionManager{
+					Provisioner: func() (WaitFunc, CleanFunc) {
+						By("creating a first instance")
+						code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, `{"skip_final_snapshot":true}`)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(code).To(Equal(202))
+						waiter := func() {
+							state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
+							Expect(state).To(Equal("succeeded"))
+						}
+						cleaner := func() {
+							By("deleting the first instance")
+							code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(code).To(Equal(202))
+							state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
+							Expect(state).To(Equal("gone"))
+						}
+						return waiter, cleaner
+					},
+				}
+
+				firstInstance.Provision()
+				defer firstInstance.CleanUp()
+				firstInstance.Wait()
+
+				snapshot := ProvisionManager{
+					Provisioner: func() (WaitFunc, CleanFunc) {
+						By("creating a snapshot")
+						snapshotID, err := rdsClient.CreateDBSnapshot(instanceID)
+						Expect(err).ToNot(HaveOccurred())
+						waiter := func() {
+							Eventually(
+								func() string {
+									s, err := rdsClient.GetDBSnapshot(snapshotID)
+									Expect(err).ToNot(HaveOccurred())
+									return aws.StringValue(s.DBSnapshots[0].Status)
+								},
+								10*time.Minute,
+								20*time.Second,
+							).Should(
+								Equal("available"),
+							)
+						}
+						cleaner := func() {
+							By("deleting the snapshot")
+							snapshotDeletionOutput, err := rdsClient.DeleteDBSnapshot(snapshotID)
+							fmt.Fprintf(GinkgoWriter, "Snapshot deletion output for %s:\n", instanceID)
+							fmt.Fprint(GinkgoWriter, snapshotDeletionOutput)
+							Expect(err).ToNot(HaveOccurred())
+						}
+						return waiter, cleaner
+					},
+				}
+
+				snapshot.Provision()
+				defer snapshot.CleanUp()
+				snapshot.Wait()
+
+				firstInstance.CleanUp()
+
+				secondInstance := ProvisionManager{
+					Provisioner: func() (WaitFunc, CleanFunc) {
+						By("restoring a second instance from snapshot")
+						code, operation, err := brokerAPIClient.ProvisionInstance(
+							restoredInstanceID, serviceID, planID,
+							fmt.Sprintf(`{"skip_final_snapshot":true, "restore_from_latest_snapshot_of": "%s"}`, instanceID),
+						)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(code).To(Equal(202))
+						waiter := func() {
+							state := pollForOperationCompletion(brokerAPIClient, restoredInstanceID, serviceID, planID, operation)
+							Expect(state).To(Equal("succeeded"))
+						}
+						cleaner := func() {
+							By("deleting the second instance ")
+							code, operation, err := brokerAPIClient.DeprovisionInstance(restoredInstanceID, serviceID, planID)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(code).To(Equal(202))
+							state := pollForOperationCompletion(brokerAPIClient, restoredInstanceID, serviceID, planID, operation)
+							Expect(state).To(Equal("gone"))
+						}
+						return waiter, cleaner
+					},
+				}
+
+				secondInstance.Provision()
+				defer secondInstance.CleanUp()
+				secondInstance.Wait()
+
+				secondInstanceBinding := ProvisionManager{
+					Provisioner: func() (WaitFunc, CleanFunc) {
+						By("creating a binding to the service instance")
+						code, _, err := brokerAPIClient.BindService(
+							restoredInstanceID, serviceID, planID, "app-guid",
+							"post-restore-binding",
+						)
+
+						Expect(err).ToNot(HaveOccurred())
+						Expect(code).To(Equal(201))
+
+						// Binding is synchronous
+						waiter := func() { return }
+						cleaner := func() {
+							code, _, err := brokerAPIClient.UnbindService(
+								restoredInstanceID, serviceID, planID, "post-restore-binding",
+							)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(code).To(Equal(200))
+						}
+
+						return waiter, cleaner
+					},
+				}
+
+				secondInstanceBinding.Provision()
+				defer secondInstanceBinding.CleanUp()
+				secondInstanceBinding.Wait()
+			})
 		}
 
 		Describe("Postgres 10.5", func() {
