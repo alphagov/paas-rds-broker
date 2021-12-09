@@ -80,7 +80,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service2.Description).To(Equal("AWS RDS PostgreSQL service"))
 			Expect(service2.Bindable).To(BeTrue())
 			Expect(service2.PlanUpdatable).To(BeTrue())
-			Expect(service2.Plans).To(HaveLen(6))
+			Expect(service2.Plans).To(HaveLen(8))
 		})
 	})
 
@@ -212,16 +212,12 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10.5", func() {
+		Describe("Postgres 10", func() {
 			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-10")
 		})
 
-		Describe("Postgres 11.5", func() {
-			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-11")
-		})
-
-		Describe("Postgres 12", func() {
-			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-12")
+		Describe("Postgres 13", func() {
+			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-13")
 		})
 
 		Describe("MySQL 5.7", func() {
@@ -277,16 +273,12 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10.5", func() {
+		Describe("Postgres 10", func() {
 			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-10")
 		})
 
-		Describe("Postgres 11.5", func() {
-			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-11")
-		})
-
-		Describe("Postgres 12", func() {
-			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-12")
+		Describe("Postgres 13", func() {
+			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-13")
 		})
 
 	})
@@ -333,6 +325,10 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 		Describe("Postgres 11 to 12", func() {
 			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-11", "postgres-micro-without-snapshot-12")
+		})
+
+		Describe("Postgres 12 to 13", func() {
+			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-12", "postgres-micro-without-snapshot-13")
 		})
 
 		Describe("MySQL 5.7 to 8.0", func() {
@@ -435,16 +431,12 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10.5", func() {
+		Describe("Postgres 10", func() {
 			TestFinalSnapshot("postgres", "postgres-micro-10")
 		})
 
-		Describe("Postgres 11.5", func() {
-			TestFinalSnapshot("postgres", "postgres-micro-11")
-		})
-
-		Describe("Postgres 12", func() {
-			TestFinalSnapshot("postgres", "postgres-micro-12")
+		Describe("Postgres 13", func() {
+			TestFinalSnapshot("postgres", "postgres-micro-13")
 		})
 
 		Describe("MySQL 5.7", func() {
@@ -683,16 +675,12 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10.5", func() {
+		Describe("Postgres 10", func() {
 			TestRestoreFromSnapshot("postgres", "postgres-micro-10")
 		})
 
-		Describe("Postgres 11.5", func() {
-			TestRestoreFromSnapshot("postgres", "postgres-micro-11")
-		})
-
-		Describe("Postgres 12", func() {
-			TestRestoreFromSnapshot("postgres", "postgres-micro-12")
+		Describe("Postgres 13", func() {
+			TestRestoreFromSnapshot("postgres", "postgres-micro-13")
 		})
 
 		Describe("MySQL 5.7", func() {
@@ -814,8 +802,12 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 12", func() {
-			TestRestoreFromPointInTime("postgres", "postgres-micro-12")
+		Describe("Postgres 10", func() {
+			TestRestoreFromPointInTime("postgres", "postgres-micro-10")
+		})
+
+		Describe("Postgres 13", func() {
+			TestRestoreFromPointInTime("postgres", "postgres-micro-13")
 		})
 
 		Describe("MySQL 5.7", func() {
