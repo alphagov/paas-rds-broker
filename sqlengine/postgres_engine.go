@@ -284,8 +284,13 @@ func (d *PostgresEngine) ResetState() error {
 func (d *PostgresEngine) listNonSuperUsers(logger lager.Logger) ([]string, error) {
 	users := []string{}
 
+	// rdstopmgr is a monitoring user role introduced by AWS in RDS PostgreSQL 13
 	rows, err := d.db.Query(
-		"select usename from pg_user where usesuper != true and usename != current_user",
+		`select usename
+		from pg_user
+		where usesuper != true
+		and usename != current_user
+		and usename != 'rdstopmgr'`,
 	)
 	if err != nil {
 		logger.Error("sql-error", err)

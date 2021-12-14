@@ -196,6 +196,66 @@
                                     "pg_stat_statements"
                                 ]
                             }
+                        },
+                        {
+                            "description": "Micro plan - Postgres 13",
+                            "free": false,
+                            "id": "postgres-micro-13",
+                            "name": "micro-13",
+                            "rds_properties": {
+                                "allocated_storage": 10,
+                                "db_instance_class": "db.t3.micro",
+                                "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                                "engine": "postgres",
+                                "engine_version": "13",
+                                "engine_family": "postgres13",
+                                "copy_tags_to_snapshot":true,
+                                "vpc_security_group_ids": [
+                                    "POPULATED_BY_TEST_SUITE"
+                                ],
+                                "default_extensions": [
+                                    "uuid-ossp",
+                                    "postgis",
+                                    "citext"
+                                ],
+                                "allowed_extensions": [
+                                    "uuid-ossp",
+                                    "postgis",
+                                    "citext",
+                                    "pg_stat_statements"
+                                ]
+                            }
+                        },
+                        {
+                            "description": "Micro plan without final snapshot - Postgres 13",
+                            "free": false,
+                            "id": "postgres-micro-without-snapshot-13",
+                            "name": "micro-without-snapshot-13",
+                            "rds_properties": {
+                                "allocated_storage": 10,
+                                "auto_minor_version_upgrade": true,
+                                "db_instance_class": "db.t3.micro",
+                                "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                                "engine": "postgres",
+                                "engine_version": "13",
+                                "engine_family": "postgres13",
+                                "skip_final_snapshot": true,
+                                "copy_tags_to_snapshot":true,
+                                "vpc_security_group_ids": [
+                                    "POPULATED_BY_TEST_SUITE"
+                                ],
+                                "default_extensions": [
+                                    "uuid-ossp",
+                                    "postgis",
+                                    "citext"
+                                ],
+                                "allowed_extensions": [
+                                    "uuid-ossp",
+                                    "postgis",
+                                    "citext",
+                                    "pg_stat_statements"
+                                ]
+                            }
                         }
                     ]
                 },
