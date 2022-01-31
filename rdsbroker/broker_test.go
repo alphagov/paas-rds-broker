@@ -38,9 +38,11 @@ var _ = Describe("RDS Broker", func() {
 		rdsProperties1 RDSProperties
 		rdsProperties2 RDSProperties
 		rdsProperties3 RDSProperties
+		rdsProperties4 RDSProperties
 		plan1          ServicePlan
 		plan2          ServicePlan
 		plan3          ServicePlan
+		plan4          ServicePlan
 		service1       Service
 		service2       Service
 		service3       Service
@@ -153,6 +155,23 @@ var _ = Describe("RDS Broker", func() {
 				stringPointer("postgres_super_extension"),
 			},
 		}
+
+		rdsProperties4 = RDSProperties{
+			DBInstanceClass:   stringPointer("db.m3.test"),
+			Engine:            stringPointer("postgres"),
+			EngineVersion:     stringPointer("5.6.7"),
+			AllocatedStorage:  int64Pointer(300),
+			SkipFinalSnapshot: boolPointer(false),
+			DefaultExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+			},
+			AllowedExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+				stringPointer("postgres_super_extension"),
+			},
+		}
 	})
 
 	JustBeforeEach(func() {
@@ -174,6 +193,12 @@ var _ = Describe("RDS Broker", func() {
 			Description:   "This is the Plan 3",
 			RDSProperties: rdsProperties3,
 		}
+		plan4 = ServicePlan{
+			ID:            "Plan-4",
+			Name:          "Plan 4",
+			Description:   "This is the Plan 4",
+			RDSProperties: rdsProperties4,
+		}
 
 		service1 = Service{
 			ID:            "Service-1",
@@ -194,7 +219,7 @@ var _ = Describe("RDS Broker", func() {
 			Name:          "Service 3",
 			Description:   "This is the Service 3",
 			PlanUpdatable: planUpdateable,
-			Plans:         []ServicePlan{plan3},
+			Plans:         []ServicePlan{plan3, plan4},
 		}
 
 		catalog = Catalog{
@@ -280,6 +305,11 @@ var _ = Describe("RDS Broker", func() {
 							ID:          "Plan-3",
 							Name:        "Plan 3",
 							Description: "This is the Plan 3",
+						},
+						brokerapi.ServicePlan{
+							ID:          "Plan-4",
+							Name:        "Plan 4",
+							Description: "This is the Plan 4",
 						},
 					},
 				},
@@ -2124,6 +2154,7 @@ var _ = Describe("RDS Broker", func() {
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 				DBInstanceArn:        aws.String(dbInstanceArn),
 				Engine:               aws.String("test-engine"),
+				EngineVersion:        stringPointer("4.8.9"),
 				Endpoint: &rds.Endpoint{
 					Address: aws.String("endpoint-address"),
 					Port:    aws.Int64(3306),
@@ -2137,13 +2168,19 @@ var _ = Describe("RDS Broker", func() {
 				},
 			}
 
-			defaultDBInstanceTags = []*rds.Tag{
-				{Key: aws.String("Owner"), Value: aws.String("Cloud Foundry")},
-				{Key: aws.String("Broker Name"), Value: aws.String("mybroker")},
-				{Key: aws.String("Created by"), Value: aws.String("AWS RDS Service Broker")},
-				{Key: aws.String("Service ID"), Value: aws.String("Service-1")},
-				{Key: aws.String("Plan ID"), Value: aws.String("Plan-1")},
-				{Key: aws.String("Extensions"), Value: aws.String("postgis:pg-stat-statements")},
+			defaultDBInstanceTagsByName = map[string]string{
+				"Owner": "Cloud Foundry",
+				"Broker Name": "mybroker",
+				"Created by": "AWS RDS Service Broker",
+				"Service ID": "Service-3",
+				"Plan ID": "Plan-3",
+				"Extensions": "postgis:pg-stat-statements",
+			}
+
+			pollDetails = brokerapi.PollDetails{
+				ServiceID: "Service-3",
+				PlanID: "Plan-3",
+				OperationData: "123blah",
 			}
 		)
 
@@ -2156,7 +2193,10 @@ var _ = Describe("RDS Broker", func() {
 			defaultDBInstance.DBParameterGroups[0].ParameterApplyStatus = aws.String(parameterGroupStatus)
 			rdsInstance.DescribeReturns(defaultDBInstance, nil)
 
-			rdsInstance.GetResourceTagsReturns(defaultDBInstanceTags, nil)
+			rdsInstance.GetResourceTagsReturns(
+				awsrds.BuildRDSTags(defaultDBInstanceTagsByName),
+				nil,
+			)
 
 			rdsInstance.ModifyReturns(
 				&rds.DBInstance{
@@ -2178,7 +2218,7 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			It("returns the proper error", func() {
-				_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+				_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("operation failed"))
 			})
@@ -2189,7 +2229,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("returns the proper error", func() {
-					_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).To(HaveOccurred())
 					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
 				})
@@ -2215,7 +2255,7 @@ var _ = Describe("RDS Broker", func() {
 
 		It("returns InstanceDoesNotExist if it is not found when getting the tags", func() {
 			rdsInstance.GetResourceTagsReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
-			_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+			_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
 		})
@@ -2227,7 +2267,7 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			It("calls GetResourceTags() with the refresh cache option", func() {
-				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
 
@@ -2239,29 +2279,28 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			It("returns the proper LastOperationResponse", func() {
-				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
 			})
 
 			Context("and there are pending post restore tasks", func() {
 				JustBeforeEach(func() {
+					newDBInstanceTagsByName := copyStringStringMap(defaultDBInstanceTagsByName)
+					newDBInstanceTagsByName["PendingUpdateSettings"] = "true"
 					rdsInstance.GetResourceTagsReturns(
-						append(
-							defaultDBInstanceTags,
-							&rds.Tag{Key: aws.String("PendingUpdateSettings"), Value: aws.String("true")},
-						),
+						awsrds.BuildRDSTags(newDBInstanceTagsByName),
 						nil,
 					)
 				})
 				It("should not call RemoveTag to remove the tag PendingUpdateSettings", func() {
-					_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(rdsInstance.RemoveTagCallCount()).To(Equal(0))
 				})
 
 				It("should not modify the DB instance", func() {
-					_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
 				})
@@ -2275,7 +2314,7 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			It("reboots the database", func() {
-				lastOperationState, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+				lastOperationState, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationState.State).To(Equal(brokerapi.InProgress))
 				Expect(rdsInstance.RebootCallCount()).To(Equal(1))
@@ -2289,7 +2328,7 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			It("reboots the database", func() {
-				lastOperationState, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+				lastOperationState, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationState.State).To(Equal(brokerapi.InProgress))
 				Expect(rdsInstance.RebootCallCount()).To(Equal(0))
@@ -2303,7 +2342,7 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			It("returns the proper LastOperationResponse", func() {
-				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
 			})
@@ -2316,7 +2355,7 @@ var _ = Describe("RDS Broker", func() {
 			})
 
 			It("returns the proper LastOperationResponse", func() {
-				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
 			})
@@ -2328,7 +2367,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("attempts to create Postgres extenions", func() {
-					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(sqlEngine.CreateExtensionsCalled).To(BeTrue())
 					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
@@ -2350,7 +2389,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("returns the proper LastOperationResponse", func() {
-					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
 				})
@@ -2360,18 +2399,17 @@ var _ = Describe("RDS Broker", func() {
 				newDBInstance := *defaultDBInstance
 				newDBInstance.PendingModifiedValues = &rds.PendingModifiedValues{}
 				rdsInstance.DescribeReturns(&newDBInstance, nil)
-				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
 			})
 
 			Context("but there are pending post restore tasks", func() {
 				JustBeforeEach(func() {
+					newDBInstanceTagsByName := copyStringStringMap(defaultDBInstanceTagsByName)
+					newDBInstanceTagsByName["PendingUpdateSettings"] = "true"
 					rdsInstance.GetResourceTagsReturns(
-						append(
-							defaultDBInstanceTags,
-							&rds.Tag{Key: aws.String("PendingUpdateSettings"), Value: aws.String("true")},
-						),
+						awsrds.BuildRDSTags(newDBInstanceTagsByName),
 						nil,
 					)
 
@@ -2381,7 +2419,7 @@ var _ = Describe("RDS Broker", func() {
 					}
 				})
 				It("should call RemoveTag to remove the tag PendingUpdateSettings", func() {
-					_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(rdsInstance.RemoveTagCallCount()).To(Equal(1))
 					id, tagName := rdsInstance.RemoveTagArgsForCall(0)
@@ -2390,7 +2428,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("should return the proper LastOperationResponse", func() {
-					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
 				})
@@ -2400,14 +2438,14 @@ var _ = Describe("RDS Broker", func() {
 						rdsInstance.RemoveTagReturns(errors.New("Failed to remove tag"))
 					})
 					It("returns the proper error", func() {
-						_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+						_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 						Expect(err).To(HaveOccurred())
 						Expect(err.Error()).To(Equal("Failed to remove tag"))
 					})
 				})
 
 				It("modifies the DB instance", func() {
-					_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
 					input := rdsInstance.ModifyArgsForCall(0)
@@ -2415,7 +2453,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("sets the right tags", func() {
-					_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 
 					Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(1))
@@ -2427,8 +2465,8 @@ var _ = Describe("RDS Broker", func() {
 					Expect(tagsByName).To(HaveKeyWithValue("Broker Name", "mybroker"))
 					Expect(tagsByName).To(HaveKeyWithValue("Restored by", "AWS RDS Service Broker"))
 					Expect(tagsByName).To(HaveKey("Restored at"))
-					Expect(tagsByName).To(HaveKeyWithValue("Service ID", "Service-1"))
-					Expect(tagsByName).To(HaveKeyWithValue("Plan ID", "Plan-1"))
+					Expect(tagsByName).To(HaveKeyWithValue("Service ID", "Service-3"))
+					Expect(tagsByName).To(HaveKeyWithValue("Plan ID", "Plan-3"))
 					Expect(tagsByName).To(HaveKeyWithValue("chargeable_entity", instanceID))
 				})
 
@@ -2444,7 +2482,7 @@ var _ = Describe("RDS Broker", func() {
 					})
 
 					It("should try to change the master password", func() {
-						_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+						_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
 						input := rdsInstance.ModifyArgsForCall(0)
@@ -2455,11 +2493,11 @@ var _ = Describe("RDS Broker", func() {
 
 				Context("when has DBSecurityGroups", func() {
 					BeforeEach(func() {
-						rdsProperties1.DBSecurityGroups = []*string{aws.String("test-db-security-group")}
+						rdsProperties3.DBSecurityGroups = []*string{aws.String("test-db-security-group")}
 					})
 
 					It("makes the modify with the security group", func() {
-						_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+						_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
 						input := rdsInstance.ModifyArgsForCall(0)
@@ -2472,11 +2510,10 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("but there are pending reboot", func() {
 				JustBeforeEach(func() {
+					newDBInstanceTagsByName := copyStringStringMap(defaultDBInstanceTagsByName)
+					newDBInstanceTagsByName["PendingReboot"] = "true"
 					rdsInstance.GetResourceTagsReturns(
-						append(
-							defaultDBInstanceTags,
-							&rds.Tag{Key: aws.String("PendingReboot"), Value: aws.String("true")},
-						),
+						awsrds.BuildRDSTags(newDBInstanceTagsByName),
 						nil,
 					)
 
@@ -2487,7 +2524,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("should call RemoveTag to remove the tag PendingReboot", func() {
-					_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(rdsInstance.RemoveTagCallCount()).To(Equal(1))
 					id, tagName := rdsInstance.RemoveTagArgsForCall(0)
@@ -2496,7 +2533,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("should return the proper LastOperationResponse", func() {
-					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
 				})
@@ -2506,14 +2543,14 @@ var _ = Describe("RDS Broker", func() {
 						rdsInstance.RemoveTagReturns(errors.New("Failed to remove tag"))
 					})
 					It("returns the proper error", func() {
-						_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+						_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 						Expect(err).To(HaveOccurred())
 						Expect(err.Error()).To(Equal("Failed to remove tag"))
 					})
 				})
 
 				It("reboot the DB instance", func() {
-					_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(rdsInstance.RebootCallCount()).To(Equal(1))
 					input := rdsInstance.RebootArgsForCall(0)
@@ -2523,11 +2560,10 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("but there is a pending reset user password", func() {
 				JustBeforeEach(func() {
+					newDBInstanceTagsByName := copyStringStringMap(defaultDBInstanceTagsByName)
+					newDBInstanceTagsByName["PendingResetUserPassword"] = "true"
 					rdsInstance.GetResourceTagsReturns(
-						append(
-							defaultDBInstanceTags,
-							&rds.Tag{Key: aws.String("PendingResetUserPassword"), Value: aws.String("true")},
-						),
+						awsrds.BuildRDSTags(newDBInstanceTagsByName),
 						nil,
 					)
 
@@ -2538,7 +2574,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("should call RemoveTag to remove the tag PendingResetUserPassword", func() {
-					_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(rdsInstance.RemoveTagCallCount()).To(Equal(1))
 					id, tagName := rdsInstance.RemoveTagArgsForCall(0)
@@ -2547,7 +2583,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("should return the proper LastOperationResponse", func() {
-					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
 				})
@@ -2557,14 +2593,14 @@ var _ = Describe("RDS Broker", func() {
 						rdsInstance.RemoveTagReturns(errors.New("Failed to remove tag"))
 					})
 					It("returns the proper error", func() {
-						_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+						_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 						Expect(err).To(HaveOccurred())
 						Expect(err.Error()).To(Equal("Failed to remove tag"))
 					})
 				})
 
 				It("should reset the database state by calling sqlengine.ResetState()", func() {
-					_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(sqlEngine.ResetStateCalled).To(BeTrue())
 				})
@@ -2574,7 +2610,7 @@ var _ = Describe("RDS Broker", func() {
 						sqlEngine.ResetStateError = errors.New("Failed to reset state")
 					})
 					It("returns the proper error", func() {
-						_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+						_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 						Expect(err).To(HaveOccurred())
 						Expect(err.Error()).To(Equal("Failed to reset state"))
 					})
@@ -2583,17 +2619,17 @@ var _ = Describe("RDS Broker", func() {
 
 			Context("but there are not post restore tasks or reset password to execute", func() {
 				It("should not try to change the master password", func() {
-					_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(rdsInstance.ModifyCallCount()).To(Equal(0))
 				})
 				It("should not reset the database state by not calling sqlengine.ResetState()", func() {
-					_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(sqlEngine.ResetStateCalled).To(BeFalse())
 				})
 				It("should not call RemoveTag", func() {
-					_, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(rdsInstance.RemoveTagCallCount()).To(Equal(0))
 				})
@@ -2608,7 +2644,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 
 				It("returns the state "+string(expectedLastOperationState), func() {
-					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, brokerapi.PollDetails{})
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
 				})
@@ -2778,8 +2814,8 @@ var _ = Describe("RDS Broker", func() {
 				rdsInstance.DescribeReturns(dbInstance, nil)
 
 				bindDetails = brokerapi.BindDetails{
-					ServiceID:     "Service-1",
-					PlanID:        "Plan-1",
+					ServiceID:     "Service-3",
+					PlanID:        "Plan-3",
 					AppGUID:       "Application-1",
 					RawParameters: json.RawMessage("{}"),
 				}

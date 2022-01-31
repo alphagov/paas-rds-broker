@@ -9,6 +9,7 @@ import (
 	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 	"net/http"
 	"reflect"
+	"github.com/Masterminds/semver"
 	"strconv"
 	"strings"
 	"time"
@@ -911,6 +912,68 @@ func (b *RDSBroker) LastOperation(
 				Description: fmt.Sprintf("DB Instance '%s' has pending modifications", b.dbInstanceIdentifier(instanceID)),
 			}
 			return lastOperationResponse, nil
+		}
+
+		awsTagsPlanID, _ := tagsByName[awsrds.TagPlanID]
+		if pollDetails.PlanID != awsTagsPlanID {
+			// this was presumably a plan change
+			currentPlan, ok := b.catalog.FindServicePlan(pollDetails.PlanID)
+			if !ok {
+				return brokerapi.LastOperation{State: brokerapi.Failed}, fmt.Errorf("Service Plan '%s' provided in request not found", pollDetails.PlanID)
+			}
+			awsTagsPlan, ok := b.catalog.FindServicePlan(awsTagsPlanID)
+			if !ok {
+				return brokerapi.LastOperation{State: brokerapi.Failed}, fmt.Errorf(
+					"Service Plan '%s' in aws tag '%s' not found",
+					awsTagsPlanID,
+					awsrds.TagPlanID,
+				)
+			}
+			rdsEngineVersion, err := semver.NewVersion(*dbInstance.EngineVersion)
+			if err != nil {
+				return brokerapi.LastOperation{State: brokerapi.Failed}, err
+			}
+			currentPlanEngineVersion, err := currentPlan.EngineVersion()
+			if err != nil {
+				return brokerapi.LastOperation{State: brokerapi.Failed}, err
+			}
+			awsTagsPlanEngineVersion, err := awsTagsPlan.EngineVersion()
+			if err != nil {
+				return brokerapi.LastOperation{State: brokerapi.Failed}, err
+			}
+			if rdsEngineVersion.Major() != awsTagsPlanEngineVersion.Major() {
+				if rdsEngineVersion.Major() != currentPlanEngineVersion.Major() {
+					b.logger.Info("unknown-engine-version-mismatch", lager.Data{
+						instanceIDLogKey: instanceID,
+						servicePlanLogKey: pollDetails.PlanID,
+						"awsTagsPlanID": awsTagsPlanID,
+						"rdsEngineVersion": *dbInstance.EngineVersion,
+					})
+					lastOperationResponse = brokerapi.LastOperation{
+						State: brokerapi.Failed,
+						Description: "Operation failed and will need manual intervention to resolve. Please contact support.",
+					}
+					return lastOperationResponse, nil
+				}
+				b.logger.Info("detected-failed-plan-change", lager.Data{
+					instanceIDLogKey: instanceID,
+					servicePlanLogKey: pollDetails.PlanID,
+					"awsTagsPlanID": awsTagsPlanID,
+					"rdsEngineVersion": *dbInstance.EngineVersion,
+				})
+				// roll back the aws tag to reflect the plan id we're sticking with
+				tagsByName[awsrds.TagPlanID] = pollDetails.PlanID
+				b.dbInstance.AddTagsToResource(
+					aws.StringValue(dbInstance.DBInstanceArn),
+					awsrds.BuildRDSTags(tagsByName),
+				)
+
+				lastOperationResponse = brokerapi.LastOperation{
+					State: brokerapi.Failed,
+					Description: "Plan upgrade failed. Refer to database logs for more information.",
+				}
+				return lastOperationResponse, nil
+			}
 		}
 
 		asyncOperationTriggered, err := b.PostRestoreTasks(instanceID, dbInstance, tagsByName)
