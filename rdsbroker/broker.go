@@ -361,8 +361,8 @@ func (b *RDSBroker) restoreFromSnapshot(
 		}
 
 		b.logger.Info("pruned-snapshots", lager.Data{
-			"instanceIDLogKey":     instanceID,
-			"detailsLogKey":        details,
+			instanceIDLogKey:     instanceID,
+			detailsLogKey:        details,
 			"allSnapshotsCount":    len(snapshots),
 			"prunedSnapshotsCount": len(prunedSnapshots),
 		})
@@ -377,8 +377,8 @@ func (b *RDSBroker) restoreFromSnapshot(
 	snapshot := snapshots[0]
 
 	b.logger.Info("chose-snapshot", lager.Data{
-		"instanceIDLogKey":   instanceID,
-		"detailsLogKey":      details,
+		instanceIDLogKey:   instanceID,
+		detailsLogKey:      details,
 		"snapshotIdentifier": snapshot.DBSnapshotIdentifier,
 	})
 
@@ -433,7 +433,7 @@ func (b *RDSBroker) Update(
 		asyncAllowedLogKey: asyncAllowed,
 	})
 
-	b.logger.Info("update", lager.Data{"instanceID": instanceID, "details": details})
+	b.logger.Info("update", lager.Data{instanceIDLogKey: instanceID, detailsLogKey: details})
 
 	if !asyncAllowed {
 		return brokerapi.UpdateServiceSpec{}, brokerapi.ErrAsyncRequired
