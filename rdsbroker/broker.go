@@ -9,6 +9,7 @@ import (
 	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 	"net/http"
 	"reflect"
+	"github.com/Masterminds/semver"
 	"strconv"
 	"strings"
 	"time"
@@ -38,6 +39,11 @@ const servicePlanLogKey = "servicePlan"
 const dbInstanceLogKey = "dbInstance"
 const lastOperationResponseLogKey = "lastOperationResponse"
 const extensionsLogKey = "requestedExtensions"
+
+const disagreementEngine = "Engine"
+const disagreementAllocatedStorage = "AllocatedStorage"
+const disagreementMultiAZ = "MultiAZ"
+const disagreementDBInstanceClass = "DBInstanceClass"
 
 var (
 	ErrEncryptionNotUpdateable = errors.New("instance can not be updated to a plan with different encryption settings")
@@ -913,6 +919,81 @@ func (b *RDSBroker) LastOperation(
 			return lastOperationResponse, nil
 		}
 
+		awsTagsPlanID, _ := tagsByName[awsrds.TagPlanID]
+		if pollDetails.PlanID != awsTagsPlanID {
+			// this was presumably a plan change
+			awsTagsPlan, ok := b.catalog.FindServicePlan(awsTagsPlanID)
+			if !ok {
+				return brokerapi.LastOperation{State: brokerapi.Failed}, fmt.Errorf(
+					"Service Plan '%s' in aws tag '%s' not found",
+					awsTagsPlanID,
+					awsrds.TagPlanID,
+				)
+			}
+			awsTagsPlanDisagreements, err := b.compareDBDescriptionWithPlan(
+				dbInstance,
+				awsTagsPlan,
+			)
+			if err != nil {
+				return brokerapi.LastOperation{State: brokerapi.Failed}, err
+			}
+
+			// if all has gone well, the current state of the instance should
+			// match the new plan
+			if len(awsTagsPlanDisagreements) != 0 {
+				b.logger.Info("aws-tags-plan-properties-mismatch", lager.Data{
+					instanceIDLogKey: instanceID,
+					"awsTagsPlanID": awsTagsPlanID,
+					"disagreements": awsTagsPlanDisagreements,
+				})
+				currentPlan, ok := b.catalog.FindServicePlan(pollDetails.PlanID)
+				if !ok {
+					return brokerapi.LastOperation{State: brokerapi.Failed}, fmt.Errorf("Service Plan '%s' provided in request not found", pollDetails.PlanID)
+				}
+				currentPlanDisagreements, err := b.compareDBDescriptionWithPlan(
+					dbInstance,
+					currentPlan,
+				)
+				if err != nil {
+					return brokerapi.LastOperation{State: brokerapi.Failed}, err
+				}
+
+				if len(currentPlanDisagreements) == 0 {
+					// we can tell the cloud controller the operation has failed
+					// and simply roll back the plan id in the aws tags
+					b.logger.Info("rolling-back-failed-plan-change", lager.Data{
+						instanceIDLogKey: instanceID,
+						servicePlanLogKey: pollDetails.PlanID,
+						"awsTagsPlanID": awsTagsPlanID,
+						"rdsEngineVersion": *dbInstance.EngineVersion,
+					})
+					tagsByName[awsrds.TagPlanID] = pollDetails.PlanID
+					b.dbInstance.AddTagsToResource(
+						aws.StringValue(dbInstance.DBInstanceArn),
+						awsrds.BuildRDSTags(tagsByName),
+					)
+					lastOperationResponse = brokerapi.LastOperation{
+						State: brokerapi.Failed,
+						Description: "Plan upgrade failed. Refer to database logs for more information.",
+					}
+					return lastOperationResponse, nil
+				}
+
+				// the current state of the instance matches neither plan, so
+				// we can't safely leave it or roll it back
+				b.logger.Info("current-plan-properties-mismatch", lager.Data{
+					instanceIDLogKey: instanceID,
+					servicePlanLogKey: pollDetails.PlanID,
+					"disagreements": currentPlanDisagreements,
+				})
+				lastOperationResponse = brokerapi.LastOperation{
+					State: brokerapi.Failed,
+					Description: "Operation failed and will need manual intervention to resolve. Please contact support.",
+				}
+				return lastOperationResponse, nil
+			}
+		}
+
 		asyncOperationTriggered, err := b.PostRestoreTasks(instanceID, dbInstance, tagsByName)
 		if err != nil {
 			return brokerapi.LastOperation{State: brokerapi.Failed}, err
@@ -1474,6 +1555,39 @@ func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan Serv
 
 	return modifyDBInstanceInput
 
+}
+
+// compares only the most important properties of the dbInstance with the
+// expected RDSProperties in servicePlan
+func (b *RDSBroker) compareDBDescriptionWithPlan(dbInstance *rds.DBInstance, servicePlan ServicePlan) ([]string, error) {
+	disagreements := []string{}
+
+	planEngineVersion, err := servicePlan.EngineVersion()
+	if err != nil {
+		return nil, err
+	}
+	rdsEngineVersion, err := semver.NewVersion(*dbInstance.EngineVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	if planEngineVersion.Major() != rdsEngineVersion.Major() {
+		disagreements = append(disagreements, disagreementEngine)
+	}
+
+	if *servicePlan.RDSProperties.AllocatedStorage != *dbInstance.AllocatedStorage {
+		disagreements = append(disagreements, disagreementAllocatedStorage)
+	}
+
+	if *servicePlan.RDSProperties.DBInstanceClass != *dbInstance.DBInstanceClass {
+		disagreements = append(disagreements, disagreementDBInstanceClass)
+	}
+
+	if servicePlan.RDSProperties.MultiAZ != nil && *servicePlan.RDSProperties.MultiAZ != *dbInstance.MultiAZ {
+		disagreements = append(disagreements, disagreementMultiAZ)
+	}
+
+	return disagreements, nil
 }
 
 func (b *RDSBroker) dbTags(instanceTags RDSInstanceTags) map[string]string {
