@@ -39,10 +39,12 @@ var _ = Describe("RDS Broker", func() {
 		rdsProperties2 RDSProperties
 		rdsProperties3 RDSProperties
 		rdsProperties4 RDSProperties
+		rdsProperties5 RDSProperties
 		plan1          ServicePlan
 		plan2          ServicePlan
 		plan3          ServicePlan
 		plan4          ServicePlan
+		plan5          ServicePlan
 		service1       Service
 		service2       Service
 		service3       Service
@@ -111,6 +113,7 @@ var _ = Describe("RDS Broker", func() {
 			EngineVersion:     stringPointer("1.2.3"),
 			AllocatedStorage:  int64Pointer(100),
 			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
+			MultiAZ:           boolPointer(false),
 			DefaultExtensions: []*string{
 				stringPointer("postgis"),
 				stringPointer("pg_stat_statements"),
@@ -128,6 +131,7 @@ var _ = Describe("RDS Broker", func() {
 			EngineVersion:     stringPointer("4.5.6"),
 			AllocatedStorage:  int64Pointer(200),
 			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
+			MultiAZ:           boolPointer(false),
 			DefaultExtensions: []*string{
 				stringPointer("postgis"),
 				stringPointer("pg_stat_statements"),
@@ -145,6 +149,7 @@ var _ = Describe("RDS Broker", func() {
 			EngineVersion:     stringPointer("4.5.6"),
 			AllocatedStorage:  int64Pointer(300),
 			SkipFinalSnapshot: boolPointer(false),
+			MultiAZ:           boolPointer(false),
 			DefaultExtensions: []*string{
 				stringPointer("postgis"),
 				stringPointer("pg_stat_statements"),
@@ -162,6 +167,25 @@ var _ = Describe("RDS Broker", func() {
 			EngineVersion:     stringPointer("5.6.7"),
 			AllocatedStorage:  int64Pointer(300),
 			SkipFinalSnapshot: boolPointer(false),
+			MultiAZ:           boolPointer(false),
+			DefaultExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+			},
+			AllowedExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+				stringPointer("postgres_super_extension"),
+			},
+		}
+
+		rdsProperties5 = RDSProperties{
+			DBInstanceClass:   stringPointer("db.m3.test"),
+			Engine:            stringPointer("postgres"),
+			EngineVersion:     stringPointer("5.6.7"),
+			AllocatedStorage:  int64Pointer(400),
+			SkipFinalSnapshot: boolPointer(false),
+			MultiAZ:           boolPointer(false),
 			DefaultExtensions: []*string{
 				stringPointer("postgis"),
 				stringPointer("pg_stat_statements"),
@@ -199,6 +223,12 @@ var _ = Describe("RDS Broker", func() {
 			Description:   "This is the Plan 4",
 			RDSProperties: rdsProperties4,
 		}
+		plan5 = ServicePlan{
+			ID:            "Plan-5",
+			Name:          "Plan 5",
+			Description:   "This is the Plan 5",
+			RDSProperties: rdsProperties5,
+		}
 
 		service1 = Service{
 			ID:            "Service-1",
@@ -219,7 +249,7 @@ var _ = Describe("RDS Broker", func() {
 			Name:          "Service 3",
 			Description:   "This is the Service 3",
 			PlanUpdatable: planUpdateable,
-			Plans:         []ServicePlan{plan3, plan4},
+			Plans:         []ServicePlan{plan3, plan4, plan5},
 		}
 
 		catalog = Catalog{
@@ -310,6 +340,11 @@ var _ = Describe("RDS Broker", func() {
 							ID:          "Plan-4",
 							Name:        "Plan 4",
 							Description: "This is the Plan 4",
+						},
+						brokerapi.ServicePlan{
+							ID:          "Plan-5",
+							Name:        "Plan 5",
+							Description: "This is the Plan 5",
 						},
 					},
 				},
@@ -2149,8 +2184,12 @@ var _ = Describe("RDS Broker", func() {
 			lastOperationState          brokerapi.LastOperationState
 			properLastOperationResponse brokerapi.LastOperation
 			parameterGroupStatus        string
+			dbAllocatedStorage          int64
 
 			defaultDBInstance = &rds.DBInstance{
+				AllocatedStorage:     int64Pointer(300),
+				DBInstanceClass:      stringPointer("db.m3.test"),
+				MultiAZ:              boolPointer(false),
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 				DBInstanceArn:        aws.String(dbInstanceArn),
 				Engine:               aws.String("test-engine"),
@@ -2186,11 +2225,13 @@ var _ = Describe("RDS Broker", func() {
 
 		BeforeEach(func() {
 			parameterGroupStatus = "in-sync"
+			dbAllocatedStorage = 300
 		})
 
 		JustBeforeEach(func() {
 			defaultDBInstance.DBInstanceStatus = aws.String(dbInstanceStatus)
 			defaultDBInstance.DBParameterGroups[0].ParameterApplyStatus = aws.String(parameterGroupStatus)
+			defaultDBInstance.AllocatedStorage = int64Pointer(dbAllocatedStorage)
 			rdsInstance.DescribeReturns(defaultDBInstance, nil)
 
 			rdsInstance.GetResourceTagsReturns(
@@ -2345,6 +2386,73 @@ var _ = Describe("RDS Broker", func() {
 				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+			})
+		})
+
+		Context("when a simple major version upgrade failed", func() {
+			BeforeEach(func() {
+				dbInstanceStatus = "available"
+			})
+
+			JustBeforeEach(func() {
+				newDBInstanceTagsByName := copyStringStringMap(defaultDBInstanceTagsByName)
+				newDBInstanceTagsByName["Plan ID"] = "Plan-4"
+				rdsInstance.GetResourceTagsReturns(
+					awsrds.BuildRDSTags(newDBInstanceTagsByName),
+					nil,
+				)
+			})
+
+			It("returns the proper LastOperationResponse", func() {
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationResponse).To(Equal(brokerapi.LastOperation{
+					State: brokerapi.Failed,
+					Description: "Plan upgrade failed. Refer to database logs for more information.",
+				}))
+			})
+
+			It("rolls back the Plan ID tag to match reality", func() {
+				_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(1))
+
+				id, tags := rdsInstance.AddTagsToResourceArgsForCall(0)
+				Expect(id).To(Equal(dbInstanceArn))
+				tagsByName := awsrds.RDSTagsValues(tags)
+
+				Expect(tagsByName).To(Equal(defaultDBInstanceTagsByName))
+			})
+		})
+
+		Context("when a complex major version upgrade failed", func() {
+			BeforeEach(func() {
+				dbInstanceStatus = "available"
+				dbAllocatedStorage = 400
+			})
+
+			JustBeforeEach(func() {
+				newDBInstanceTagsByName := copyStringStringMap(defaultDBInstanceTagsByName)
+				newDBInstanceTagsByName["Plan ID"] = "Plan-5"
+				rdsInstance.GetResourceTagsReturns(
+					awsrds.BuildRDSTags(newDBInstanceTagsByName),
+					nil,
+				)
+			})
+
+			It("returns the proper LastOperationResponse", func() {
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationResponse).To(Equal(brokerapi.LastOperation{
+					State: brokerapi.Failed,
+					Description: "Operation failed and will need manual intervention to resolve. Please contact support.",
+				}))
+			})
+
+			It("does not roll back the Plan ID tag", func() {
+				_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(0))
 			})
 		})
 
