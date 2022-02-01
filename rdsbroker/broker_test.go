@@ -2348,6 +2348,42 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
+		Context("when a major version upgrade failed", func() {
+			BeforeEach(func() {
+				dbInstanceStatus = "available"
+			})
+
+			JustBeforeEach(func() {
+				newDBInstanceTagsByName := copyStringStringMap(defaultDBInstanceTagsByName)
+				newDBInstanceTagsByName["Plan ID"] = "Plan-4"
+				rdsInstance.GetResourceTagsReturns(
+					awsrds.BuildRDSTags(newDBInstanceTagsByName),
+					nil,
+				)
+			})
+
+			It("returns the proper LastOperationResponse", func() {
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationResponse).To(Equal(brokerapi.LastOperation{
+					State: brokerapi.Failed,
+					Description: "Plan upgrade failed. Refer to database logs for more information.",
+				}))
+			})
+
+			It("rolls back the Plan ID tag to match reality", func() {
+				_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(1))
+
+				id, tags := rdsInstance.AddTagsToResourceArgsForCall(0)
+				Expect(id).To(Equal(dbInstanceArn))
+				tagsByName := awsrds.RDSTagsValues(tags)
+
+				Expect(tagsByName).To(Equal(defaultDBInstanceTagsByName))
+			})
+		})
+
 		Context("when last operation succeeded", func() {
 			BeforeEach(func() {
 				dbInstanceStatus = "available"
