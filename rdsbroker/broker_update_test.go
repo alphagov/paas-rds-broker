@@ -1131,7 +1131,7 @@ var _ = Describe("RDS Broker", func() {
 				dbTags := map[string]string{
 					awsrds.TagExtensions: "postgis:pg_stat_statements",
 				}
-				rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbTags), nil)
+				rdsInstance.GetResourceTagsReturns(awsrds.BuildRDSTags(dbTags), nil)
 			})
 
 			It("successfully sets an extension", func() {
@@ -1215,7 +1215,7 @@ var _ = Describe("RDS Broker", func() {
 				dbTags := map[string]string{
 					awsrds.TagExtensions: "postgis:pg_stat_statements:postgres_super_extension",
 				}
-				rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbTags), nil)
+				rdsInstance.GetResourceTagsReturns(awsrds.BuildRDSTags(dbTags), nil)
 				newParamGroupName = "updatedParamGroupName"
 			})
 

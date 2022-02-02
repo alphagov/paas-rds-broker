@@ -662,7 +662,7 @@ func (b *RDSBroker) Update(
 		instanceTags.SkipFinalSnapshot = strconv.FormatBool(*updateParameters.SkipFinalSnapshot)
 	}
 
-	builtTags := awsrds.BuilRDSTags(b.dbTags(instanceTags))
+	builtTags := awsrds.BuildRDSTags(b.dbTags(instanceTags))
 	b.dbInstance.AddTagsToResource(aws.StringValue(updatedDBInstance.DBInstanceArn), builtTags)
 
 	if updateParameters.Reboot != nil && *updateParameters.Reboot && !deferReboot {
@@ -1086,7 +1086,7 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 		ChargeableEntity: instanceID,
 	})
 
-	rdsTags := awsrds.BuilRDSTags(tags)
+	rdsTags := awsrds.BuildRDSTags(tags)
 	b.dbInstance.AddTagsToResource(aws.StringValue(updatedDBInstance.DBInstanceArn), rdsTags)
 	// AddTagsToResource error intentionally ignored - it's logged inside the method
 
@@ -1317,7 +1317,7 @@ func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan Serv
 		StorageEncrypted:           servicePlan.RDSProperties.StorageEncrypted,
 		StorageType:                servicePlan.RDSProperties.StorageType,
 		VpcSecurityGroupIds:        servicePlan.RDSProperties.VpcSecurityGroupIds,
-		Tags:                       awsrds.BuilRDSTags(b.dbTags(tags)),
+		Tags:                       awsrds.BuildRDSTags(b.dbTags(tags)),
 	}
 	if provisionParameters.PreferredBackupWindow != "" {
 		createDBInstanceInput.PreferredBackupWindow = aws.String(provisionParameters.PreferredBackupWindow)
@@ -1372,7 +1372,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		MultiAZ:                 servicePlan.RDSProperties.MultiAZ,
 		Port:                    servicePlan.RDSProperties.Port,
 		StorageType:             servicePlan.RDSProperties.StorageType,
-		Tags:                    awsrds.BuilRDSTags(b.dbTags(tags)),
+		Tags:                    awsrds.BuildRDSTags(b.dbTags(tags)),
 	}, nil
 }
 
@@ -1424,7 +1424,7 @@ func (b *RDSBroker) restoreDBInstancePointInTimeInput(instanceID, originDBIdenti
 		MultiAZ:                    servicePlan.RDSProperties.MultiAZ,
 		Port:                       servicePlan.RDSProperties.Port,
 		StorageType:                servicePlan.RDSProperties.StorageType,
-		Tags:                       awsrds.BuilRDSTags(b.dbTags(tags)),
+		Tags:                       awsrds.BuildRDSTags(b.dbTags(tags)),
 	}
 
 	if originTime != nil {

@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 )
 
-func BuilRDSTags(tags map[string]string) []*rds.Tag {
+func BuildRDSTags(tags map[string]string) []*rds.Tag {
 	var rdsTags []*rds.Tag
 
 	for key, value := range tags {

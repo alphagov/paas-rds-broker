@@ -420,7 +420,7 @@ var _ = Describe("RDS Broker", func() {
 					DBInstanceArn:        aws.String(restoreFromPointInTimeDBInstanceARN),
 					DBInstanceIdentifier: aws.String(restoreFromPointInTimeDBInstanceID),
 				}, nil)
-				rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbIdentifierTags), nil)
+				rdsInstance.GetResourceTagsReturns(awsrds.BuildRDSTags(dbIdentifierTags), nil)
 			})
 
 			Context("and the restore_from_latest_snapshot_of also present", func() {
@@ -621,7 +621,7 @@ var _ = Describe("RDS Broker", func() {
 					},
 				}, nil)
 
-				rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbSnapshotTags), nil)
+				rdsInstance.GetResourceTagsReturns(awsrds.BuildRDSTags(dbSnapshotTags), nil)
 			})
 
 			Context("without a restore_from_latest_snapshot_before modifier", func() {
@@ -772,7 +772,7 @@ var _ = Describe("RDS Broker", func() {
 				Context("when the snapshot had extensions enabled", func() {
 					It("sets the same extensions on the new database", func() {
 						dbSnapshotTags[awsrds.TagExtensions] = "foo:bar"
-						rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbSnapshotTags), nil)
+						rdsInstance.GetResourceTagsReturns(awsrds.BuildRDSTags(dbSnapshotTags), nil)
 
 						_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 
@@ -790,7 +790,7 @@ var _ = Describe("RDS Broker", func() {
 						})
 						It("adds those extensions to the set of extensions on the snapshot", func() {
 							dbSnapshotTags[awsrds.TagExtensions] = "foo:bar"
-							rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbSnapshotTags), nil)
+							rdsInstance.GetResourceTagsReturns(awsrds.BuildRDSTags(dbSnapshotTags), nil)
 
 							_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 

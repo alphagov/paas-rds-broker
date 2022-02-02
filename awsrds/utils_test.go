@@ -38,7 +38,7 @@ var _ = Describe("RDS Utils", func() {
 		logger.RegisterSink(testSink)
 	})
 
-	var _ = Describe("BuilRDSTags", func() {
+	var _ = Describe("BuildRDSTags", func() {
 		var (
 			tags          map[string]string
 			properRDSTags []*rds.Tag
@@ -55,7 +55,7 @@ var _ = Describe("RDS Utils", func() {
 		})
 
 		It("returns the proper RDS Tags", func() {
-			rdsTags := BuilRDSTags(tags)
+			rdsTags := BuildRDSTags(tags)
 			Expect(rdsTags).To(Equal(properRDSTags))
 		})
 	})
