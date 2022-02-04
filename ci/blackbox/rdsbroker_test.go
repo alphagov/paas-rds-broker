@@ -80,7 +80,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service2.Description).To(Equal("AWS RDS PostgreSQL service"))
 			Expect(service2.Bindable).To(BeTrue())
 			Expect(service2.PlanUpdatable).To(BeTrue())
-			Expect(service2.Plans).To(HaveLen(8))
+			Expect(service2.Plans).To(HaveLen(9))
 		})
 	})
 
@@ -333,6 +333,67 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 		Describe("MySQL 5.7 to 8.0", func() {
 			TestUpdatePlan("mysql", "mysql-5.7-micro-without-snapshot", "mysql-8.0-micro-without-snapshot")
+		})
+	})
+
+	Describe("plan upgrade failures", func() {
+		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, extensionName, expectedAwsTagPlanID string) {
+			var (
+				instanceID string
+			)
+
+			BeforeEach(func() {
+				instanceID = uuid.NewV4().String()
+
+				brokerAPIClient.AcceptsIncomplete = true
+
+				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlanID, fmt.Sprintf(`{"enable_extensions": ["%s"]}`, extensionName))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
+				Expect(state).To(Equal("succeeded"))
+			})
+
+			AfterEach(func() {
+				brokerAPIClient.AcceptsIncomplete = true
+				code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, startPlanID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
+				Expect(state).To(Equal("gone"))
+			})
+
+			It("handles a failure to update to a plan with a newer engine version", func() {
+				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
+				Expect(state).To(Equal("failed"))
+
+				tagPlanID, err := rdsClient.GetDBInstanceTag(instanceID, "Plan ID")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(tagPlanID).To(Equal(expectedAwsTagPlanID))
+			})
+		}
+
+		Describe("Postgres 10 to 11 simple failure", func() {
+			TestUpdatePlan(
+				"postgres",
+				"postgres-micro-without-snapshot-10",
+				"postgres-micro-without-snapshot-11",
+				"tsearch2",
+				"postgres-micro-without-snapshot-10",
+			)
+		})
+
+		Describe("Postgres 10 to 11 complex failure", func() {
+			TestUpdatePlan(
+				"postgres",
+				"postgres-micro-without-snapshot-10",
+				"postgres-small-without-snapshot-11",
+				"tsearch2",
+				"postgres-small-without-snapshot-11",
+			)
 		})
 	})
 
