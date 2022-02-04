@@ -336,6 +336,51 @@ var _ = Describe("RDS Broker Daemon", func() {
 		})
 	})
 
+	Describe("plan upgrade failures", func() {
+		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, extensionName string) {
+			var (
+				instanceID string
+			)
+
+			BeforeEach(func() {
+				instanceID = uuid.NewV4().String()
+
+				brokerAPIClient.AcceptsIncomplete = true
+
+				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlanID, fmt.Sprintf(`{"enable_extensions": ["%s"]}`, extensionName))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
+				Expect(state).To(Equal("succeeded"))
+			})
+
+			AfterEach(func() {
+				brokerAPIClient.AcceptsIncomplete = true
+				code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, startPlanID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
+				Expect(state).To(Equal("gone"))
+			})
+
+			It("handles a failure to update to a plan with a newer engine version", func() {
+				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
+				Expect(state).To(Equal("failed"))
+
+				tagPlanID, err := rdsClient.GetDBInstanceTag(instanceID, "Plan ID")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(tagPlanID).To(Equal(startPlanID))
+			})
+		}
+
+		Describe("Postgres 10 to 11", func() {
+			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-10", "postgres-micro-without-snapshot-11", "tsearch2")
+		})
+	})
+
 	Describe("Final snapshot enable/disable", func() {
 		TestFinalSnapshot := func(serviceID, planID string) {
 			var (

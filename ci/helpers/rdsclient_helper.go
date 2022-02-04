@@ -98,3 +98,27 @@ func (r *RDSClient) GetDBInstanceDetails(ID string) (*rds.DescribeDBInstancesOut
 
 	return r.rdssvc.DescribeDBInstances(params)
 }
+
+func (r *RDSClient) GetDBInstanceTag(ID, tagKey string) (string, error) {
+	dbInstance, err := r.GetDBInstanceDetails(ID)
+	if err != nil {
+		return "", err
+	}
+
+	listTagsForResourceInput := &rds.ListTagsForResourceInput{
+		ResourceName: dbInstance.DBInstances[0].DBInstanceArn,
+	}
+
+	listTagsForResourceOutput, err := r.rdssvc.ListTagsForResource(listTagsForResourceInput)
+	if err != nil {
+		return "", err
+	}
+
+	for _, t := range listTagsForResourceOutput.TagList {
+		if *t.Key == tagKey {
+			return *t.Value, nil
+		}
+	}
+
+	return "", nil
+}

@@ -40,6 +40,7 @@
                                 ],
                                 "allowed_extensions": [
                                     "uuid-ossp",
+                                    "tsearch2",
                                     "postgis",
                                     "citext",
                                     "pg_stat_statements"
@@ -71,6 +72,7 @@
                                 ],
                                 "allowed_extensions": [
                                     "uuid-ossp",
+                                    "tsearch2",
                                     "postgis",
                                     "citext",
                                     "pg_stat_statements"
