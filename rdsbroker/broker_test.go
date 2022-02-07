@@ -39,10 +39,12 @@ var _ = Describe("RDS Broker", func() {
 		rdsProperties2 RDSProperties
 		rdsProperties3 RDSProperties
 		rdsProperties4 RDSProperties
+		rdsProperties5 RDSProperties
 		plan1          ServicePlan
 		plan2          ServicePlan
 		plan3          ServicePlan
 		plan4          ServicePlan
+		plan5          ServicePlan
 		service1       Service
 		service2       Service
 		service3       Service
