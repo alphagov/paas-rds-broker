@@ -111,6 +111,7 @@ var _ = Describe("RDS Broker", func() {
 			EngineVersion:     stringPointer("1.2.3"),
 			AllocatedStorage:  int64Pointer(100),
 			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
+			MultiAZ:           boolPointer(false),
 			DefaultExtensions: []*string{
 				stringPointer("postgis"),
 				stringPointer("pg_stat_statements"),
@@ -128,6 +129,7 @@ var _ = Describe("RDS Broker", func() {
 			EngineVersion:     stringPointer("4.5.6"),
 			AllocatedStorage:  int64Pointer(200),
 			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
+			MultiAZ:           boolPointer(false),
 			DefaultExtensions: []*string{
 				stringPointer("postgis"),
 				stringPointer("pg_stat_statements"),
@@ -145,6 +147,7 @@ var _ = Describe("RDS Broker", func() {
 			EngineVersion:     stringPointer("4.5.6"),
 			AllocatedStorage:  int64Pointer(300),
 			SkipFinalSnapshot: boolPointer(false),
+			MultiAZ:           boolPointer(false),
 			DefaultExtensions: []*string{
 				stringPointer("postgis"),
 				stringPointer("pg_stat_statements"),
@@ -162,6 +165,7 @@ var _ = Describe("RDS Broker", func() {
 			EngineVersion:     stringPointer("5.6.7"),
 			AllocatedStorage:  int64Pointer(300),
 			SkipFinalSnapshot: boolPointer(false),
+			MultiAZ:           boolPointer(false),
 			DefaultExtensions: []*string{
 				stringPointer("postgis"),
 				stringPointer("pg_stat_statements"),
@@ -2151,6 +2155,9 @@ var _ = Describe("RDS Broker", func() {
 			parameterGroupStatus        string
 
 			defaultDBInstance = &rds.DBInstance{
+				AllocatedStorage:     int64Pointer(300),
+				DBInstanceClass:      stringPointer("db.m3.test"),
+				MultiAZ:              boolPointer(false),
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 				DBInstanceArn:        aws.String(dbInstanceArn),
 				Engine:               aws.String("test-engine"),
