@@ -80,11 +80,11 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service2.Description).To(Equal("AWS RDS PostgreSQL service"))
 			Expect(service2.Bindable).To(BeTrue())
 			Expect(service2.PlanUpdatable).To(BeTrue())
-			Expect(service2.Plans).To(HaveLen(8))
+			Expect(service2.Plans).To(HaveLen(9))
 		})
 	})
 
-	Describe("Instance Provision/Bind/Deprovision and MasterPasswordSeed update", func() {
+	PDescribe("Instance Provision/Bind/Deprovision and MasterPasswordSeed update", func() {
 
 		TestProvisionBindDeprovision := func(serviceID, planID string) {
 			var (
@@ -212,24 +212,24 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
+		PDescribe("Postgres 10", func() {
 			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-10")
 		})
 
-		Describe("Postgres 13", func() {
+		PDescribe("Postgres 13", func() {
 			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-13")
 		})
 
-		Describe("MySQL 5.7", func() {
+		PDescribe("MySQL 5.7", func() {
 			TestProvisionBindDeprovision("mysql", "mysql-5.7-micro-without-snapshot")
 		})
 
-		Describe("MySQL 8.0", func() {
+		PDescribe("MySQL 8.0", func() {
 			TestProvisionBindDeprovision("mysql", "mysql-8.0-micro-without-snapshot")
 		})
 	})
 
-	Describe("update extensions", func() {
+	PDescribe("update extensions", func() {
 		TestUpdateExtensions := func(serviceID, planID string) {
 			var (
 				instanceID string
@@ -273,17 +273,17 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
+		PDescribe("Postgres 10", func() {
 			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-10")
 		})
 
-		Describe("Postgres 13", func() {
+		PDescribe("Postgres 13", func() {
 			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-13")
 		})
 
 	})
 
-	Describe("update to a plan with a newer engine version", func() {
+	PDescribe("update to a plan with a newer engine version", func() {
 		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID string) {
 			var (
 				instanceID string
@@ -319,25 +319,25 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10 to 11", func() {
+		PDescribe("Postgres 10 to 11", func() {
 			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-10", "postgres-micro-without-snapshot-11")
 		})
 
-		Describe("Postgres 11 to 12", func() {
+		PDescribe("Postgres 11 to 12", func() {
 			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-11", "postgres-micro-without-snapshot-12")
 		})
 
-		Describe("Postgres 12 to 13", func() {
+		PDescribe("Postgres 12 to 13", func() {
 			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-12", "postgres-micro-without-snapshot-13")
 		})
 
-		Describe("MySQL 5.7 to 8.0", func() {
+		PDescribe("MySQL 5.7 to 8.0", func() {
 			TestUpdatePlan("mysql", "mysql-5.7-micro-without-snapshot", "mysql-8.0-micro-without-snapshot")
 		})
 	})
 
 	Describe("plan upgrade failures", func() {
-		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, extensionName string) {
+		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, extensionName string, expectedAwsTagPlanID) {
 			var (
 				instanceID string
 			)
@@ -372,16 +372,32 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 				tagPlanID, err := rdsClient.GetDBInstanceTag(instanceID, "Plan ID")
 				Expect(err).ToNot(HaveOccurred())
-				Expect(tagPlanID).To(Equal(startPlanID))
+				Expect(tagPlanID).To(Equal(expectedAwsTagPlanID))
 			})
 		}
 
-		Describe("Postgres 10 to 11", func() {
-			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-10", "postgres-micro-without-snapshot-11", "tsearch2")
+		Describe("Postgres 10 to 11 simple failure", func() {
+			TestUpdatePlan(
+				"postgres",
+				"postgres-micro-without-snapshot-10",
+				"postgres-micro-without-snapshot-11",
+				"tsearch2",
+				"postgres-micro-without-snapshot-10",
+			)
+		})
+
+		Describe("Postgres 10 to 11 complex failure", func() {
+			TestUpdatePlan(
+				"postgres",
+				"postgres-micro-without-snapshot-10",
+				"postgres-small-without-snapshot-11",
+				"tsearch2",
+				"postgres-small-without-snapshot-11",
+			)
 		})
 	})
 
-	Describe("Final snapshot enable/disable", func() {
+	PDescribe("Final snapshot enable/disable", func() {
 		TestFinalSnapshot := func(serviceID, planID string) {
 			var (
 				instanceID      string
@@ -476,24 +492,24 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
+		PDescribe("Postgres 10", func() {
 			TestFinalSnapshot("postgres", "postgres-micro-10")
 		})
 
-		Describe("Postgres 13", func() {
+		PDescribe("Postgres 13", func() {
 			TestFinalSnapshot("postgres", "postgres-micro-13")
 		})
 
-		Describe("MySQL 5.7", func() {
+		PDescribe("MySQL 5.7", func() {
 			TestFinalSnapshot("mysql", "mysql-5.7-micro")
 		})
 
-		Describe("MySQL 8.0", func() {
+		PDescribe("MySQL 8.0", func() {
 			TestFinalSnapshot("mysql", "mysql-8.0-micro")
 		})
 	})
 
-	Describe("Restore from snapshot", func() {
+	PDescribe("Restore from snapshot", func() {
 		TestRestoreFromSnapshot := func(serviceID, planID string) {
 			var (
 				instanceID         string
@@ -720,24 +736,24 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
+		PDescribe("Postgres 10", func() {
 			TestRestoreFromSnapshot("postgres", "postgres-micro-10")
 		})
 
-		Describe("Postgres 13", func() {
+		PDescribe("Postgres 13", func() {
 			TestRestoreFromSnapshot("postgres", "postgres-micro-13")
 		})
 
-		Describe("MySQL 5.7", func() {
+		PDescribe("MySQL 5.7", func() {
 			TestRestoreFromSnapshot("mysql", "mysql-5.7-micro")
 		})
 
-		Describe("MySQL 8.0", func() {
+		PDescribe("MySQL 8.0", func() {
 			TestRestoreFromSnapshot("mysql", "mysql-8.0-micro")
 		})
 	})
 
-	Describe("Restore from before a point in time", func() {
+	PDescribe("Restore from before a point in time", func() {
 		TestRestoreFromPointInTime := func(serviceID, planID string) {
 			var (
 				instanceID           string
@@ -847,19 +863,19 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
+		PDescribe("Postgres 10", func() {
 			TestRestoreFromPointInTime("postgres", "postgres-micro-10")
 		})
 
-		Describe("Postgres 13", func() {
+		PDescribe("Postgres 13", func() {
 			TestRestoreFromPointInTime("postgres", "postgres-micro-13")
 		})
 
-		Describe("MySQL 5.7", func() {
+		PDescribe("MySQL 5.7", func() {
 			TestRestoreFromPointInTime("mysql", "mysql-5.7-micro")
 		})
 
-		Describe("MySQL 8.0", func() {
+		PDescribe("MySQL 8.0", func() {
 			TestRestoreFromPointInTime("mysql", "mysql-8.0-micro")
 		})
 	})
