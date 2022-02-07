@@ -176,6 +176,24 @@ var _ = Describe("RDS Broker", func() {
 				stringPointer("postgres_super_extension"),
 			},
 		}
+
+		rdsProperties5 = RDSProperties{
+			DBInstanceClass:   stringPointer("db.m3.test"),
+			Engine:            stringPointer("postgres"),
+			EngineVersion:     stringPointer("5.6.7"),
+			AllocatedStorage:  int64Pointer(400),
+			SkipFinalSnapshot: boolPointer(false),
+			MultiAZ:           boolPointer(false),
+			DefaultExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+			},
+			AllowedExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+				stringPointer("postgres_super_extension"),
+			},
+		}
 	})
 
 	JustBeforeEach(func() {
@@ -203,6 +221,12 @@ var _ = Describe("RDS Broker", func() {
 			Description:   "This is the Plan 4",
 			RDSProperties: rdsProperties4,
 		}
+		plan5 = ServicePlan{
+			ID:            "Plan-5",
+			Name:          "Plan 5",
+			Description:   "This is the Plan 5",
+			RDSProperties: rdsProperties5,
+		}
 
 		service1 = Service{
 			ID:            "Service-1",
@@ -223,7 +247,7 @@ var _ = Describe("RDS Broker", func() {
 			Name:          "Service 3",
 			Description:   "This is the Service 3",
 			PlanUpdatable: planUpdateable,
-			Plans:         []ServicePlan{plan3, plan4},
+			Plans:         []ServicePlan{plan3, plan4, plan5},
 		}
 
 		catalog = Catalog{
@@ -2153,6 +2177,7 @@ var _ = Describe("RDS Broker", func() {
 			lastOperationState          brokerapi.LastOperationState
 			properLastOperationResponse brokerapi.LastOperation
 			parameterGroupStatus        string
+			dbAllocatedStorage          int64
 
 			defaultDBInstance = &rds.DBInstance{
 				AllocatedStorage:     int64Pointer(300),
@@ -2193,11 +2218,13 @@ var _ = Describe("RDS Broker", func() {
 
 		BeforeEach(func() {
 			parameterGroupStatus = "in-sync"
+			dbAllocatedStorage = 300
 		})
 
 		JustBeforeEach(func() {
 			defaultDBInstance.DBInstanceStatus = aws.String(dbInstanceStatus)
 			defaultDBInstance.DBParameterGroups[0].ParameterApplyStatus = aws.String(parameterGroupStatus)
+			defaultDBInstance.AllocatedStorage = int64Pointer(dbAllocatedStorage)
 			rdsInstance.DescribeReturns(defaultDBInstance, nil)
 
 			rdsInstance.GetResourceTagsReturns(
@@ -2355,7 +2382,7 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
-		Context("when a major version upgrade failed", func() {
+		Context("when a simple major version upgrade failed", func() {
 			BeforeEach(func() {
 				dbInstanceStatus = "available"
 			})
@@ -2375,6 +2402,43 @@ var _ = Describe("RDS Broker", func() {
 				Expect(lastOperationResponse).To(Equal(brokerapi.LastOperation{
 					State: brokerapi.Failed,
 					Description: "Plan upgrade failed. Refer to database logs for more information.",
+				}))
+			})
+
+			It("rolls back the Plan ID tag to match reality", func() {
+				_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(1))
+
+				id, tags := rdsInstance.AddTagsToResourceArgsForCall(0)
+				Expect(id).To(Equal(dbInstanceArn))
+				tagsByName := awsrds.RDSTagsValues(tags)
+
+				Expect(tagsByName).To(Equal(defaultDBInstanceTagsByName))
+			})
+		})
+
+		Context("when a complex major version upgrade failed", func() {
+			BeforeEach(func() {
+				dbInstanceStatus = "available"
+				dbAllocatedStorage = 400
+			})
+
+			JustBeforeEach(func() {
+				newDBInstanceTagsByName := copyStringStringMap(defaultDBInstanceTagsByName)
+				newDBInstanceTagsByName["Plan ID"] = "Plan-5"
+				rdsInstance.GetResourceTagsReturns(
+					awsrds.BuildRDSTags(newDBInstanceTagsByName),
+					nil,
+				)
+			})
+
+			It("returns the proper LastOperationResponse", func() {
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationResponse).To(Equal(brokerapi.LastOperation{
+					State: brokerapi.Failed,
+					Description: "Operation failed and will need manual intervention to resolve. Please contact support.",
 				}))
 			})
 
