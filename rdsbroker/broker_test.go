@@ -341,6 +341,11 @@ var _ = Describe("RDS Broker", func() {
 							Name:        "Plan 4",
 							Description: "This is the Plan 4",
 						},
+						brokerapi.ServicePlan{
+							ID:          "Plan-5",
+							Name:        "Plan 5",
+							Description: "This is the Plan 5",
+						},
 					},
 				},
 			}
