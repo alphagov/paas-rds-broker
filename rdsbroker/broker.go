@@ -1559,7 +1559,7 @@ func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan Serv
 
 // compares only the most important properties of the dbInstance with the
 // expected RDSProperties in servicePlan
-func (b *RDSBroker) compareDBDescriptionWithPlan(dbInstance *rds.DBInstance, servicePlan ServicePlan) ([]string, err) {
+func (b *RDSBroker) compareDBDescriptionWithPlan(dbInstance *rds.DBInstance, servicePlan ServicePlan) ([]string, error) {
 	disagreements := []string{}
 
 	planEngineVersion, err := servicePlan.EngineVersion()
