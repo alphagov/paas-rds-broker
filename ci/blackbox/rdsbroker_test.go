@@ -314,8 +314,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
-				extensions := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, upgradeToPlanID, operation)
-				Expect(extensions).To(Equal("succeeded"))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
+				Expect(state).To(Equal("succeeded"))
 			})
 		}
 
