@@ -2449,16 +2449,10 @@ var _ = Describe("RDS Broker", func() {
 				}))
 			})
 
-			It("rolls back the Plan ID tag to match reality", func() {
+			It("does not roll back the Plan ID tag", func() {
 				_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(1))
-
-				id, tags := rdsInstance.AddTagsToResourceArgsForCall(0)
-				Expect(id).To(Equal(dbInstanceArn))
-				tagsByName := awsrds.RDSTagsValues(tags)
-
-				Expect(tagsByName).To(Equal(defaultDBInstanceTagsByName))
+				Expect(rdsInstance.AddTagsToResourceCallCount()).To(Equal(0))
 			})
 		})
 
