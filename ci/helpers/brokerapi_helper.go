@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/pivotal-cf/brokerapi/domain"
 	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 	"io"
 	"net/http"
@@ -11,10 +12,9 @@ import (
 	"strconv"
 
 	. "github.com/onsi/ginkgo"
-	"github.com/pivotal-cf/brokerapi"
 )
 
-type ByServiceID []brokerapi.Service
+type ByServiceID []domain.Service
 
 func (a ByServiceID) Len() int           { return len(a) }
 func (a ByServiceID) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
@@ -80,9 +80,9 @@ func (b *BrokerAPIClient) doRequest(action string, path string, body io.Reader, 
 	return client.Do(req)
 }
 
-func (b *BrokerAPIClient) GetCatalog() (brokerapi.CatalogResponse, error) {
+func (b *BrokerAPIClient) GetCatalog() (apiresponses.CatalogResponse, error) {
 
-	catalog := brokerapi.CatalogResponse{}
+	catalog := apiresponses.CatalogResponse{}
 
 	resp, err := b.doRequest("GET", "/v2/catalog", nil)
 	if err != nil {

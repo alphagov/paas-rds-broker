@@ -20,8 +20,6 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
-	"github.com/pivotal-cf/brokerapi"
-
 	rdsfake "github.com/alphagov/paas-rds-broker/awsrds/fakes"
 	sqlfake "github.com/alphagov/paas-rds-broker/sqlengine/fakes"
 )
@@ -324,16 +322,16 @@ var _ = Describe("RDS Broker", func() {
 
 	Describe("Update", func() {
 		var (
-			updateDetails           brokerapi.UpdateDetails
+			updateDetails           domain.UpdateDetails
 			acceptsIncomplete       bool
-			properUpdateServiceSpec brokerapi.UpdateServiceSpec
+			properUpdateServiceSpec domain.UpdateServiceSpec
 		)
 
 		BeforeEach(func() {
-			updateDetails = brokerapi.UpdateDetails{
+			updateDetails = domain.UpdateDetails{
 				ServiceID: "Service-2",
 				PlanID:    "Plan-2",
-				PreviousValues: brokerapi.PreviousValues{
+				PreviousValues: domain.PreviousValues{
 					PlanID:    "Plan-1",
 					ServiceID: "Service-1",
 					OrgID:     "organization-id",
@@ -342,7 +340,7 @@ var _ = Describe("RDS Broker", func() {
 				RawParameters: json.RawMessage(`{}`),
 			}
 			acceptsIncomplete = true
-			properUpdateServiceSpec = brokerapi.UpdateServiceSpec{
+			properUpdateServiceSpec = domain.UpdateServiceSpec{
 				IsAsync: true,
 			}
 
@@ -822,7 +820,7 @@ var _ = Describe("RDS Broker", func() {
 			It("returns the proper error", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 				Expect(err).To(HaveOccurred())
-				Expect(err).To(Equal(brokerapi.ErrAsyncRequired))
+				Expect(err).To(Equal(apiresponses.ErrAsyncRequired))
 			})
 		})
 
@@ -874,7 +872,7 @@ var _ = Describe("RDS Broker", func() {
 			It("returns the proper error", func() {
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 				Expect(err).To(HaveOccurred())
-				Expect(err).To(Equal(brokerapi.ErrPlanChangeNotSupported))
+				Expect(err).To(Equal(apiresponses.ErrPlanChangeNotSupported))
 			})
 		})
 
@@ -909,7 +907,7 @@ var _ = Describe("RDS Broker", func() {
 				It("returns the proper error", func() {
 					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 					Expect(err).To(HaveOccurred())
-					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+					Expect(err).To(Equal(apiresponses.ErrInstanceDoesNotExist))
 				})
 			})
 
@@ -997,10 +995,10 @@ var _ = Describe("RDS Broker", func() {
 				rdsProperties2.EngineVersion = stringPointer("4.5.6")
 				newParamGroupName = "mockedOutReturnValueOfSelectParameterGroupIndicatingUseOfEngineVersion4.5.6"
 
-				updateDetails = brokerapi.UpdateDetails{
+				updateDetails = domain.UpdateDetails{
 					ServiceID: "Service-1",
 					PlanID:    "Plan-2",
-					PreviousValues: brokerapi.PreviousValues{
+					PreviousValues: domain.PreviousValues{
 						PlanID:    "Plan-1",
 						ServiceID: "Service-1",
 						OrgID:     "organization-id",
@@ -1064,10 +1062,10 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when reboot is set to true", func() {
 			BeforeEach(func() {
-				updateDetails = brokerapi.UpdateDetails{
+				updateDetails = domain.UpdateDetails{
 					ServiceID: "Service-1",
 					PlanID:    "Plan-1",
-					PreviousValues: brokerapi.PreviousValues{
+					PreviousValues: domain.PreviousValues{
 						PlanID:    "Plan-1",
 						ServiceID: "Service-1",
 						OrgID:     "organization-id",
@@ -1116,10 +1114,10 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when extension is added", func() {
 			BeforeEach(func() {
-				updateDetails = brokerapi.UpdateDetails{
+				updateDetails = domain.UpdateDetails{
 					ServiceID: "Service-1",
 					PlanID:    "Plan-1",
-					PreviousValues: brokerapi.PreviousValues{
+					PreviousValues: domain.PreviousValues{
 						PlanID:    "Plan-1",
 						ServiceID: "Service-1",
 						OrgID:     "organization-id",
@@ -1200,10 +1198,10 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when an extension is removed", func() {
 			BeforeEach(func() {
-				updateDetails = brokerapi.UpdateDetails{
+				updateDetails = domain.UpdateDetails{
 					ServiceID: "Service-1",
 					PlanID:    "Plan-1",
-					PreviousValues: brokerapi.PreviousValues{
+					PreviousValues: domain.PreviousValues{
 						PlanID:    "Plan-1",
 						ServiceID: "Service-1",
 						OrgID:     "organization-id",

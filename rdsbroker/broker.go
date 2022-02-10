@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/lager"
-	"github.com/pivotal-cf/brokerapi"
+	"github.com/pivotal-cf/brokerapi/domain"
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/alphagov/paas-rds-broker/sqlengine"
@@ -51,31 +51,31 @@ var (
 	ErrCannotDowngrade         = errors.New("cannot downgrade major versions")
 )
 
-var rdsStatus2State = map[string]brokerapi.LastOperationState{
-	"available":                           brokerapi.Succeeded,
-	"storage-optimization":                brokerapi.Succeeded,
-	"backing-up":                          brokerapi.InProgress,
-	"creating":                            brokerapi.InProgress,
-	"deleting":                            brokerapi.InProgress,
-	"maintenance":                         brokerapi.InProgress,
-	"modifying":                           brokerapi.InProgress,
-	"rebooting":                           brokerapi.InProgress,
-	"renaming":                            brokerapi.InProgress,
-	"resetting-master-credentials":        brokerapi.InProgress,
-	"upgrading":                           brokerapi.InProgress,
-	"configuring-enhanced-monitoring":     brokerapi.InProgress,
-	"starting":                            brokerapi.InProgress,
-	"stopping":                            brokerapi.InProgress,
-	"stopped":                             brokerapi.InProgress,
-	"storage-full":                        brokerapi.InProgress,
-	"failed":                              brokerapi.Failed,
-	"incompatible-credentials":            brokerapi.Failed,
-	"incompatible-network":                brokerapi.Failed,
-	"incompatible-option-group":           brokerapi.Failed,
-	"incompatible-parameters":             brokerapi.Failed,
-	"incompatible-restore":                brokerapi.Failed,
-	"restore-error":                       brokerapi.Failed,
-	"inaccessible-encryption-credentials": brokerapi.Failed,
+var rdsStatus2State = map[string]domain.LastOperationState{
+	"available":                           domain.Succeeded,
+	"storage-optimization":                domain.Succeeded,
+	"backing-up":                          domain.InProgress,
+	"creating":                            domain.InProgress,
+	"deleting":                            domain.InProgress,
+	"maintenance":                         domain.InProgress,
+	"modifying":                           domain.InProgress,
+	"rebooting":                           domain.InProgress,
+	"renaming":                            domain.InProgress,
+	"resetting-master-credentials":        domain.InProgress,
+	"upgrading":                           domain.InProgress,
+	"configuring-enhanced-monitoring":     domain.InProgress,
+	"starting":                            domain.InProgress,
+	"stopping":                            domain.InProgress,
+	"stopped":                             domain.InProgress,
+	"storage-full":                        domain.InProgress,
+	"failed":                              domain.Failed,
+	"incompatible-credentials":            domain.Failed,
+	"incompatible-network":                domain.Failed,
+	"incompatible-option-group":           domain.Failed,
+	"incompatible-parameters":             domain.Failed,
+	"incompatible-restore":                domain.Failed,
+	"restore-error":                       domain.Failed,
+	"inaccessible-encryption-credentials": domain.Failed,
 }
 
 const StateUpdateSettings = "PendingUpdateSettings"
@@ -144,17 +144,17 @@ func New(
 	}
 }
 
-func (b *RDSBroker) Services(ctx context.Context) ([]brokerapi.Service, error) {
+func (b *RDSBroker) Services(ctx context.Context) ([]domain.Service, error) {
 	brokerCatalog, err := json.Marshal(b.catalog)
 	if err != nil {
 		b.logger.Error("marshal-error", err)
-		return []brokerapi.Service{}, err
+		return []domain.Service{}, err
 	}
 
 	apiCatalog := CatalogExternal{}
 	if err = json.Unmarshal(brokerCatalog, &apiCatalog); err != nil {
 		b.logger.Error("unmarshal-error", err)
-		return []brokerapi.Service{}, err
+		return []domain.Service{}, err
 	}
 
 	for i := range apiCatalog.Services {
@@ -167,9 +167,9 @@ func (b *RDSBroker) Services(ctx context.Context) ([]brokerapi.Service, error) {
 func (b *RDSBroker) Provision(
 	ctx context.Context,
 	instanceID string,
-	details brokerapi.ProvisionDetails,
+	details domain.ProvisionDetails,
 	asyncAllowed bool,
-) (brokerapi.ProvisionedServiceSpec, error) {
+) (domain.ProvisionedServiceSpec, error) {
 	b.logger.Debug("provision", lager.Data{
 		instanceIDLogKey:   instanceID,
 		detailsLogKey:      details,
@@ -177,7 +177,7 @@ func (b *RDSBroker) Provision(
 	})
 
 	if !asyncAllowed {
-		return brokerapi.ProvisionedServiceSpec{}, brokerapi.ErrAsyncRequired
+		return domain.ProvisionedServiceSpec{}, apiresponses.ErrAsyncRequired
 	}
 
 	provisionParameters := ProvisionParameters{}
@@ -185,32 +185,32 @@ func (b *RDSBroker) Provision(
 		decoder := json.NewDecoder(bytes.NewReader(details.RawParameters))
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&provisionParameters); err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, err
+			return domain.ProvisionedServiceSpec{}, err
 		}
 		if err := provisionParameters.Validate(); err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, err
+			return domain.ProvisionedServiceSpec{}, err
 		}
 	}
 
 	servicePlan, ok := b.catalog.FindServicePlan(details.PlanID)
 	if !ok {
-		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
+		return domain.ProvisionedServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
 	if aws.StringValue(servicePlan.RDSProperties.Engine) == "postgres" {
 		provisionParameters.Extensions = mergeExtensions(aws.StringValueSlice(servicePlan.RDSProperties.DefaultExtensions), provisionParameters.Extensions)
 		ok, unsupportedExtensions := extensionsAreSupported(servicePlan, provisionParameters.Extensions)
 		if !ok {
-			return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("%s is not supported", unsupportedExtensions)
+			return domain.ProvisionedServiceSpec{}, fmt.Errorf("%s is not supported", unsupportedExtensions)
 		}
 	}
 
 	if provisionParameters.RestoreFromLatestSnapshotOf != nil && provisionParameters.RestoreFromPointInTimeOf != nil {
-		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Cannot use both restore_from_latest_snapshot_of and restore_from_point_in_time_of at the same time")
+		return domain.ProvisionedServiceSpec{}, fmt.Errorf("Cannot use both restore_from_latest_snapshot_of and restore_from_point_in_time_of at the same time")
 	}
 
 	if provisionParameters.RestoreFromLatestSnapshotOf == nil && provisionParameters.RestoreFromLatestSnapshotBefore != nil {
-		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("Parameter restore_from_latest_snapshot_before should be used with restore_from_latest_snapshot_of")
+		return domain.ProvisionedServiceSpec{}, fmt.Errorf("Parameter restore_from_latest_snapshot_before should be used with restore_from_latest_snapshot_of")
 	}
 
 	if provisionParameters.RestoreFromLatestSnapshotOf != nil {
@@ -219,7 +219,7 @@ func (b *RDSBroker) Provision(
 			provisionParameters, servicePlan,
 		)
 		if err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, err
+			return domain.ProvisionedServiceSpec{}, err
 		}
 
 	} else if provisionParameters.RestoreFromPointInTimeOf != nil {
@@ -228,24 +228,24 @@ func (b *RDSBroker) Provision(
 			provisionParameters, servicePlan,
 		)
 		if err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, err
+			return domain.ProvisionedServiceSpec{}, err
 		}
 
 	} else {
 		createDBInstance, err := b.newCreateDBInstanceInput(instanceID, servicePlan, provisionParameters, details)
 		if err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, err
+			return domain.ProvisionedServiceSpec{}, err
 		}
 		if err := b.dbInstance.Create(createDBInstance); err != nil {
-			return brokerapi.ProvisionedServiceSpec{}, err
+			return domain.ProvisionedServiceSpec{}, err
 		}
 	}
 
-	return brokerapi.ProvisionedServiceSpec{IsAsync: true}, nil
+	return domain.ProvisionedServiceSpec{IsAsync: true}, nil
 }
 
 func (b *RDSBroker) checkPermissionsFromTags(
-	details brokerapi.ProvisionDetails,
+	details domain.ProvisionDetails,
 	tagsByName map[string]string,
 ) error {
 	if tagsByName[awsrds.TagSpaceID] != details.SpaceGUID || tagsByName[awsrds.TagOrganizationID] != details.OrganizationGUID {
@@ -261,7 +261,7 @@ func (b *RDSBroker) checkPermissionsFromTags(
 func (b *RDSBroker) restoreFromPointInTime(
 	ctx context.Context,
 	instanceID string,
-	details brokerapi.ProvisionDetails,
+	details domain.ProvisionDetails,
 	asyncAllowed bool,
 	provisionParameters ProvisionParameters,
 	servicePlan ServicePlan,
@@ -326,7 +326,7 @@ func (b *RDSBroker) restoreFromPointInTime(
 func (b *RDSBroker) restoreFromSnapshot(
 	ctx context.Context,
 	instanceID string,
-	details brokerapi.ProvisionDetails,
+	details domain.ProvisionDetails,
 	asyncAllowed bool,
 	provisionParameters ProvisionParameters,
 	servicePlan ServicePlan,
@@ -415,24 +415,24 @@ func (b *RDSBroker) restoreFromSnapshot(
 	return b.dbInstance.Restore(restoreDBInstanceInput)
 }
 
-func (b *RDSBroker) GetBinding(ctx context.Context, first, second string) (brokerapi.GetBindingSpec, error) {
-	return brokerapi.GetBindingSpec{}, fmt.Errorf("GetBinding method not implemented")
+func (b *RDSBroker) GetBinding(ctx context.Context, first, second string) (domain.GetBindingSpec, error) {
+	return domain.GetBindingSpec{}, fmt.Errorf("GetBinding method not implemented")
 }
 
-func (b *RDSBroker) GetInstance(ctx context.Context, first string) (brokerapi.GetInstanceDetailsSpec, error) {
-	return brokerapi.GetInstanceDetailsSpec{}, fmt.Errorf("GetInstance method not implemented")
+func (b *RDSBroker) GetInstance(ctx context.Context, first string) (domain.GetInstanceDetailsSpec, error) {
+	return domain.GetInstanceDetailsSpec{}, fmt.Errorf("GetInstance method not implemented")
 }
 
-func (b *RDSBroker) LastBindingOperation(ctx context.Context, first, second string, pollDetails brokerapi.PollDetails) (brokerapi.LastOperation, error) {
-	return brokerapi.LastOperation{}, fmt.Errorf("LastBindingOperation method not implemented")
+func (b *RDSBroker) LastBindingOperation(ctx context.Context, first, second string, pollDetails domain.PollDetails) (domain.LastOperation, error) {
+	return domain.LastOperation{}, fmt.Errorf("LastBindingOperation method not implemented")
 }
 
 func (b *RDSBroker) Update(
 	ctx context.Context,
 	instanceID string,
-	details brokerapi.UpdateDetails,
+	details domain.UpdateDetails,
 	asyncAllowed bool,
-) (brokerapi.UpdateServiceSpec, error) {
+) (domain.UpdateServiceSpec, error) {
 	b.logger.Debug("update", lager.Data{
 		instanceIDLogKey:   instanceID,
 		detailsLogKey:      details,
@@ -442,7 +442,7 @@ func (b *RDSBroker) Update(
 	b.logger.Info("update", lager.Data{instanceIDLogKey: instanceID, detailsLogKey: details})
 
 	if !asyncAllowed {
-		return brokerapi.UpdateServiceSpec{}, brokerapi.ErrAsyncRequired
+		return domain.UpdateServiceSpec{}, apiresponses.ErrAsyncRequired
 	}
 
 	updateParameters := UpdateParameters{}
@@ -450,58 +450,58 @@ func (b *RDSBroker) Update(
 		decoder := json.NewDecoder(bytes.NewReader(details.RawParameters))
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&updateParameters); err != nil {
-			return brokerapi.UpdateServiceSpec{}, err
+			return domain.UpdateServiceSpec{}, err
 		}
 		if err := updateParameters.Validate(); err != nil {
-			return brokerapi.UpdateServiceSpec{}, err
+			return domain.UpdateServiceSpec{}, err
 		}
 		b.logger.Debug("update-parsed-params", lager.Data{updateParametersLogKey: updateParameters})
 	}
 
 	service, ok := b.catalog.FindService(details.ServiceID)
 	if !ok {
-		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Service '%s' not found", details.ServiceID)
+		return domain.UpdateServiceSpec{}, fmt.Errorf("Service '%s' not found", details.ServiceID)
 	}
 
 	if details.PlanID != details.PreviousValues.PlanID {
 		if !service.PlanUpdatable {
-			return brokerapi.UpdateServiceSpec{}, brokerapi.ErrPlanChangeNotSupported
+			return domain.UpdateServiceSpec{}, apiresponses.ErrPlanChangeNotSupported
 		}
 		err := updateParameters.CheckForCompatibilityWithPlanChange()
 		if err != nil {
-			return brokerapi.UpdateServiceSpec{}, err
+			return domain.UpdateServiceSpec{}, err
 		}
 	}
 
 	servicePlan, ok := b.catalog.FindServicePlan(details.PlanID)
 	if !ok {
-		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
+		return domain.UpdateServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
 	previousServicePlan, ok := b.catalog.FindServicePlan(details.PreviousValues.PlanID)
 	if !ok {
-		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PreviousValues.PlanID)
+		return domain.UpdateServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PreviousValues.PlanID)
 	}
 
 	isPlanUpgrade, err := servicePlan.IsUpgradeFrom(previousServicePlan)
 	if err != nil {
 		b.logger.Error("is-service-plan-an-upgrade", err)
-		return brokerapi.UpdateServiceSpec{}, err
+		return domain.UpdateServiceSpec{}, err
 	}
 
 	oldVersion, err := previousServicePlan.EngineVersion()
 	if err != nil {
-		return brokerapi.UpdateServiceSpec{}, err
+		return domain.UpdateServiceSpec{}, err
 	}
 	newVersion, err := servicePlan.EngineVersion()
 	if err != nil {
-		return brokerapi.UpdateServiceSpec{}, err
+		return domain.UpdateServiceSpec{}, err
 	}
 
 	if newVersion.Major() < oldVersion.Major() {
 		err := ErrCannotDowngrade
 		b.logger.Error("downgrade-attempted", err)
-		return brokerapi.UpdateServiceSpec{},
+		return domain.UpdateServiceSpec{},
 			apiresponses.NewFailureResponse(
 				err,
 				http.StatusBadRequest,
@@ -514,7 +514,7 @@ func (b *RDSBroker) Update(
 		if majorVersionDifference > 1 {
 			err := ErrCannotSkipMajorVersion
 			b.logger.Error("invalid-upgrade-path", err)
-			return brokerapi.UpdateServiceSpec{},
+			return domain.UpdateServiceSpec{},
 				apiresponses.NewFailureResponse(
 					err,
 					http.StatusBadRequest,
@@ -524,17 +524,17 @@ func (b *RDSBroker) Update(
 	}
 
 	if !reflect.DeepEqual(servicePlan.RDSProperties.StorageEncrypted, previousServicePlan.RDSProperties.StorageEncrypted) {
-		return brokerapi.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
+		return domain.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
 	}
 
 	if !reflect.DeepEqual(servicePlan.RDSProperties.KmsKeyID, previousServicePlan.RDSProperties.KmsKeyID) {
-		return brokerapi.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
+		return domain.UpdateServiceSpec{}, ErrEncryptionNotUpdateable
 	}
 
 	existingInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 
 	if err != nil {
-		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("cannot find instance %s", b.dbInstanceIdentifier(instanceID))
+		return domain.UpdateServiceSpec{}, fmt.Errorf("cannot find instance %s", b.dbInstanceIdentifier(instanceID))
 	}
 
 	previousDbParamGroup := *existingInstance.DBParameterGroups[0].DBParameterGroupName
@@ -543,19 +543,19 @@ func (b *RDSBroker) Update(
 
 	ok, unsupportedExtension := extensionsAreSupported(servicePlan, mergeExtensions(updateParameters.EnableExtensions, updateParameters.DisableExtensions))
 	if !ok {
-		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("%s is not supported", unsupportedExtension)
+		return domain.UpdateServiceSpec{}, fmt.Errorf("%s is not supported", unsupportedExtension)
 	}
 
 	ok, defaultExtension := containsDefaultExtension(servicePlan, updateParameters.DisableExtensions)
 	if ok {
-		return brokerapi.UpdateServiceSpec{}, fmt.Errorf("%s cannot be disabled", defaultExtension)
+		return domain.UpdateServiceSpec{}, fmt.Errorf("%s cannot be disabled", defaultExtension)
 	}
 
 	extensions := mergeExtensions(aws.StringValueSlice(servicePlan.RDSProperties.DefaultExtensions), updateParameters.EnableExtensions)
 
 	tags, err := b.dbInstance.GetResourceTags(aws.StringValue(existingInstance.DBInstanceArn))
 	if err != nil {
-		return brokerapi.UpdateServiceSpec{}, err
+		return domain.UpdateServiceSpec{}, err
 	}
 	tagsByName := awsrds.RDSTagsValues(tags)
 
@@ -568,19 +568,19 @@ func (b *RDSBroker) Update(
 	extensions = removeExtensions(extensions, updateParameters.DisableExtensions)
 	err = b.ensureDropExtensions(instanceID, existingInstance, updateParameters.DisableExtensions)
 	if err != nil {
-		return brokerapi.UpdateServiceSpec{}, err
+		return domain.UpdateServiceSpec{}, err
 	}
 
 	deferReboot := false
 
 	newDbParamGroup, err = b.parameterGroupsSelector.SelectParameterGroup(servicePlan, extensions)
 	if err != nil {
-		return brokerapi.UpdateServiceSpec{}, err
+		return domain.UpdateServiceSpec{}, err
 	}
 
 	if (len(updateParameters.EnableExtensions) > 0 || len(updateParameters.DisableExtensions) > 0) && newDbParamGroup != previousDbParamGroup {
 		if updateParameters.Reboot == nil || !*updateParameters.Reboot {
-			return brokerapi.UpdateServiceSpec{}, errors.New("The requested extensions require the instance to be manually rebooted. Please re-run update service with reboot set to true")
+			return domain.UpdateServiceSpec{}, errors.New("The requested extensions require the instance to be manually rebooted. Please re-run update service with reboot set to true")
 		}
 		// When updating the parameter group, the instance will be in a modifying state
 		// for a couple of mins. So we have to defer the reboot to the last operation call.
@@ -592,13 +592,13 @@ func (b *RDSBroker) Update(
 	if updateParameters.UpgradeMinorVersionToLatest != nil && *updateParameters.UpgradeMinorVersionToLatest {
 		b.logger.Info("is-minor-version-upgrade")
 		if updateParameters.Reboot != nil && *updateParameters.Reboot {
-			return brokerapi.UpdateServiceSpec{}, fmt.Errorf(
+			return domain.UpdateServiceSpec{}, fmt.Errorf(
 				"Cannot reboot and upgrade minor version to latest at the same time",
 			)
 		}
 
 		if details.PlanID != details.PreviousValues.PlanID {
-			return brokerapi.UpdateServiceSpec{}, fmt.Errorf(
+			return domain.UpdateServiceSpec{}, fmt.Errorf(
 				"Cannot specify a version and upgrade minor version to latest at the same time",
 			)
 		}
@@ -610,7 +610,7 @@ func (b *RDSBroker) Update(
 		b.logger.Info("selected-minor-version", lager.Data{"version": availableEngineVersion})
 
 		if err != nil {
-			return brokerapi.UpdateServiceSpec{}, err
+			return domain.UpdateServiceSpec{}, err
 		}
 
 		if availableEngineVersion != nil {
@@ -630,7 +630,7 @@ func (b *RDSBroker) Update(
 
 		if err != nil {
 			b.logger.Error("find-exact-upgrade-version", err)
-			return brokerapi.UpdateServiceSpec{}, err
+			return domain.UpdateServiceSpec{}, err
 		}
 
 		b.logger.Info("selected-upgrade-version", lager.Data{"version": targetVersion})
@@ -642,10 +642,10 @@ func (b *RDSBroker) Update(
 		if awsRdsErr, ok := err.(awsrds.Error); ok {
 			switch code := awsRdsErr.Code(); code {
 			case awsrds.ErrCodeDBInstanceDoesNotExist:
-				return brokerapi.UpdateServiceSpec{},
-					brokerapi.ErrInstanceDoesNotExist
+				return domain.UpdateServiceSpec{},
+					apiresponses.ErrInstanceDoesNotExist
 			case awsrds.ErrCodeInvalidParameterCombination:
-				return brokerapi.UpdateServiceSpec{},
+				return domain.UpdateServiceSpec{},
 					apiresponses.NewFailureResponse(
 						err,
 						http.StatusUnprocessableEntity,
@@ -653,7 +653,7 @@ func (b *RDSBroker) Update(
 					)
 			}
 		}
-		return brokerapi.UpdateServiceSpec{}, err
+		return domain.UpdateServiceSpec{}, err
 	}
 
 	instanceTags := RDSInstanceTags{
@@ -679,20 +679,20 @@ func (b *RDSBroker) Update(
 
 		err := b.dbInstance.Reboot(rebootDBInstanceInput)
 		if err != nil {
-			return brokerapi.UpdateServiceSpec{}, err
+			return domain.UpdateServiceSpec{}, err
 		}
-		return brokerapi.UpdateServiceSpec{IsAsync: true}, nil
+		return domain.UpdateServiceSpec{IsAsync: true}, nil
 	}
 
-	return brokerapi.UpdateServiceSpec{IsAsync: true}, nil
+	return domain.UpdateServiceSpec{IsAsync: true}, nil
 }
 
 func (b *RDSBroker) Deprovision(
 	ctx context.Context,
 	instanceID string,
-	details brokerapi.DeprovisionDetails,
+	details domain.DeprovisionDetails,
 	asyncAllowed bool,
-) (brokerapi.DeprovisionServiceSpec, error) {
+) (domain.DeprovisionServiceSpec, error) {
 	b.logger.Debug("deprovision", lager.Data{
 		instanceIDLogKey:   instanceID,
 		detailsLogKey:      details,
@@ -700,51 +700,51 @@ func (b *RDSBroker) Deprovision(
 	})
 
 	if !asyncAllowed {
-		return brokerapi.DeprovisionServiceSpec{}, brokerapi.ErrAsyncRequired
+		return domain.DeprovisionServiceSpec{}, apiresponses.ErrAsyncRequired
 	}
 
 	servicePlan, ok := b.catalog.FindServicePlan(details.PlanID)
 	if !ok {
-		return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
+		return domain.DeprovisionServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
 	skipDBInstanceFinalSnapshot := servicePlan.RDSProperties.SkipFinalSnapshot == nil || *servicePlan.RDSProperties.SkipFinalSnapshot
 
 	skipFinalSnapshot, err := b.dbInstance.GetTag(b.dbInstanceIdentifier(instanceID), awsrds.TagSkipFinalSnapshot)
 	if err != nil {
-		return brokerapi.DeprovisionServiceSpec{}, err
+		return domain.DeprovisionServiceSpec{}, err
 	}
 
 	if skipFinalSnapshot != "" {
 		skipDBInstanceFinalSnapshot, err = strconv.ParseBool(skipFinalSnapshot)
 		if err != nil {
-			return brokerapi.DeprovisionServiceSpec{}, err
+			return domain.DeprovisionServiceSpec{}, err
 		}
 	}
 
 	if err := b.dbInstance.Delete(b.dbInstanceIdentifier(instanceID), skipDBInstanceFinalSnapshot); err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
-			return brokerapi.DeprovisionServiceSpec{}, brokerapi.ErrInstanceDoesNotExist
+			return domain.DeprovisionServiceSpec{}, apiresponses.ErrInstanceDoesNotExist
 		}
-		return brokerapi.DeprovisionServiceSpec{}, err
+		return domain.DeprovisionServiceSpec{}, err
 	}
 
-	return brokerapi.DeprovisionServiceSpec{IsAsync: true}, nil
+	return domain.DeprovisionServiceSpec{IsAsync: true}, nil
 }
 
 func (b *RDSBroker) Bind(
 	ctx context.Context,
 	instanceID, bindingID string,
-	details brokerapi.BindDetails,
+	details domain.BindDetails,
 	asyncAllowed bool,
-) (brokerapi.Binding, error) {
+) (domain.Binding, error) {
 	b.logger.Debug("bind", lager.Data{
 		instanceIDLogKey: instanceID,
 		bindingIDLogKey:  bindingID,
 		detailsLogKey:    details,
 	})
 
-	bindingResponse := brokerapi.Binding{}
+	bindingResponse := domain.Binding{}
 
 	bindParameters := BindParameters{}
 	if b.allowUserBindParameters && len(details.RawParameters) > 0 {
@@ -768,7 +768,7 @@ func (b *RDSBroker) Bind(
 	dbInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
-			return bindingResponse, brokerapi.ErrInstanceDoesNotExist
+			return bindingResponse, apiresponses.ErrInstanceDoesNotExist
 		}
 		return bindingResponse, err
 	}
@@ -817,9 +817,9 @@ func (b *RDSBroker) Bind(
 func (b *RDSBroker) Unbind(
 	ctx context.Context,
 	instanceID, bindingID string,
-	details brokerapi.UnbindDetails,
+	details domain.UnbindDetails,
 	asyncAllowed bool,
-) (brokerapi.UnbindSpec, error) {
+) (domain.UnbindSpec, error) {
 	b.logger.Debug("unbind", lager.Data{
 		instanceIDLogKey: instanceID,
 		bindingIDLogKey:  bindingID,
@@ -828,41 +828,41 @@ func (b *RDSBroker) Unbind(
 
 	_, ok := b.catalog.FindServicePlan(details.PlanID)
 	if !ok {
-		return brokerapi.UnbindSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
+		return domain.UnbindSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
 	dbInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
-			return brokerapi.UnbindSpec{}, brokerapi.ErrInstanceDoesNotExist
+			return domain.UnbindSpec{}, apiresponses.ErrInstanceDoesNotExist
 		}
-		return brokerapi.UnbindSpec{}, err
+		return domain.UnbindSpec{}, err
 	}
 
 	dbName := b.dbNameFromDBInstance(instanceID, dbInstance)
 	sqlEngine, err := b.openSQLEngineForDBInstance(instanceID, dbName, dbInstance)
 	if err != nil {
-		return brokerapi.UnbindSpec{}, err
+		return domain.UnbindSpec{}, err
 	}
 	defer sqlEngine.Close()
 
 	if err = sqlEngine.DropUser(bindingID); err != nil {
-		return brokerapi.UnbindSpec{}, err
+		return domain.UnbindSpec{}, err
 	}
 
-	return brokerapi.UnbindSpec{}, nil
+	return domain.UnbindSpec{}, nil
 }
 
 func (b *RDSBroker) LastOperation(
 	ctx context.Context,
 	instanceID string,
-	pollDetails brokerapi.PollDetails,
-) (brokerapi.LastOperation, error) {
+	pollDetails domain.PollDetails,
+) (domain.LastOperation, error) {
 	b.logger.Debug("last-operation", lager.Data{
 		instanceIDLogKey: instanceID,
 	})
 
-	var lastOperationResponse brokerapi.LastOperation
+	var lastOperationResponse domain.LastOperation
 
 	defer func() {
 		b.logger.Debug("last-operation.done", lager.Data{
@@ -874,9 +874,9 @@ func (b *RDSBroker) LastOperation(
 	dbInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
-			err = brokerapi.ErrInstanceDoesNotExist
+			err = apiresponses.ErrInstanceDoesNotExist
 		}
-		return brokerapi.LastOperation{State: brokerapi.Failed}, err
+		return domain.LastOperation{State: domain.Failed}, err
 	}
 
 	tags, err := b.dbInstance.GetResourceTags(
@@ -885,9 +885,9 @@ func (b *RDSBroker) LastOperation(
 	)
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
-			err = brokerapi.ErrInstanceDoesNotExist
+			err = apiresponses.ErrInstanceDoesNotExist
 		}
-		return brokerapi.LastOperation{State: brokerapi.Failed}, err
+		return domain.LastOperation{State: domain.Failed}, err
 	}
 
 	tagsByName := awsrds.RDSTagsValues(tags)
@@ -895,15 +895,15 @@ func (b *RDSBroker) LastOperation(
 	status := aws.StringValue(dbInstance.DBInstanceStatus)
 	state, ok := rdsStatus2State[status]
 	if !ok {
-		state = brokerapi.InProgress
+		state = domain.InProgress
 	}
 
-	lastOperationResponse = brokerapi.LastOperation{
+	lastOperationResponse = domain.LastOperation{
 		State:       state,
 		Description: fmt.Sprintf("DB Instance '%s' status is '%s'", b.dbInstanceIdentifier(instanceID), status),
 	}
 
-	if lastOperationResponse.State == brokerapi.Succeeded {
+	if lastOperationResponse.State == domain.Succeeded {
 		hasPendingModifications := false
 		if dbInstance.PendingModifiedValues != nil {
 			emptyPendingModifiedValues := rds.PendingModifiedValues{}
@@ -912,8 +912,8 @@ func (b *RDSBroker) LastOperation(
 			}
 		}
 		if hasPendingModifications {
-			lastOperationResponse = brokerapi.LastOperation{
-				State:       brokerapi.InProgress,
+			lastOperationResponse = domain.LastOperation{
+				State:       domain.InProgress,
 				Description: fmt.Sprintf("DB Instance '%s' has pending modifications", b.dbInstanceIdentifier(instanceID)),
 			}
 			return lastOperationResponse, nil
@@ -924,7 +924,7 @@ func (b *RDSBroker) LastOperation(
 			// this was presumably a plan change
 			awsTagsPlan, ok := b.catalog.FindServicePlan(awsTagsPlanID)
 			if !ok {
-				return brokerapi.LastOperation{State: brokerapi.Failed}, fmt.Errorf(
+				return domain.LastOperation{State: domain.Failed}, fmt.Errorf(
 					"Service Plan '%s' in aws tag '%s' not found",
 					awsTagsPlanID,
 					awsrds.TagPlanID,
@@ -935,7 +935,7 @@ func (b *RDSBroker) LastOperation(
 				awsTagsPlan,
 			)
 			if err != nil {
-				return brokerapi.LastOperation{State: brokerapi.Failed}, err
+				return domain.LastOperation{State: domain.Failed}, err
 			}
 
 			// if all has gone well, the current state of the instance should
@@ -948,14 +948,14 @@ func (b *RDSBroker) LastOperation(
 				})
 				currentPlan, ok := b.catalog.FindServicePlan(pollDetails.PlanID)
 				if !ok {
-					return brokerapi.LastOperation{State: brokerapi.Failed}, fmt.Errorf("Service Plan '%s' provided in request not found", pollDetails.PlanID)
+					return domain.LastOperation{State: domain.Failed}, fmt.Errorf("Service Plan '%s' provided in request not found", pollDetails.PlanID)
 				}
 				currentPlanDisagreements, err := b.compareDBDescriptionWithPlan(
 					dbInstance,
 					currentPlan,
 				)
 				if err != nil {
-					return brokerapi.LastOperation{State: brokerapi.Failed}, err
+					return domain.LastOperation{State: domain.Failed}, err
 				}
 
 				if len(currentPlanDisagreements) == 0 {
@@ -972,8 +972,8 @@ func (b *RDSBroker) LastOperation(
 						aws.StringValue(dbInstance.DBInstanceArn),
 						awsrds.BuildRDSTags(tagsByName),
 					)
-					lastOperationResponse = brokerapi.LastOperation{
-						State:       brokerapi.Failed,
+					lastOperationResponse = domain.LastOperation{
+						State:       domain.Failed,
 						Description: "Plan upgrade failed. Refer to database logs for more information.",
 					}
 					return lastOperationResponse, nil
@@ -986,8 +986,8 @@ func (b *RDSBroker) LastOperation(
 					servicePlanLogKey: pollDetails.PlanID,
 					"disagreements":   currentPlanDisagreements,
 				})
-				lastOperationResponse = brokerapi.LastOperation{
-					State:       brokerapi.Failed,
+				lastOperationResponse = domain.LastOperation{
+					State:       domain.Failed,
 					Description: "Operation failed and will need manual intervention to resolve. Please contact support.",
 				}
 				return lastOperationResponse, nil
@@ -996,11 +996,11 @@ func (b *RDSBroker) LastOperation(
 
 		asyncOperationTriggered, err := b.PostRestoreTasks(instanceID, dbInstance, tagsByName)
 		if err != nil {
-			return brokerapi.LastOperation{State: brokerapi.Failed}, err
+			return domain.LastOperation{State: domain.Failed}, err
 		}
 		if asyncOperationTriggered {
-			lastOperationResponse = brokerapi.LastOperation{
-				State:       brokerapi.InProgress,
+			lastOperationResponse = domain.LastOperation{
+				State:       domain.InProgress,
 				Description: fmt.Sprintf("DB Instance '%s' has pending post restore modifications", b.dbInstanceIdentifier(instanceID)),
 			}
 			return lastOperationResponse, nil
@@ -1008,11 +1008,11 @@ func (b *RDSBroker) LastOperation(
 
 		asyncOperationTriggered, err = b.RebootIfRequired(instanceID, dbInstance)
 		if err != nil {
-			return brokerapi.LastOperation{State: brokerapi.Failed}, err
+			return domain.LastOperation{State: domain.Failed}, err
 		}
 		if asyncOperationTriggered {
-			lastOperationResponse = brokerapi.LastOperation{
-				State:       brokerapi.InProgress,
+			lastOperationResponse = domain.LastOperation{
+				State:       domain.InProgress,
 				Description: fmt.Sprintf("DB Instance '%s' is rebooting", b.dbInstanceIdentifier(instanceID)),
 			}
 			return lastOperationResponse, nil
@@ -1020,7 +1020,7 @@ func (b *RDSBroker) LastOperation(
 
 		err = b.ensureCreateExtensions(instanceID, dbInstance, tagsByName)
 		if err != nil {
-			return brokerapi.LastOperation{State: brokerapi.Failed}, err
+			return domain.LastOperation{State: domain.Failed}, err
 		}
 	}
 
@@ -1147,7 +1147,7 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
-			return false, brokerapi.ErrInstanceDoesNotExist
+			return false, apiresponses.ErrInstanceDoesNotExist
 		}
 		return false, err
 	}
@@ -1345,7 +1345,7 @@ func (b *RDSBroker) dbNameFromDBInstance(instanceID string, dbInstance *rds.DBIn
 	return dbName
 }
 
-func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.CreateDBInstanceInput, error) {
+func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details domain.ProvisionDetails) (*rds.CreateDBInstanceInput, error) {
 	skipFinalSnapshot := false
 	if provisionParameters.SkipFinalSnapshot != nil {
 		skipFinalSnapshot = *provisionParameters.SkipFinalSnapshot
@@ -1409,7 +1409,7 @@ func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan Serv
 	return createDBInstanceInput, nil
 }
 
-func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.RestoreDBInstanceFromDBSnapshotInput, error) {
+func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details domain.ProvisionDetails) (*rds.RestoreDBInstanceFromDBSnapshotInput, error) {
 	skipFinalSnapshot := false
 	if provisionParameters.SkipFinalSnapshot != nil {
 		skipFinalSnapshot = *provisionParameters.SkipFinalSnapshot
@@ -1457,7 +1457,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 	}, nil
 }
 
-func (b *RDSBroker) restoreDBInstancePointInTimeInput(instanceID, originDBIdentifier string, originTime *time.Time, servicePlan ServicePlan, provisionParameters ProvisionParameters, details brokerapi.ProvisionDetails) (*rds.RestoreDBInstanceToPointInTimeInput, error) {
+func (b *RDSBroker) restoreDBInstancePointInTimeInput(instanceID, originDBIdentifier string, originTime *time.Time, servicePlan ServicePlan, provisionParameters ProvisionParameters, details domain.ProvisionDetails) (*rds.RestoreDBInstanceToPointInTimeInput, error) {
 	skipFinalSnapshot := false
 	if provisionParameters.SkipFinalSnapshot != nil {
 		skipFinalSnapshot = *provisionParameters.SkipFinalSnapshot
