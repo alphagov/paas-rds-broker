@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Masterminds/semver"
 	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 	"net/http"
 	"reflect"
-	"github.com/Masterminds/semver"
 	"strconv"
 	"strings"
 	"time"
@@ -367,8 +367,8 @@ func (b *RDSBroker) restoreFromSnapshot(
 		}
 
 		b.logger.Info("pruned-snapshots", lager.Data{
-			instanceIDLogKey:     instanceID,
-			detailsLogKey:        details,
+			instanceIDLogKey:       instanceID,
+			detailsLogKey:          details,
 			"allSnapshotsCount":    len(snapshots),
 			"prunedSnapshotsCount": len(prunedSnapshots),
 		})
@@ -383,8 +383,8 @@ func (b *RDSBroker) restoreFromSnapshot(
 	snapshot := snapshots[0]
 
 	b.logger.Info("chose-snapshot", lager.Data{
-		instanceIDLogKey:   instanceID,
-		detailsLogKey:      details,
+		instanceIDLogKey:     instanceID,
+		detailsLogKey:        details,
 		"snapshotIdentifier": snapshot.DBSnapshotIdentifier,
 	})
 
@@ -641,16 +641,16 @@ func (b *RDSBroker) Update(
 	if err != nil {
 		if awsRdsErr, ok := err.(awsrds.Error); ok {
 			switch code := awsRdsErr.Code(); code {
-				case awsrds.ErrCodeDBInstanceDoesNotExist:
-					return brokerapi.UpdateServiceSpec{},
-						brokerapi.ErrInstanceDoesNotExist
-				case awsrds.ErrCodeInvalidParameterCombination:
-					return brokerapi.UpdateServiceSpec{},
-						apiresponses.NewFailureResponse(
-							err,
-							http.StatusUnprocessableEntity,
-							"upgrade",
-						)
+			case awsrds.ErrCodeDBInstanceDoesNotExist:
+				return brokerapi.UpdateServiceSpec{},
+					brokerapi.ErrInstanceDoesNotExist
+			case awsrds.ErrCodeInvalidParameterCombination:
+				return brokerapi.UpdateServiceSpec{},
+					apiresponses.NewFailureResponse(
+						err,
+						http.StatusUnprocessableEntity,
+						"upgrade",
+					)
 			}
 		}
 		return brokerapi.UpdateServiceSpec{}, err
@@ -943,8 +943,8 @@ func (b *RDSBroker) LastOperation(
 			if len(awsTagsPlanDisagreements) != 0 {
 				b.logger.Info("aws-tags-plan-properties-mismatch", lager.Data{
 					instanceIDLogKey: instanceID,
-					"awsTagsPlanID": awsTagsPlanID,
-					"disagreements": awsTagsPlanDisagreements,
+					"awsTagsPlanID":  awsTagsPlanID,
+					"disagreements":  awsTagsPlanDisagreements,
 				})
 				currentPlan, ok := b.catalog.FindServicePlan(pollDetails.PlanID)
 				if !ok {
@@ -962,9 +962,9 @@ func (b *RDSBroker) LastOperation(
 					// we can tell the cloud controller the operation has failed
 					// and simply roll back the plan id in the aws tags
 					b.logger.Info("rolling-back-failed-plan-change", lager.Data{
-						instanceIDLogKey: instanceID,
-						servicePlanLogKey: pollDetails.PlanID,
-						"awsTagsPlanID": awsTagsPlanID,
+						instanceIDLogKey:   instanceID,
+						servicePlanLogKey:  pollDetails.PlanID,
+						"awsTagsPlanID":    awsTagsPlanID,
 						"rdsEngineVersion": *dbInstance.EngineVersion,
 					})
 					tagsByName[awsrds.TagPlanID] = pollDetails.PlanID
@@ -973,7 +973,7 @@ func (b *RDSBroker) LastOperation(
 						awsrds.BuildRDSTags(tagsByName),
 					)
 					lastOperationResponse = brokerapi.LastOperation{
-						State: brokerapi.Failed,
+						State:       brokerapi.Failed,
 						Description: "Plan upgrade failed. Refer to database logs for more information.",
 					}
 					return lastOperationResponse, nil
@@ -982,12 +982,12 @@ func (b *RDSBroker) LastOperation(
 				// the current state of the instance matches neither plan, so
 				// we can't safely leave it or roll it back
 				b.logger.Info("current-plan-properties-mismatch", lager.Data{
-					instanceIDLogKey: instanceID,
+					instanceIDLogKey:  instanceID,
 					servicePlanLogKey: pollDetails.PlanID,
-					"disagreements": currentPlanDisagreements,
+					"disagreements":   currentPlanDisagreements,
 				})
 				lastOperationResponse = brokerapi.LastOperation{
-					State: brokerapi.Failed,
+					State:       brokerapi.Failed,
 					Description: "Operation failed and will need manual intervention to resolve. Please contact support.",
 				}
 				return lastOperationResponse, nil

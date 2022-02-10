@@ -2208,17 +2208,17 @@ var _ = Describe("RDS Broker", func() {
 			}
 
 			defaultDBInstanceTagsByName = map[string]string{
-				"Owner": "Cloud Foundry",
+				"Owner":       "Cloud Foundry",
 				"Broker Name": "mybroker",
-				"Created by": "AWS RDS Service Broker",
-				"Service ID": "Service-3",
-				"Plan ID": "Plan-3",
-				"Extensions": "postgis:pg-stat-statements",
+				"Created by":  "AWS RDS Service Broker",
+				"Service ID":  "Service-3",
+				"Plan ID":     "Plan-3",
+				"Extensions":  "postgis:pg-stat-statements",
 			}
 
 			pollDetails = brokerapi.PollDetails{
-				ServiceID: "Service-3",
-				PlanID: "Plan-3",
+				ServiceID:     "Service-3",
+				PlanID:        "Plan-3",
 				OperationData: "123blah",
 			}
 		)
@@ -2407,7 +2407,7 @@ var _ = Describe("RDS Broker", func() {
 				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationResponse).To(Equal(brokerapi.LastOperation{
-					State: brokerapi.Failed,
+					State:       brokerapi.Failed,
 					Description: "Plan upgrade failed. Refer to database logs for more information.",
 				}))
 			})
@@ -2444,7 +2444,7 @@ var _ = Describe("RDS Broker", func() {
 				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(lastOperationResponse).To(Equal(brokerapi.LastOperation{
-					State: brokerapi.Failed,
+					State:       brokerapi.Failed,
 					Description: "Operation failed and will need manual intervention to resolve. Please contact support.",
 				}))
 			})

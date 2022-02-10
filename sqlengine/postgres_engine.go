@@ -20,7 +20,7 @@ const (
 	pqErrInternalError    = "XX000"
 	pqErrInvalidPassword  = "28P01"
 
-	bindingIDLogKey = "binding-id"
+	bindingIDLogKey  = "binding-id"
 	extensionsLogKey = "extensions"
 )
 
@@ -98,7 +98,7 @@ func (d *PostgresEngine) execCreateUser(logger lager.Logger, tx *sql.Tx, binding
 	if readOnly {
 		grantPrivilegesStatement := fmt.Sprintf(
 			`grant %s to %s`,
-			pq.QuoteIdentifier(dbname + "_reader"),
+			pq.QuoteIdentifier(dbname+"_reader"),
 			pq.QuoteIdentifier(username),
 		)
 		logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
@@ -111,7 +111,7 @@ func (d *PostgresEngine) execCreateUser(logger lager.Logger, tx *sql.Tx, binding
 		grantConnectOnDatabaseStatement := fmt.Sprintf(
 			`grant connect on database %s to %s`,
 			pq.QuoteIdentifier(dbname),
-			pq.QuoteIdentifier(dbname + "_reader"),
+			pq.QuoteIdentifier(dbname+"_reader"),
 		)
 		logger.Debug("grant-connect", lager.Data{"statement": grantConnectOnDatabaseStatement})
 
@@ -130,7 +130,7 @@ func (d *PostgresEngine) execCreateUser(logger lager.Logger, tx *sql.Tx, binding
 	} else {
 		grantPrivilegesStatement := fmt.Sprintf(
 			`grant %s to %s`,
-			pq.QuoteIdentifier(dbname + "_manager"),
+			pq.QuoteIdentifier(dbname+"_manager"),
 			pq.QuoteIdentifier(username),
 		)
 		logger.Debug("grant-privileges", lager.Data{"statement": grantPrivilegesStatement})
@@ -143,7 +143,7 @@ func (d *PostgresEngine) execCreateUser(logger lager.Logger, tx *sql.Tx, binding
 		grantAllOnDatabaseStatement := fmt.Sprintf(
 			`grant all privileges on database %s to %s`,
 			pq.QuoteIdentifier(dbname),
-			pq.QuoteIdentifier(dbname + "_manager"),
+			pq.QuoteIdentifier(dbname+"_manager"),
 		)
 		logger.Debug("grant-privileges", lager.Data{"statement": grantAllOnDatabaseStatement})
 
@@ -393,10 +393,10 @@ var ensureGroupBodyTemplate = template.Must(template.New("ensureGroupBody").Pars
 func (d *PostgresEngine) ensureGroup(logger lager.Logger, tx *sql.Tx, dbname string) error {
 	var ensureGroupBody bytes.Buffer
 	if err := ensureGroupBodyTemplate.Execute(&ensureGroupBody, map[string]string{
-		"managerRoleStr": pq.QuoteLiteral(dbname + "_manager"),
+		"managerRoleStr":  pq.QuoteLiteral(dbname + "_manager"),
 		"managerRoleIden": pq.QuoteIdentifier(dbname + "_manager"),
-		"readerRoleStr": pq.QuoteLiteral(dbname + "_reader"),
-		"readerRoleIden": pq.QuoteIdentifier(dbname + "_reader"),
+		"readerRoleStr":   pq.QuoteLiteral(dbname + "_reader"),
+		"readerRoleIden":  pq.QuoteIdentifier(dbname + "_reader"),
 	}); err != nil {
 		return err
 	}
@@ -524,7 +524,7 @@ func (d *PostgresEngine) ensurePermissionsTriggers(logger lager.Logger, tx *sql.
 	var reassignOwnedBody bytes.Buffer
 	if err := reassignOwnedBodyTemplate.Execute(&reassignOwnedBody, map[string]string{
 		"managerRoleStr": pq.QuoteLiteral(dbname + "_manager"),
-		"readerRoleStr": pq.QuoteLiteral(dbname + "_reader"),
+		"readerRoleStr":  pq.QuoteLiteral(dbname + "_reader"),
 	}); err != nil {
 		return err
 	}
@@ -532,7 +532,7 @@ func (d *PostgresEngine) ensurePermissionsTriggers(logger lager.Logger, tx *sql.
 	var makeReadableGenericBody bytes.Buffer
 	if err := makeReadableGenericBodyTemplate.Execute(&makeReadableGenericBody, map[string]string{
 		"managerRoleStr": pq.QuoteLiteral(dbname + "_manager"),
-		"readerRoleStr": pq.QuoteLiteral(dbname + "_reader"),
+		"readerRoleStr":  pq.QuoteLiteral(dbname + "_reader"),
 	}); err != nil {
 		return err
 	}
@@ -540,16 +540,16 @@ func (d *PostgresEngine) ensurePermissionsTriggers(logger lager.Logger, tx *sql.
 	var forbidDDLReaderBody bytes.Buffer
 	if err := forbidDDLReaderBodyTemplate.Execute(&forbidDDLReaderBody, map[string]string{
 		"managerRoleStr": pq.QuoteLiteral(dbname + "_manager"),
-		"readerRoleStr": pq.QuoteLiteral(dbname + "_reader"),
+		"readerRoleStr":  pq.QuoteLiteral(dbname + "_reader"),
 	}); err != nil {
 		return err
 	}
 
 	var ensurePermissionsTriggersStatement bytes.Buffer
 	if err := ensurePermissionsTriggersTemplate.Execute(&ensurePermissionsTriggersStatement, map[string]string{
-		"reassignOwnedBodyStr": pq.QuoteLiteral(reassignOwnedBody.String()),
+		"reassignOwnedBodyStr":       pq.QuoteLiteral(reassignOwnedBody.String()),
 		"makeReadableGenericBodyStr": pq.QuoteLiteral(makeReadableGenericBody.String()),
-		"forbidDDLReaderBodyStr": pq.QuoteLiteral(forbidDDLReaderBody.String()),
+		"forbidDDLReaderBodyStr":     pq.QuoteLiteral(forbidDDLReaderBody.String()),
 	}); err != nil {
 		return err
 	}
@@ -594,8 +594,8 @@ func (d *PostgresEngine) ensureUser(logger lager.Logger, tx *sql.Tx, dbname stri
 	var ensureCreateUserBody bytes.Buffer
 	if err := ensureCreateUserBodyTemplate.Execute(&ensureCreateUserBody, map[string]string{
 		"passwordStr": pq.QuoteLiteral(password),
-		"userStr": pq.QuoteLiteral(username),
-		"userIden": pq.QuoteIdentifier(username),
+		"userStr":     pq.QuoteLiteral(username),
+		"userIden":    pq.QuoteIdentifier(username),
 	}); err != nil {
 		return err
 	}
@@ -609,8 +609,8 @@ func (d *PostgresEngine) ensureUser(logger lager.Logger, tx *sql.Tx, dbname stri
 	var ensureCreateUserBodySanitized bytes.Buffer
 	if err := ensureCreateUserBodyTemplate.Execute(&ensureCreateUserBodySanitized, map[string]string{
 		"passwordStr": "REDACTED",
-		"userStr": pq.QuoteLiteral(username),
-		"userIden": pq.QuoteIdentifier(username),
+		"userStr":     pq.QuoteLiteral(username),
+		"userIden":    pq.QuoteIdentifier(username),
 	}); err != nil {
 		return err
 	}

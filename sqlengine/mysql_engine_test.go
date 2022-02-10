@@ -38,9 +38,9 @@ var _ = Describe("MySQLEngine", func() {
 		mysqlEngine *MySQLEngine
 		logger      lager.Logger
 
-		address  string
-		port     int64
-		dbname   string
+		address        string
+		port           int64
+		dbname         string
 		masterUsername string
 		masterPassword string
 
