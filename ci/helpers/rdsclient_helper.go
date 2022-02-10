@@ -17,7 +17,7 @@ type RDSClient struct {
 }
 
 func NewRDSClient(region string, dbPrefix string) (*RDSClient, error) {
-	sess := session.New(&aws.Config{Region: aws.String(region)})
+	sess, _ := session.NewSession(&aws.Config{Region: aws.String(region)})
 	rdssvc := rds.New(sess)
 	return &RDSClient{
 		region:   region,

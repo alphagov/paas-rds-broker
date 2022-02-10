@@ -77,7 +77,7 @@ func buildHTTPHandler(serviceBroker *rdsbroker.RDSBroker, logger lager.Logger, c
 
 func buildDBInstance(region string, logger lager.Logger) awsrds.RDSInstance {
 	awsConfig := aws.NewConfig().WithRegion(region).WithMaxRetries(3)
-	awsSession := session.New(awsConfig)
+	awsSession, _ := session.NewSession(awsConfig)
 	rdssvc := rds.New(awsSession)
 	return awsrds.NewRDSDBInstance(region, "aws", rdssvc, logger)
 }
