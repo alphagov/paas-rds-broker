@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 )
 
-func BuilRDSTags(tags map[string]string) []*rds.Tag {
+func BuildRDSTags(tags map[string]string) []*rds.Tag {
 	var rdsTags []*rds.Tag
 
 	for key, value := range tags {
@@ -70,7 +70,13 @@ func HandleAWSError(err error, logger lager.Logger) error {
 		if awsErr.Code() == rds.ErrCodeDBInstanceNotFoundFault {
 			return ErrDBInstanceDoesNotExist
 		}
-		return errors.New(awsErr.Code() + ": " + awsErr.Message())
+		if awsErr.Code() == "InvalidParameterCombination" {
+			return NewError(
+				errors.New(awsErr.Code() + ": " + awsErr.Message()),
+				ErrCodeInvalidParameterCombination,
+			)
+		}
+		return NewError(errors.New(awsErr.Code() + ": " + awsErr.Message()), "")
 	}
 	return err
 }

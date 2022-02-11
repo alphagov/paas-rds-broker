@@ -1129,7 +1129,7 @@ var _ = Describe("RDS DB Instance", func() {
 					input := r.Params.(*rds.ListTagsForResourceInput)
 					Expect(aws.StringValue(input.ResourceName)).To(Equal(listTagsARNs[listTagsCnt]))
 					data := r.Data.(*rds.ListTagsForResourceOutput)
-					data.TagList = BuilRDSTags(listTags[listTagsCnt])
+					data.TagList = BuildRDSTags(listTags[listTagsCnt])
 					if len(listTagsForResourceError) > listTagsCnt {
 						r.Error = listTagsForResourceError[listTagsCnt]
 					}

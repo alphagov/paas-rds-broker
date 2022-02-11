@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"github.com/pivotal-cf/brokerapi/domain"
+	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/alphagov/paas-rds-broker/rdsbroker/fakes"
@@ -910,6 +912,30 @@ var _ = Describe("RDS Broker", func() {
 					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
 				})
 			})
+
+			Context("when RDS refuses the plan change", func() {
+				BeforeEach(func() {
+					rdsInstance.ModifyReturns(
+						nil,
+						awsrds.NewError(
+							errors.New("InvalidParameterCombination: Cannot upgrade foo from X to Y"),
+							awsrds.ErrCodeInvalidParameterCombination,
+						),
+					)
+				})
+
+				It("returns the proper error", func() {
+					_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(MatchError("InvalidParameterCombination: Cannot upgrade foo from X to Y"))
+
+					errFR, ok := err.(*apiresponses.FailureResponse)
+					Expect(ok).To(BeTrue())
+					Expect(errFR.ValidatedStatusCode(logger)).To(
+						Equal(http.StatusUnprocessableEntity),
+					)
+				})
+			})
 		})
 
 		Context("when getting resource tags errors", func() {
@@ -1105,7 +1131,7 @@ var _ = Describe("RDS Broker", func() {
 				dbTags := map[string]string{
 					awsrds.TagExtensions: "postgis:pg_stat_statements",
 				}
-				rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbTags), nil)
+				rdsInstance.GetResourceTagsReturns(awsrds.BuildRDSTags(dbTags), nil)
 			})
 
 			It("successfully sets an extension", func() {
@@ -1189,7 +1215,7 @@ var _ = Describe("RDS Broker", func() {
 				dbTags := map[string]string{
 					awsrds.TagExtensions: "postgis:pg_stat_statements:postgres_super_extension",
 				}
-				rdsInstance.GetResourceTagsReturns(awsrds.BuilRDSTags(dbTags), nil)
+				rdsInstance.GetResourceTagsReturns(awsrds.BuildRDSTags(dbTags), nil)
 				newParamGroupName = "updatedParamGroupName"
 			})
 
