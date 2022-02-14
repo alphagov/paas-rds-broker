@@ -50,7 +50,7 @@ var _ = Describe("RDS DB Instance", func() {
 	})
 
 	JustBeforeEach(func() {
-		awsSession = session.New(nil)
+		awsSession, _ = session.NewSession(nil)
 
 		rdssvc = rds.New(awsSession)
 

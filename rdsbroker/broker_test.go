@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/pivotal-cf/brokerapi/domain"
+	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -291,57 +293,57 @@ var _ = Describe("RDS Broker", func() {
 
 	Describe("Services", func() {
 		var (
-			properCatalogResponse []brokerapi.Service
+			properCatalogResponse []domain.Service
 		)
 
 		BeforeEach(func() {
-			properCatalogResponse = []brokerapi.Service{
-				brokerapi.Service{
+			properCatalogResponse = []domain.Service{
+				domain.Service{
 					ID:            "Service-1",
 					Name:          "Service 1",
 					Description:   "This is the Service 1",
 					Bindable:      serviceBindable,
 					PlanUpdatable: planUpdateable,
-					Plans: []brokerapi.ServicePlan{
-						brokerapi.ServicePlan{
+					Plans: []domain.ServicePlan{
+						domain.ServicePlan{
 							ID:          "Plan-1",
 							Name:        "Plan 1",
 							Description: "This is the Plan 1",
 						},
 					},
 				},
-				brokerapi.Service{
+				domain.Service{
 					ID:            "Service-2",
 					Name:          "Service 2",
 					Description:   "This is the Service 2",
 					Bindable:      serviceBindable,
 					PlanUpdatable: planUpdateable,
-					Plans: []brokerapi.ServicePlan{
-						brokerapi.ServicePlan{
+					Plans: []domain.ServicePlan{
+						domain.ServicePlan{
 							ID:          "Plan-2",
 							Name:        "Plan 2",
 							Description: "This is the Plan 2",
 						},
 					},
 				},
-				brokerapi.Service{
+				domain.Service{
 					ID:            "Service-3",
 					Name:          "Service 3",
 					Description:   "This is the Service 3",
 					Bindable:      serviceBindable,
 					PlanUpdatable: planUpdateable,
-					Plans: []brokerapi.ServicePlan{
-						brokerapi.ServicePlan{
+					Plans: []domain.ServicePlan{
+						domain.ServicePlan{
 							ID:          "Plan-3",
 							Name:        "Plan 3",
 							Description: "This is the Plan 3",
 						},
-						brokerapi.ServicePlan{
+						domain.ServicePlan{
 							ID:          "Plan-4",
 							Name:        "Plan 4",
 							Description: "This is the Plan 4",
 						},
-						brokerapi.ServicePlan{
+						domain.ServicePlan{
 							ID:          "Plan-5",
 							Name:        "Plan 5",
 							Description: "This is the Plan 5",
@@ -369,7 +371,7 @@ var _ = Describe("RDS Broker", func() {
 			rdsBrokerServer.ServeHTTP(recorder, req)
 			Expect(recorder.Code).To(Equal(200))
 
-			catalog := brokerapi.CatalogResponse{}
+			catalog := apiresponses.CatalogResponse{}
 			err = json.Unmarshal(recorder.Body.Bytes(), &catalog)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -403,14 +405,14 @@ var _ = Describe("RDS Broker", func() {
 
 	Describe("Provision", func() {
 		var (
-			provisionDetails  brokerapi.ProvisionDetails
+			provisionDetails  domain.ProvisionDetails
 			acceptsIncomplete bool
 
-			properProvisionedServiceSpec brokerapi.ProvisionedServiceSpec
+			properProvisionedServiceSpec domain.ProvisionedServiceSpec
 		)
 
 		BeforeEach(func() {
-			provisionDetails = brokerapi.ProvisionDetails{
+			provisionDetails = domain.ProvisionDetails{
 				OrganizationGUID: "organization-id",
 				PlanID:           "Plan-1",
 				ServiceID:        "Service-1",
@@ -419,7 +421,7 @@ var _ = Describe("RDS Broker", func() {
 			}
 			acceptsIncomplete = true
 
-			properProvisionedServiceSpec = brokerapi.ProvisionedServiceSpec{
+			properProvisionedServiceSpec = domain.ProvisionedServiceSpec{
 				IsAsync: true,
 			}
 		})
@@ -1524,7 +1526,7 @@ var _ = Describe("RDS Broker", func() {
 				It("returns the proper error", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 					Expect(err).To(HaveOccurred())
-					Expect(err).To(Equal(brokerapi.ErrAsyncRequired))
+					Expect(err).To(Equal(apiresponses.ErrAsyncRequired))
 				})
 			})
 
@@ -1652,18 +1654,18 @@ var _ = Describe("RDS Broker", func() {
 
 	Describe("Deprovision", func() {
 		var (
-			deprovisionDetails           brokerapi.DeprovisionDetails
+			deprovisionDetails           domain.DeprovisionDetails
 			acceptsIncomplete            bool
-			properDeprovisionServiceSpec brokerapi.DeprovisionServiceSpec
+			properDeprovisionServiceSpec domain.DeprovisionServiceSpec
 		)
 
 		BeforeEach(func() {
-			deprovisionDetails = brokerapi.DeprovisionDetails{
+			deprovisionDetails = domain.DeprovisionDetails{
 				ServiceID: "Service-1",
 				PlanID:    "Plan-1",
 			}
 			acceptsIncomplete = true
-			properDeprovisionServiceSpec = brokerapi.DeprovisionServiceSpec{
+			properDeprovisionServiceSpec = domain.DeprovisionServiceSpec{
 				IsAsync: true,
 			}
 		})
@@ -1706,7 +1708,7 @@ var _ = Describe("RDS Broker", func() {
 			It("returns the proper error", func() {
 				_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
 				Expect(err).To(HaveOccurred())
-				Expect(err).To(Equal(brokerapi.ErrAsyncRequired))
+				Expect(err).To(Equal(apiresponses.ErrAsyncRequired))
 			})
 		})
 
@@ -1741,7 +1743,7 @@ var _ = Describe("RDS Broker", func() {
 				It("returns the proper error", func() {
 					_, err := rdsBroker.Deprovision(ctx, instanceID, deprovisionDetails, acceptsIncomplete)
 					Expect(err).To(HaveOccurred())
-					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+					Expect(err).To(Equal(apiresponses.ErrInstanceDoesNotExist))
 				})
 			})
 		})
@@ -1749,11 +1751,11 @@ var _ = Describe("RDS Broker", func() {
 
 	Describe("Bind", func() {
 		var (
-			bindDetails brokerapi.BindDetails
+			bindDetails domain.BindDetails
 		)
 
 		BeforeEach(func() {
-			bindDetails = brokerapi.BindDetails{
+			bindDetails = domain.BindDetails{
 				ServiceID:     "Service-1",
 				PlanID:        "Plan-1",
 				AppGUID:       "Application-1",
@@ -2010,7 +2012,7 @@ var _ = Describe("RDS Broker", func() {
 				It("returns the proper error", func() {
 					_, err := rdsBroker.Bind(ctx, instanceID, bindingID, bindDetails, false)
 					Expect(err).To(HaveOccurred())
-					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+					Expect(err).To(Equal(apiresponses.ErrInstanceDoesNotExist))
 				})
 			})
 		})
@@ -2055,11 +2057,11 @@ var _ = Describe("RDS Broker", func() {
 
 	Describe("Unbind", func() {
 		var (
-			unbindDetails brokerapi.UnbindDetails
+			unbindDetails domain.UnbindDetails
 		)
 
 		BeforeEach(func() {
-			unbindDetails = brokerapi.UnbindDetails{
+			unbindDetails = domain.UnbindDetails{
 				ServiceID: "Service-1",
 				PlanID:    "Plan-1",
 			}
@@ -2131,7 +2133,7 @@ var _ = Describe("RDS Broker", func() {
 				It("returns the proper error", func() {
 					spec, err := rdsBroker.Unbind(ctx, instanceID, bindingID, unbindDetails, false)
 					Expect(err).To(HaveOccurred())
-					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+					Expect(err).To(Equal(apiresponses.ErrInstanceDoesNotExist))
 					Expect(spec.OperationData).To(Equal(""))
 				})
 			})
@@ -2181,8 +2183,8 @@ var _ = Describe("RDS Broker", func() {
 	Describe("LastOperation", func() {
 		var (
 			dbInstanceStatus            string
-			lastOperationState          brokerapi.LastOperationState
-			properLastOperationResponse brokerapi.LastOperation
+			lastOperationState          domain.LastOperationState
+			properLastOperationResponse domain.LastOperation
 			parameterGroupStatus        string
 			dbAllocatedStorage          int64
 
@@ -2208,17 +2210,17 @@ var _ = Describe("RDS Broker", func() {
 			}
 
 			defaultDBInstanceTagsByName = map[string]string{
-				"Owner": "Cloud Foundry",
+				"Owner":       "Cloud Foundry",
 				"Broker Name": "mybroker",
-				"Created by": "AWS RDS Service Broker",
-				"Service ID": "Service-3",
-				"Plan ID": "Plan-3",
-				"Extensions": "postgis:pg-stat-statements",
+				"Created by":  "AWS RDS Service Broker",
+				"Service ID":  "Service-3",
+				"Plan ID":     "Plan-3",
+				"Extensions":  "postgis:pg-stat-statements",
 			}
 
-			pollDetails = brokerapi.PollDetails{
-				ServiceID: "Service-3",
-				PlanID: "Plan-3",
+			pollDetails = domain.PollDetails{
+				ServiceID:     "Service-3",
+				PlanID:        "Plan-3",
 				OperationData: "123blah",
 			}
 		)
@@ -2247,7 +2249,7 @@ var _ = Describe("RDS Broker", func() {
 				nil,
 			)
 
-			properLastOperationResponse = brokerapi.LastOperation{
+			properLastOperationResponse = domain.LastOperation{
 				State:       lastOperationState,
 				Description: "DB Instance '" + dbInstanceIdentifier + "' status is '" + dbInstanceStatus + "'",
 			}
@@ -2272,7 +2274,7 @@ var _ = Describe("RDS Broker", func() {
 				It("returns the proper error", func() {
 					_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).To(HaveOccurred())
-					Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+					Expect(err).To(Equal(apiresponses.ErrInstanceDoesNotExist))
 				})
 
 				It("brokerapi integration returns a status 410 Gone", func() {
@@ -2298,13 +2300,13 @@ var _ = Describe("RDS Broker", func() {
 			rdsInstance.GetResourceTagsReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
 			_, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(Equal(brokerapi.ErrInstanceDoesNotExist))
+			Expect(err).To(Equal(apiresponses.ErrInstanceDoesNotExist))
 		})
 
 		Context("when last operation is still in progress", func() {
 			BeforeEach(func() {
 				dbInstanceStatus = "creating"
-				lastOperationState = brokerapi.InProgress
+				lastOperationState = domain.InProgress
 			})
 
 			It("calls GetResourceTags() with the refresh cache option", func() {
@@ -2357,7 +2359,7 @@ var _ = Describe("RDS Broker", func() {
 			It("reboots the database", func() {
 				lastOperationState, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(lastOperationState.State).To(Equal(brokerapi.InProgress))
+				Expect(lastOperationState.State).To(Equal(domain.InProgress))
 				Expect(rdsInstance.RebootCallCount()).To(Equal(1))
 			})
 		})
@@ -2371,7 +2373,7 @@ var _ = Describe("RDS Broker", func() {
 			It("reboots the database", func() {
 				lastOperationState, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(lastOperationState.State).To(Equal(brokerapi.InProgress))
+				Expect(lastOperationState.State).To(Equal(domain.InProgress))
 				Expect(rdsInstance.RebootCallCount()).To(Equal(0))
 			})
 		})
@@ -2379,7 +2381,7 @@ var _ = Describe("RDS Broker", func() {
 		Context("when last operation failed", func() {
 			BeforeEach(func() {
 				dbInstanceStatus = "failed"
-				lastOperationState = brokerapi.Failed
+				lastOperationState = domain.Failed
 			})
 
 			It("returns the proper LastOperationResponse", func() {
@@ -2406,8 +2408,8 @@ var _ = Describe("RDS Broker", func() {
 			It("returns the proper LastOperationResponse", func() {
 				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(lastOperationResponse).To(Equal(brokerapi.LastOperation{
-					State: brokerapi.Failed,
+				Expect(lastOperationResponse).To(Equal(domain.LastOperation{
+					State:       domain.Failed,
 					Description: "Plan upgrade failed. Refer to database logs for more information.",
 				}))
 			})
@@ -2443,8 +2445,8 @@ var _ = Describe("RDS Broker", func() {
 			It("returns the proper LastOperationResponse", func() {
 				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(lastOperationResponse).To(Equal(brokerapi.LastOperation{
-					State: brokerapi.Failed,
+				Expect(lastOperationResponse).To(Equal(domain.LastOperation{
+					State:       domain.Failed,
 					Description: "Operation failed and will need manual intervention to resolve. Please contact support.",
 				}))
 			})
@@ -2459,7 +2461,7 @@ var _ = Describe("RDS Broker", func() {
 		Context("when last operation succeeded", func() {
 			BeforeEach(func() {
 				dbInstanceStatus = "available"
-				lastOperationState = brokerapi.Succeeded
+				lastOperationState = domain.Succeeded
 			})
 
 			It("returns the proper LastOperationResponse", func() {
@@ -2490,8 +2492,8 @@ var _ = Describe("RDS Broker", func() {
 					}
 					rdsInstance.DescribeReturns(&newDBInstance, nil)
 
-					properLastOperationResponse = brokerapi.LastOperation{
-						State:       brokerapi.InProgress,
+					properLastOperationResponse = domain.LastOperation{
+						State:       domain.InProgress,
 						Description: "DB Instance '" + dbInstanceIdentifier + "' has pending modifications",
 					}
 				})
@@ -2521,8 +2523,8 @@ var _ = Describe("RDS Broker", func() {
 						nil,
 					)
 
-					properLastOperationResponse = brokerapi.LastOperation{
-						State:       brokerapi.InProgress,
+					properLastOperationResponse = domain.LastOperation{
+						State:       domain.InProgress,
 						Description: "DB Instance '" + dbInstanceIdentifier + "' has pending post restore modifications",
 					}
 				})
@@ -2625,8 +2627,8 @@ var _ = Describe("RDS Broker", func() {
 						nil,
 					)
 
-					properLastOperationResponse = brokerapi.LastOperation{
-						State:       brokerapi.InProgress,
+					properLastOperationResponse = domain.LastOperation{
+						State:       domain.InProgress,
 						Description: "DB Instance '" + dbInstanceIdentifier + "' has pending post restore modifications",
 					}
 				})
@@ -2675,8 +2677,8 @@ var _ = Describe("RDS Broker", func() {
 						nil,
 					)
 
-					properLastOperationResponse = brokerapi.LastOperation{
-						State:       brokerapi.InProgress,
+					properLastOperationResponse = domain.LastOperation{
+						State:       domain.InProgress,
 						Description: "DB Instance '" + dbInstanceIdentifier + "' has pending post restore modifications",
 					}
 				})
@@ -2744,7 +2746,7 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
-		checkLastOperationResponse := func(instanceStatus string, expectedLastOperationState brokerapi.LastOperationState) func() {
+		checkLastOperationResponse := func(instanceStatus string, expectedLastOperationState domain.LastOperationState) func() {
 			return func() {
 				BeforeEach(func() {
 					dbInstanceStatus = instanceStatus
@@ -2770,7 +2772,7 @@ var _ = Describe("RDS Broker", func() {
 			"restore-error",
 		}
 		for _, instanceStatus := range failureStatuses {
-			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.Failed))
+			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, domain.Failed))
 		}
 
 		successStatuses := []string{
@@ -2778,7 +2780,7 @@ var _ = Describe("RDS Broker", func() {
 			"storage-optimization",
 		}
 		for _, instanceStatus := range successStatuses {
-			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.Succeeded))
+			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, domain.Succeeded))
 		}
 
 		inProgressStatuses := []string{
@@ -2798,7 +2800,7 @@ var _ = Describe("RDS Broker", func() {
 			"upgrading",
 		}
 		for _, instanceStatus := range inProgressStatuses {
-			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.InProgress))
+			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, domain.InProgress))
 		}
 
 		unexpectedStatuses := []string{
@@ -2806,7 +2808,7 @@ var _ = Describe("RDS Broker", func() {
 			"some-new-status",
 		}
 		for _, instanceStatus := range unexpectedStatuses {
-			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, brokerapi.InProgress))
+			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, domain.InProgress))
 		}
 
 	})
@@ -2904,7 +2906,7 @@ var _ = Describe("RDS Broker", func() {
 
 		Context("when we reset the password then try to bind", func() {
 			var (
-				bindDetails brokerapi.BindDetails
+				bindDetails domain.BindDetails
 			)
 
 			BeforeEach(func() {
@@ -2921,7 +2923,7 @@ var _ = Describe("RDS Broker", func() {
 				rdsInstance.DescribeByTagReturns([]*rds.DBInstance{dbInstance}, nil)
 				rdsInstance.DescribeReturns(dbInstance, nil)
 
-				bindDetails = brokerapi.BindDetails{
+				bindDetails = domain.BindDetails{
 					ServiceID:     "Service-3",
 					PlanID:        "Plan-3",
 					AppGUID:       "Application-1",

@@ -72,7 +72,7 @@ func TestSuite(t *testing.T) {
 			)
 			logSess.Info("db-prefix", lager.Data{"prefix": rdsBrokerConfig.RDSConfig.DBPrefix})
 
-			awsSession := session.New(&aws.Config{
+			awsSession, _ := session.NewSession(&aws.Config{
 				Region: aws.String(rdsBrokerConfig.RDSConfig.Region)},
 			)
 

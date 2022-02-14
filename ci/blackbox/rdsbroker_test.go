@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	INSTANCE_CREATE_TIMEOUT = 45 * time.Minute
+	InstanceCreateTimeout = 45 * time.Minute
 )
 
 var _ = Describe("RDS Broker Daemon", func() {
@@ -894,7 +894,7 @@ func pollForOperationCompletion(brokerAPIClient *BrokerAPIClient, instanceID, se
 			Expect(err).ToNot(HaveOccurred())
 			return state
 		},
-		INSTANCE_CREATE_TIMEOUT,
+		InstanceCreateTimeout,
 		15*time.Second,
 	).Should(
 		SatisfyAny(

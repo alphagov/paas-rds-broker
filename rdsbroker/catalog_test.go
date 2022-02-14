@@ -2,6 +2,7 @@ package rdsbroker_test
 
 import (
 	"github.com/pivotal-cf/brokerapi"
+	"github.com/pivotal-cf/brokerapi/domain"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -91,11 +92,11 @@ var _ = Describe("Service", func() {
 			Name:            "Service 1",
 			Description:     "Service 1 description",
 			Tags:            []string{"service"},
-			Metadata:        &brokerapi.ServiceMetadata{},
-			Requires:        []brokerapi.RequiredPermission{"syslog"},
+			Metadata:        &domain.ServiceMetadata{},
+			Requires:        []domain.RequiredPermission{"syslog"},
 			PlanUpdatable:   true,
 			Plans:           []ServicePlan{},
-			DashboardClient: &brokerapi.ServiceDashboardClient{},
+			DashboardClient: &domain.ServiceDashboardClient{},
 		}
 	)
 

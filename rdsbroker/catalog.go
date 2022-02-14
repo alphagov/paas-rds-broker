@@ -3,6 +3,7 @@ package rdsbroker
 import (
 	"fmt"
 	"github.com/Masterminds/semver"
+	"github.com/pivotal-cf/brokerapi/domain"
 	"regexp"
 	"strings"
 
@@ -23,7 +24,7 @@ type Engine struct {
 }
 
 type CatalogExternal struct {
-	Services []brokerapi.Service `json:"services"`
+	Services []domain.Service `json:"services"`
 }
 
 type Service struct {
@@ -33,9 +34,9 @@ type Service struct {
 	Tags            []string                          `json:"tags,omitempty"`
 	PlanUpdatable   bool                              `json:"plan_updateable"`
 	Plans           []ServicePlan                     `json:"plans"`
-	Requires        []brokerapi.RequiredPermission    `json:"requires,omitempty"`
-	Metadata        *brokerapi.ServiceMetadata        `json:"metadata,omitempty"`
-	DashboardClient *brokerapi.ServiceDashboardClient `json:"dashboard_client,omitempty"`
+	Requires        []domain.RequiredPermission    `json:"requires,omitempty"`
+	Metadata        *domain.ServiceMetadata        `json:"metadata,omitempty"`
+	DashboardClient *domain.ServiceDashboardClient `json:"dashboard_client,omitempty"`
 }
 
 type ServicePlan struct {

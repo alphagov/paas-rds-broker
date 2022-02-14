@@ -72,11 +72,11 @@ func HandleAWSError(err error, logger lager.Logger) error {
 		}
 		if awsErr.Code() == "InvalidParameterCombination" {
 			return NewError(
-				errors.New(awsErr.Code() + ": " + awsErr.Message()),
+				errors.New(awsErr.Code()+": "+awsErr.Message()),
 				ErrCodeInvalidParameterCombination,
 			)
 		}
-		return NewError(errors.New(awsErr.Code() + ": " + awsErr.Message()), "")
+		return NewError(errors.New(awsErr.Code()+": "+awsErr.Message()), "")
 	}
 	return err
 }

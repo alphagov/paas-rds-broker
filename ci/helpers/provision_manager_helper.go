@@ -10,7 +10,7 @@ type CleanFunc func()
 type ProvisionFunc func() (WaitFunc, CleanFunc)
 
 // ProvisionManager performs the provisioning.
-// It gets  a Provisioner function that should do the creationg and
+// It gets  a Provisioner function that should do the creating and
 // returns:
 //  - a function that would synchronously wait for the thing to finish
 //  - a function that would clean up whatever is created

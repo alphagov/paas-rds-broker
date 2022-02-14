@@ -81,7 +81,7 @@ type Error interface {
 }
 
 var (
-	ErrCodeDBInstanceDoesNotExist = "DBInstanceDoesNotExist"
+	ErrCodeDBInstanceDoesNotExist      = "DBInstanceDoesNotExist"
 	ErrCodeInvalidParameterCombination = "InvalidParameterCombination"
 
 	ErrDBInstanceDoesNotExist = NewError(

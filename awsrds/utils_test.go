@@ -29,7 +29,7 @@ var _ = Describe("RDS Utils", func() {
 	)
 
 	BeforeEach(func() {
-		awsSession = session.New(nil)
+		awsSession, _ = session.NewSession(nil)
 
 		rdssvc = rds.New(awsSession)
 
