@@ -95,6 +95,14 @@ func (d *PostgresEngine) execCreateUser(logger lager.Logger, tx *sql.Tx, binding
 		return "", "", err
 	}
 
+	revokeConnectOnPostgresDatabaseStatement := `revoke connect on database postgres from public`
+	logger.Debug("revoke-connect", lager.Data{"statement": revokeConnectOnPostgresDatabaseStatement})
+
+	if _, err := tx.Exec(revokeConnectOnPostgresDatabaseStatement); err != nil {
+		logger.Error("Revoke sql-error", err)
+		return "", "", err
+	}
+
 	if readOnly {
 		grantPrivilegesStatement := fmt.Sprintf(
 			`grant %s to %s`,
