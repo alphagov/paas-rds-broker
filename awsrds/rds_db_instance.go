@@ -27,12 +27,19 @@ const (
 )
 
 type RDSDBInstance struct {
-	region         string
-	partition      string
-	rdssvc         *rds.RDS
-	cachedTags     map[string][]*rds.Tag
-	cachedTagsLock sync.RWMutex
-	logger         lager.Logger
+	region           string
+	partition        string
+	rdssvc           *rds.RDS
+	cachedTags       map[string]tagCacheEntry
+	cachedTagsLock   sync.RWMutex
+	logger           lager.Logger
+	timeNowFunc      func() time.Time
+	tagCacheDuration time.Duration
+}
+
+type tagCacheEntry struct {
+	tags        []*rds.Tag
+	requestTime time.Time
 }
 
 func NewRDSDBInstance(
@@ -40,13 +47,23 @@ func NewRDSDBInstance(
 	partition string,
 	rdssvc *rds.RDS,
 	logger lager.Logger,
+	tagCacheDuration time.Duration,
+	timeNowFunc func() time.Time,
 ) *RDSDBInstance {
+	if timeNowFunc == nil {
+		timeNowFunc = func() time.Time {
+			return time.Now()
+		}
+	}
+
 	return &RDSDBInstance{
-		region:     region,
-		partition:  partition,
-		rdssvc:     rdssvc,
-		cachedTags: map[string][]*rds.Tag{},
-		logger:     logger.Session("db-instance"),
+		region:           region,
+		partition:        partition,
+		rdssvc:           rdssvc,
+		cachedTags:       map[string]tagCacheEntry{},
+		logger:           logger.Session("db-instance"),
+		tagCacheDuration: tagCacheDuration,
+		timeNowFunc:      timeNowFunc,
 	}
 }
 
@@ -150,7 +167,7 @@ func (r *RDSDBInstance) DescribeSnapshots(DBInstanceID string) ([]*rds.DBSnapsho
 func (r *RDSDBInstance) DeleteSnapshots(brokerName string, keepForDays int) error {
 	r.logger.Info("delete-snapshots", lager.Data{"broker_name": brokerName, "keep_for_days": keepForDays})
 
-	deleteBefore := time.Now().Add(-1 * time.Duration(keepForDays) * 24 * time.Hour)
+	deleteBefore := r.timeNowFunc().Add(-1 * time.Duration(keepForDays) * 24 * time.Hour)
 
 	oldSnapshots := []*rds.DBSnapshot{}
 
@@ -441,17 +458,21 @@ func (r *RDSDBInstance) dbSnapshotName(ID string) string {
 func (r *RDSDBInstance) cachedListTagsForResource(arn string, useCached bool) ([]*rds.Tag, error) {
 	if useCached {
 		r.cachedTagsLock.RLock()
-		tags, ok := r.cachedTags[arn]
+		entry, ok := r.cachedTags[arn]
 		r.cachedTagsLock.RUnlock()
-		if ok {
-			return tags, nil
+		if ok && r.timeNowFunc().Before(entry.requestTime.Add(r.tagCacheDuration)) {
+			return entry.tags, nil
 		}
 	}
 
 	tags, err := ListTagsForResource(arn, r.rdssvc, r.logger)
 	if err == nil {
+		entry := tagCacheEntry{
+			tags: tags,
+			requestTime: r.timeNowFunc(),
+		}
 		r.cachedTagsLock.Lock()
-		r.cachedTags[arn] = tags
+		r.cachedTags[arn] = entry
 		r.cachedTagsLock.Unlock()
 	}
 	return tags, err
