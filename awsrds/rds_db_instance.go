@@ -112,7 +112,10 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeO
 	}
 	dbInstances := []*rds.DBInstance{}
 	for _, dbInstance := range alllDbInstances {
-		tags, err := r.cachedListTagsForResource(aws.StringValue(dbInstance.DBInstanceArn), useCached)
+		tags, err := r.cachedListTagsForResource(
+			aws.StringValue(dbInstance.DBInstanceArn),
+			useCached,
+		)
 		if err != nil {
 			return alllDbInstances, err
 		}
@@ -170,7 +173,10 @@ func (r *RDSDBInstance) DeleteSnapshots(brokerName string, keepForDays int) erro
 
 	snapshotsToDelete := []string{}
 	for _, snapshot := range oldSnapshots {
-		tags, err := ListTagsForResource(*snapshot.DBSnapshotArn, r.rdssvc, r.logger)
+		tags, err := r.cachedListTagsForResource(
+			aws.StringValue(snapshot.DBSnapshotArn),
+			false,
+		)
 		if err != nil {
 			return fmt.Errorf("failed to list tags for %s: %s", *snapshot.DBSnapshotIdentifier, err)
 		}
@@ -209,16 +215,15 @@ func (r *RDSDBInstance) GetTag(ID, tagKey string) (string, error) {
 		return "", HandleAWSError(err, r.logger)
 	}
 
-	listTagsForResourceInput := &rds.ListTagsForResourceInput{
-		ResourceName: myInstance.DBInstances[0].DBInstanceArn,
-	}
-
-	listTagsForResourceOutput, err := r.rdssvc.ListTagsForResource(listTagsForResourceInput)
+	tags, err := r.cachedListTagsForResource(
+		aws.StringValue(myInstance.DBInstances[0].DBInstanceArn),
+		false,
+	)
 	if err != nil {
 		return "", err
 	}
 
-	for _, t := range listTagsForResourceOutput.TagList {
+	for _, t := range tags {
 		if *t.Key == tagKey {
 			return *t.Value, nil
 		}
