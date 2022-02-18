@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"time"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/aws/aws-sdk-go/aws"
@@ -32,7 +33,7 @@ func main() {
 		log.Fatalf("Error loading config file: %s", err)
 	}
 	logger := buildLogger(cfg.LogLevel)
-	dbInstance := buildDBInstance(cfg.RDSConfig.Region, logger)
+	dbInstance := buildDBInstance(*cfg.RDSConfig, logger)
 	sqlProvider := sqlengine.NewProviderService(logger)
 	parameterGroupSource := rdsbroker.NewParameterGroupSource(*cfg.RDSConfig, dbInstance, rdsbroker.SupportedPreloadExtensions, logger.Session("parameter_group_source"))
 	broker := rdsbroker.New(*cfg.RDSConfig, dbInstance, sqlProvider, parameterGroupSource, logger)
@@ -75,11 +76,18 @@ func buildHTTPHandler(serviceBroker *rdsbroker.RDSBroker, logger lager.Logger, c
 	return mux
 }
 
-func buildDBInstance(region string, logger lager.Logger) awsrds.RDSInstance {
-	awsConfig := aws.NewConfig().WithRegion(region).WithMaxRetries(3)
+func buildDBInstance(rdsCfg rdsbroker.Config, logger lager.Logger) awsrds.RDSInstance {
+	awsConfig := aws.NewConfig().WithRegion(rdsCfg.Region).WithMaxRetries(3)
 	awsSession, _ := session.NewSession(awsConfig)
 	rdssvc := rds.New(awsSession)
-	return awsrds.NewRDSDBInstance(region, "aws", rdssvc, logger)
+	return awsrds.NewRDSDBInstance(
+		rdsCfg.Region,
+		"aws",
+		rdssvc,
+		logger,
+		time.Second * time.Duration(rdsCfg.AWSTagCacheSeconds),
+		nil,
+	)
 }
 
 func startHTTPServer(

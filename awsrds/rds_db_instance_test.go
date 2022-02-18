@@ -28,6 +28,8 @@ var _ = Describe("RDS DB Instance", func() {
 		dbInstanceArn        string
 		dbSnapshotArn        string
 
+		dummyTimeNow	time.Time
+
 		awsSession *session.Session
 
 		rdssvc  *rds.RDS
@@ -47,6 +49,7 @@ var _ = Describe("RDS DB Instance", func() {
 		dbInstanceIdentifier = "cf-instance-id"
 		dbInstanceArn = "arn:" + partition + ":rds:rds-region:" + account + ":db:" + dbInstanceIdentifier
 		dbSnapshotArn = "arn:" + partition + ":rds:rds-region:" + account + ":snapshot:" + dbInstanceIdentifier
+		dummyTimeNow = time.Date(2020, 03, 10, 0,0,0,0, time.UTC)
 	})
 
 	JustBeforeEach(func() {
@@ -58,7 +61,9 @@ var _ = Describe("RDS DB Instance", func() {
 		testSink = lagertest.NewTestSink()
 		logger.RegisterSink(testSink)
 
-		rdsDBInstance = NewRDSDBInstance(region, partition, rdssvc, logger)
+		rdsDBInstance = NewRDSDBInstance(region, partition, rdssvc, logger, time.Hour, func() time.Time {
+			return dummyTimeNow
+		})
 	})
 
 	var _ = Describe("Describe", func() {
@@ -231,6 +236,47 @@ var _ = Describe("RDS DB Instance", func() {
 			Expect(tags).To(Equal(listTags))
 
 			Expect(listTagsForResourceCallCount).To(Equal(2))
+		})
+
+		It("only uses cached tag values that were originally fetched within the tagCacheDuration", func() {
+			tags, err := rdsDBInstance.GetResourceTags(
+				dbInstanceArn,
+				DescribeUseCachedOption,
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tags).To(Equal(listTags))
+
+			Expect(listTagsForResourceCallCount).To(Equal(1))
+
+			// advance time beyond tagCacheDuration
+			dummyTimeNow = dummyTimeNow.Add(time.Hour * 2)
+
+			tags, err = rdsDBInstance.GetResourceTags(
+				dbInstanceArn,
+				DescribeUseCachedOption,
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tags).To(Equal(listTags))
+
+			Expect(listTagsForResourceCallCount).To(Equal(2))
+
+			// advance time less than tagCacheDuration
+			dummyTimeNow = dummyTimeNow.Add(time.Second)
+
+			tags, err = rdsDBInstance.GetResourceTags(
+				dbInstanceArn,
+				DescribeUseCachedOption,
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tags).To(Equal(listTags))
+
+			Expect(listTagsForResourceCallCount).To(Equal(2))
+
+			tags, err = rdsDBInstance.GetResourceTags(dbInstanceArn)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tags).To(Equal(listTags))
+
+			Expect(listTagsForResourceCallCount).To(Equal(3))
 		})
 	})
 
@@ -435,19 +481,19 @@ var _ = Describe("RDS DB Instance", func() {
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 				DBSnapshotIdentifier: aws.String(dbInstanceIdentifier + "-1"),
 				DBSnapshotArn:        aws.String(dbSnapshotArn + "-1"),
-				SnapshotCreateTime:   aws.Time(time.Now().Add(-1 * 24 * time.Hour)),
+				SnapshotCreateTime:   aws.Time(dummyTimeNow.Add(-1 * 24 * time.Hour)),
 			}
 			dbSnapshotTwoDayOld = &rds.DBSnapshot{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 				DBSnapshotIdentifier: aws.String(dbInstanceIdentifier + "-2"),
 				DBSnapshotArn:        aws.String(dbSnapshotArn + "-2"),
-				SnapshotCreateTime:   aws.Time(time.Now().Add(-2 * 24 * time.Hour)),
+				SnapshotCreateTime:   aws.Time(dummyTimeNow.Add(-2 * 24 * time.Hour)),
 			}
 			dbSnapshotThreeDayOld = &rds.DBSnapshot{
 				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
 				DBSnapshotIdentifier: aws.String(dbInstanceIdentifier + "-3"),
 				DBSnapshotArn:        aws.String(dbSnapshotArn + "-3"),
-				SnapshotCreateTime:   aws.Time(time.Now().Add(-3 * 24 * time.Hour)),
+				SnapshotCreateTime:   aws.Time(dummyTimeNow.Add(-3 * 24 * time.Hour)),
 			}
 		})
 
@@ -1176,7 +1222,7 @@ var _ = Describe("RDS DB Instance", func() {
 			BeforeEach(func() {
 				// Build DescribeDBSnapshots mock response with 3 instances
 				buildDBSnapshotAWSResponse := func(instanceID string, age time.Duration) *rds.DBSnapshot {
-					instanceCreateTime := time.Now().Add(-age)
+					instanceCreateTime := dummyTimeNow.Add(-age)
 					return &rds.DBSnapshot{
 						DBInstanceIdentifier: aws.String(instanceID),
 						DBSnapshotIdentifier: aws.String(instanceID),
@@ -1186,8 +1232,11 @@ var _ = Describe("RDS DB Instance", func() {
 				}
 
 				dbSnapshotOneDayOld = buildDBSnapshotAWSResponse("snapshot-one", 1*24*time.Hour)
+				dummyTimeNow = dummyTimeNow.Add(time.Second)
 				dbSnapshotTwoDayOld = buildDBSnapshotAWSResponse("snapshot-two", 2*24*time.Hour)
+				dummyTimeNow = dummyTimeNow.Add(time.Second)
 				dbSnapshotThreeDayOld = buildDBSnapshotAWSResponse("snapshot-three", 3*24*time.Hour)
+				dummyTimeNow = dummyTimeNow.Add(time.Second)
 				dbSnapshotFourDayOldOtherBroker = buildDBSnapshotAWSResponse("snapshot-four", 4*24*time.Hour)
 
 				describeDBSnapshots = []*rds.DBSnapshot{

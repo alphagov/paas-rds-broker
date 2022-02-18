@@ -11,6 +11,7 @@ type Config struct {
 	BrokerName                   string  `json:"broker_name"`
 	AWSPartition                 string  `json:"aws_partition"`
 	MasterPasswordSeed           string  `json:"master_password_seed"`
+	AWSTagCacheSeconds           uint    `json:"aws_tag_cache_seconds"`
 	AllowUserProvisionParameters bool    `json:"allow_user_provision_parameters"`
 	AllowUserUpdateParameters    bool    `json:"allow_user_update_parameters"`
 	AllowUserBindParameters      bool    `json:"allow_user_bind_parameters"`
@@ -20,6 +21,9 @@ type Config struct {
 func (c *Config) FillDefaults() {
 	if c.AWSPartition == "" {
 		c.AWSPartition = "aws"
+	}
+	if c.AWSTagCacheSeconds == 0 {
+		c.AWSTagCacheSeconds = 604800;  // 1 week
 	}
 }
 
