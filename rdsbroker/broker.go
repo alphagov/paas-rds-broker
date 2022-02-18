@@ -881,7 +881,6 @@ func (b *RDSBroker) LastOperation(
 
 	tags, err := b.dbInstance.GetResourceTags(
 		aws.StringValue(dbInstance.DBInstanceArn),
-		awsrds.DescribeRefreshCacheOption,
 	)
 	if err != nil {
 		if err == awsrds.ErrDBInstanceDoesNotExist {
@@ -1272,7 +1271,11 @@ func (b *RDSBroker) RebootIfRequired(instanceID string, dbInstance *rds.DBInstan
 func (b *RDSBroker) CheckAndRotateCredentials() {
 	b.logger.Info(fmt.Sprintf("Started checking credentials of RDS instances managed by this broker"))
 
-	dbInstances, err := b.dbInstance.DescribeByTag("Broker Name", b.brokerName)
+	dbInstances, err := b.dbInstance.DescribeByTag(
+		"Broker Name",
+		b.brokerName,
+		awsrds.DescribeUseCachedOption,
+	)
 	if err != nil {
 		b.logger.Error("Could not obtain the list of instances", err)
 		return

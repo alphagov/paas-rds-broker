@@ -72,16 +72,16 @@ func (r *RDSDBInstance) Describe(ID string) (*rds.DBInstance, error) {
 }
 
 func (r *RDSDBInstance) GetResourceTags(resourceArn string, opts ...DescribeOption) ([]*rds.Tag, error) {
-	refreshCache := false
+	useCached := false
 	for _, o := range opts {
-		if o == DescribeRefreshCacheOption {
-			refreshCache = true
+		if o == DescribeUseCachedOption {
+			useCached = true
 		}
 	}
 
-	r.logger.Debug("get-resource-tags", lager.Data{"arn": resourceArn, "refresh-cache": refreshCache})
+	r.logger.Debug("get-resource-tags", lager.Data{"arn": resourceArn, "use-cached": useCached})
 
-	t, err := r.cachedListTagsForResource(resourceArn, refreshCache)
+	t, err := r.cachedListTagsForResource(resourceArn, useCached)
 	if err != nil {
 		return nil, HandleAWSError(err, r.logger)
 	}
@@ -93,10 +93,10 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeO
 
 	describeDBInstancesInput := &rds.DescribeDBInstancesInput{}
 
-	refreshCache := false
+	useCached := false
 	for _, o := range opts {
-		if o == DescribeRefreshCacheOption {
-			refreshCache = true
+		if o == DescribeUseCachedOption {
+			useCached = true
 		}
 	}
 
@@ -112,7 +112,7 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeO
 	}
 	dbInstances := []*rds.DBInstance{}
 	for _, dbInstance := range alllDbInstances {
-		tags, err := r.cachedListTagsForResource(aws.StringValue(dbInstance.DBInstanceArn), refreshCache)
+		tags, err := r.cachedListTagsForResource(aws.StringValue(dbInstance.DBInstanceArn), useCached)
 		if err != nil {
 			return alllDbInstances, err
 		}
@@ -433,8 +433,8 @@ func (r *RDSDBInstance) dbSnapshotName(ID string) string {
 	return fmt.Sprintf("%s-final-snapshot", ID)
 }
 
-func (r *RDSDBInstance) cachedListTagsForResource(arn string, refresh bool) ([]*rds.Tag, error) {
-	if !refresh {
+func (r *RDSDBInstance) cachedListTagsForResource(arn string, useCached bool) ([]*rds.Tag, error) {
+	if useCached {
 		r.cachedTagsLock.RLock()
 		tags, ok := r.cachedTags[arn]
 		r.cachedTagsLock.RUnlock()

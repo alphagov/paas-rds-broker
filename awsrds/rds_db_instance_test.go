@@ -207,18 +207,26 @@ var _ = Describe("RDS DB Instance", func() {
 			Expect(aws.StringValue(receivedListTagsForResourceInput.ResourceName)).To(Equal(dbInstanceArn))
 		})
 
-		It("caches the tags from ListTagsForResource unless DescribeRefreshCacheOption is passed", func() {
-			tags, err := rdsDBInstance.GetResourceTags(dbInstanceArn)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(tags).To(Equal(listTags))
-
-			tags, err = rdsDBInstance.GetResourceTags(dbInstanceArn)
+		It("caches the tags from ListTagsForResource if DescribeUseCachedOption is passed", func() {
+			tags, err := rdsDBInstance.GetResourceTags(
+				dbInstanceArn,
+				DescribeUseCachedOption,
+			)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(tags).To(Equal(listTags))
 
 			Expect(listTagsForResourceCallCount).To(Equal(1))
 
-			tags, err = rdsDBInstance.GetResourceTags(dbInstanceArn, DescribeRefreshCacheOption)
+			tags, err = rdsDBInstance.GetResourceTags(
+				dbInstanceArn,
+				DescribeUseCachedOption,
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(tags).To(Equal(listTags))
+
+			Expect(listTagsForResourceCallCount).To(Equal(1))
+
+			tags, err = rdsDBInstance.GetResourceTags(dbInstanceArn)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(tags).To(Equal(listTags))
 
@@ -385,25 +393,25 @@ var _ = Describe("RDS DB Instance", func() {
 			Expect(dbInstanceDetailsList[1]).To(Equal(db2))
 		})
 
-		It("caches the tags from ListTagsForResource unless DescribeRefreshCacheOption is passed", func() {
+		It("uses cached tags from ListTagsForResource if DescribeUseCachedOption is passed", func() {
 			numberOfInstances := 3
 
 			listTagsForResourceCallCount = 0
-			dbInstanceDetailsList, err := rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
+			dbInstanceDetailsList, err := rdsDBInstance.DescribeByTag("Broker Name", "mybroker", DescribeUseCachedOption)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dbInstanceDetailsList).To(HaveLen(2))
 
 			Expect(listTagsForResourceCallCount).To(Equal(numberOfInstances))
 
 			listTagsForResourceCallCount = 0
-			dbInstanceDetailsList, err = rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
+			dbInstanceDetailsList, err = rdsDBInstance.DescribeByTag("Broker Name", "mybroker", DescribeUseCachedOption)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dbInstanceDetailsList).To(HaveLen(2))
 
 			Expect(listTagsForResourceCallCount).To(Equal(0))
 
 			listTagsForResourceCallCount = 0
-			dbInstanceDetailsList, err = rdsDBInstance.DescribeByTag("Broker Name", "mybroker", DescribeRefreshCacheOption)
+			dbInstanceDetailsList, err = rdsDBInstance.DescribeByTag("Broker Name", "mybroker")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dbInstanceDetailsList).To(HaveLen(2))
 
