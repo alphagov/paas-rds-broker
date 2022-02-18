@@ -36,6 +36,10 @@ jobs:
         run: |
           make start_postgres_12 run_postgres_sql_tests stop_postgres_12
 
+      - name: Run postgres 13 tests
+        run: |
+          make start_postgres_13 run_postgres_sql_tests stop_postgres_13
+
       - name: Run mysql 8.0
         run: |
           make start_mysql_80 run_mysql_sql_tests stop_mysql_80
