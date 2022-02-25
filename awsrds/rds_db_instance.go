@@ -42,6 +42,10 @@ type tagCacheEntry struct {
 	requestTime time.Time
 }
 
+func (e *tagCacheEntry) HasExpired(now time.Time, duration time.Duration) bool {
+    return now.After(e.requestTime.Add(duration))
+}
+
 func NewRDSDBInstance(
 	region string,
 	partition string,
@@ -460,7 +464,7 @@ func (r *RDSDBInstance) cachedListTagsForResource(arn string, useCached bool) ([
 		r.cachedTagsLock.RLock()
 		entry, ok := r.cachedTags[arn]
 		r.cachedTagsLock.RUnlock()
-		if ok && r.timeNowFunc().Before(entry.requestTime.Add(r.tagCacheDuration)) {
+		if ok && !entry.HasExpired(r.timeNowFunc(), r.tagCacheDuration) {
 			return entry.tags, nil
 		}
 	}
