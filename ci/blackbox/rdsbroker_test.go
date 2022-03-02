@@ -1067,6 +1067,14 @@ func permissionsTest(databaseURI string) error {
 		if err != nil {
 			return fmt.Errorf("Error dropping schema: %s", err.Error())
 		}
+
+		dbURLPostgres := dbURL
+		dbURLPostgres.Path = "postgres"
+		dbPostgres, err := openConnection(dbURLPostgres.String())
+		if err != nil {
+			dbPostgres.Close()
+			return fmt.Errorf("Should not be able to connect to `postgres` database, but attempt was successful")
+		}
 	case "mysql":
 		// There are no MySQL-specific tests
 	default:
