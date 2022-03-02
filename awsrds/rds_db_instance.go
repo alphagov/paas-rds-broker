@@ -27,12 +27,23 @@ const (
 )
 
 type RDSDBInstance struct {
-	region         string
-	partition      string
-	rdssvc         *rds.RDS
-	cachedTags     map[string][]*rds.Tag
-	cachedTagsLock sync.RWMutex
-	logger         lager.Logger
+	region           string
+	partition        string
+	rdssvc           *rds.RDS
+	cachedTags       map[string]tagCacheEntry
+	cachedTagsLock   sync.RWMutex
+	logger           lager.Logger
+	timeNowFunc      func() time.Time
+	tagCacheDuration time.Duration
+}
+
+type tagCacheEntry struct {
+	tags        []*rds.Tag
+	requestTime time.Time
+}
+
+func (e *tagCacheEntry) HasExpired(now time.Time, duration time.Duration) bool {
+    return now.After(e.requestTime.Add(duration))
 }
 
 func NewRDSDBInstance(
@@ -40,13 +51,23 @@ func NewRDSDBInstance(
 	partition string,
 	rdssvc *rds.RDS,
 	logger lager.Logger,
+	tagCacheDuration time.Duration,
+	timeNowFunc func() time.Time,
 ) *RDSDBInstance {
+	if timeNowFunc == nil {
+		timeNowFunc = func() time.Time {
+			return time.Now()
+		}
+	}
+
 	return &RDSDBInstance{
-		region:     region,
-		partition:  partition,
-		rdssvc:     rdssvc,
-		cachedTags: map[string][]*rds.Tag{},
-		logger:     logger.Session("db-instance"),
+		region:           region,
+		partition:        partition,
+		rdssvc:           rdssvc,
+		cachedTags:       map[string]tagCacheEntry{},
+		logger:           logger.Session("db-instance"),
+		tagCacheDuration: tagCacheDuration,
+		timeNowFunc:      timeNowFunc,
 	}
 }
 
@@ -72,16 +93,16 @@ func (r *RDSDBInstance) Describe(ID string) (*rds.DBInstance, error) {
 }
 
 func (r *RDSDBInstance) GetResourceTags(resourceArn string, opts ...DescribeOption) ([]*rds.Tag, error) {
-	refreshCache := false
+	useCached := false
 	for _, o := range opts {
-		if o == DescribeRefreshCacheOption {
-			refreshCache = true
+		if o == DescribeUseCachedOption {
+			useCached = true
 		}
 	}
 
-	r.logger.Debug("get-resource-tags", lager.Data{"arn": resourceArn, "refresh-cache": refreshCache})
+	r.logger.Debug("get-resource-tags", lager.Data{"arn": resourceArn, "use-cached": useCached})
 
-	t, err := r.cachedListTagsForResource(resourceArn, refreshCache)
+	t, err := r.cachedListTagsForResource(resourceArn, useCached)
 	if err != nil {
 		return nil, HandleAWSError(err, r.logger)
 	}
@@ -93,10 +114,10 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeO
 
 	describeDBInstancesInput := &rds.DescribeDBInstancesInput{}
 
-	refreshCache := false
+	useCached := false
 	for _, o := range opts {
-		if o == DescribeRefreshCacheOption {
-			refreshCache = true
+		if o == DescribeUseCachedOption {
+			useCached = true
 		}
 	}
 
@@ -112,7 +133,10 @@ func (r *RDSDBInstance) DescribeByTag(tagKey, tagValue string, opts ...DescribeO
 	}
 	dbInstances := []*rds.DBInstance{}
 	for _, dbInstance := range alllDbInstances {
-		tags, err := r.cachedListTagsForResource(aws.StringValue(dbInstance.DBInstanceArn), refreshCache)
+		tags, err := r.cachedListTagsForResource(
+			aws.StringValue(dbInstance.DBInstanceArn),
+			useCached,
+		)
 		if err != nil {
 			return alllDbInstances, err
 		}
@@ -147,7 +171,7 @@ func (r *RDSDBInstance) DescribeSnapshots(DBInstanceID string) ([]*rds.DBSnapsho
 func (r *RDSDBInstance) DeleteSnapshots(brokerName string, keepForDays int) error {
 	r.logger.Info("delete-snapshots", lager.Data{"broker_name": brokerName, "keep_for_days": keepForDays})
 
-	deleteBefore := time.Now().Add(-1 * time.Duration(keepForDays) * 24 * time.Hour)
+	deleteBefore := r.timeNowFunc().Add(-1 * time.Duration(keepForDays) * 24 * time.Hour)
 
 	oldSnapshots := []*rds.DBSnapshot{}
 
@@ -170,7 +194,10 @@ func (r *RDSDBInstance) DeleteSnapshots(brokerName string, keepForDays int) erro
 
 	snapshotsToDelete := []string{}
 	for _, snapshot := range oldSnapshots {
-		tags, err := ListTagsForResource(*snapshot.DBSnapshotArn, r.rdssvc, r.logger)
+		tags, err := r.cachedListTagsForResource(
+			aws.StringValue(snapshot.DBSnapshotArn),
+			false,
+		)
 		if err != nil {
 			return fmt.Errorf("failed to list tags for %s: %s", *snapshot.DBSnapshotIdentifier, err)
 		}
@@ -209,16 +236,15 @@ func (r *RDSDBInstance) GetTag(ID, tagKey string) (string, error) {
 		return "", HandleAWSError(err, r.logger)
 	}
 
-	listTagsForResourceInput := &rds.ListTagsForResourceInput{
-		ResourceName: myInstance.DBInstances[0].DBInstanceArn,
-	}
-
-	listTagsForResourceOutput, err := r.rdssvc.ListTagsForResource(listTagsForResourceInput)
+	tags, err := r.cachedListTagsForResource(
+		aws.StringValue(myInstance.DBInstances[0].DBInstanceArn),
+		false,
+	)
 	if err != nil {
 		return "", err
 	}
 
-	for _, t := range listTagsForResourceOutput.TagList {
+	for _, t := range tags {
 		if *t.Key == tagKey {
 			return *t.Value, nil
 		}
@@ -433,20 +459,24 @@ func (r *RDSDBInstance) dbSnapshotName(ID string) string {
 	return fmt.Sprintf("%s-final-snapshot", ID)
 }
 
-func (r *RDSDBInstance) cachedListTagsForResource(arn string, refresh bool) ([]*rds.Tag, error) {
-	if !refresh {
+func (r *RDSDBInstance) cachedListTagsForResource(arn string, useCached bool) ([]*rds.Tag, error) {
+	if useCached {
 		r.cachedTagsLock.RLock()
-		tags, ok := r.cachedTags[arn]
+		entry, ok := r.cachedTags[arn]
 		r.cachedTagsLock.RUnlock()
-		if ok {
-			return tags, nil
+		if ok && !entry.HasExpired(r.timeNowFunc(), r.tagCacheDuration) {
+			return entry.tags, nil
 		}
 	}
 
 	tags, err := ListTagsForResource(arn, r.rdssvc, r.logger)
 	if err == nil {
+		entry := tagCacheEntry{
+			tags: tags,
+			requestTime: r.timeNowFunc(),
+		}
 		r.cachedTagsLock.Lock()
-		r.cachedTags[arn] = tags
+		r.cachedTags[arn] = entry
 		r.cachedTagsLock.Unlock()
 	}
 	return tags, err

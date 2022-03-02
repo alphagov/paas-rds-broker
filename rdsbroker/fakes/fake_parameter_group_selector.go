@@ -38,15 +38,16 @@ func (fake *FakeParameterGroupSelector) SelectParameterGroup(arg1 rdsbroker.Serv
 		arg1 rdsbroker.ServicePlan
 		arg2 []string
 	}{arg1, arg2Copy})
+	stub := fake.SelectParameterGroupStub
+	fakeReturns := fake.selectParameterGroupReturns
 	fake.recordInvocation("SelectParameterGroup", []interface{}{arg1, arg2Copy})
 	fake.selectParameterGroupMutex.Unlock()
-	if fake.SelectParameterGroupStub != nil {
-		return fake.SelectParameterGroupStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.selectParameterGroupReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 

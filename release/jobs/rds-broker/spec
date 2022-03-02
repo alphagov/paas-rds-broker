@@ -37,6 +37,9 @@ properties:
     default: "cf"
   rds-broker.master_password_seed:
     description: "Secret seed to be used when generating the master RDS DB password"
+  rds-broker.aws_tag_cache_seconds:
+    description: "Cache expiry time (in seconds) of AWS Tags cache"
+    default: 604800
   rds-broker.broker_name:
     description: "Unique name of RDS broker, used to construct a tag for instance identification"
   rds-broker.allow_user_provision_parameters:
