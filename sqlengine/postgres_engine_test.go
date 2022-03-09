@@ -283,6 +283,16 @@ var _ = Describe("PostgresEngine", func() {
 
 		})
 
+		It("creates a user that can't connect to the postgres database", func() {
+			postgresDbname := "postgres"
+			connectionString := postgresEngine.URI(address, port, postgresDbname, createdUser, createdPassword)
+			db, err := sql.Open("postgres", connectionString)
+			Expect(err).ToNot(HaveOccurred())
+			err = db.Ping()
+			Expect(err).To(HaveOccurred())
+			defer db.Close()
+		})
+
 		Context("When the user is read only", func() {
 			var (
 				roBindingID       string
