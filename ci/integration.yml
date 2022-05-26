@@ -4,7 +4,7 @@ image_resource:
   type: docker-image
   source:
     repository: golang
-    tag: 1.17
+    tag: 1.18
 inputs:
   - name: repo
     path: src/github.com/alphagov/paas-rds-broker
@@ -17,7 +17,7 @@ run:
       export GOPATH=$(pwd)
       export PATH="${GOPATH}/bin:${PATH}"
 
-      go get -u github.com/onsi/ginkgo/ginkgo
+      go install github.com/onsi/ginkgo/ginkgo@latest
 
       cd "${GOPATH}/src/github.com/alphagov/paas-rds-broker"
       make integration

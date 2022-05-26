@@ -1,4 +1,4 @@
-golang/go1.17.linux-amd64.tar.gz:
-  size: 134803982
-  object_id: 12b33ce3-52cc-43bb-5595-8cb01be3467d
-  sha: sha256:f242a9db6a0ad1846de7b6d94d507915d14062660616a61ef7c808a76e4f1676
+golang/go1.18.2.linux-amd64.tar.gz:
+  size: 141732542
+  object_id: 3f98f116-d1a8-4fa9-5c15-84c9aca7da68
+  sha: sha256:e54bec97a1a5d230fc2f9ad0880fcbabb5888f30ed9666eca4a91c5a32e86cbc
