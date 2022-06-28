@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	. "github.com/alphagov/paas-rds-broker/awsrds"
@@ -28,7 +27,7 @@ var _ = Describe("RDS DB Instance", func() {
 		dbInstanceArn        string
 		dbSnapshotArn        string
 
-		dummyTimeNow	time.Time
+		dummyTimeNow time.Time
 
 		awsSession *session.Session
 
@@ -49,7 +48,7 @@ var _ = Describe("RDS DB Instance", func() {
 		dbInstanceIdentifier = "cf-instance-id"
 		dbInstanceArn = "arn:" + partition + ":rds:rds-region:" + account + ":db:" + dbInstanceIdentifier
 		dbSnapshotArn = "arn:" + partition + ":rds:rds-region:" + account + ":snapshot:" + dbInstanceIdentifier
-		dummyTimeNow = time.Date(2020, 03, 10, 0,0,0,0, time.UTC)
+		dummyTimeNow = time.Date(2020, 03, 10, 0, 0, 0, 0, time.UTC)
 	})
 
 	JustBeforeEach(func() {
