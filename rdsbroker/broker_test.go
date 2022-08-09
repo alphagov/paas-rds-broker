@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/pivotal-cf/brokerapi/domain"
-	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 	"net/http"
 	"net/http/httptest"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/pivotal-cf/brokerapi/domain"
+	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 
 	"github.com/alphagov/paas-rds-broker/rdsbroker/fakes"
 
@@ -2498,6 +2499,26 @@ var _ = Describe("RDS Broker", func() {
 					}
 				})
 
+				It("returns the proper LastOperationResponse", func() {
+					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(lastOperationResponse).To(Equal(properLastOperationResponse))
+				})
+			})
+
+			Context("but the plan properties are mismatched", func() {
+				JustBeforeEach(func() {
+					newDBInstance := *defaultDBInstance
+					newDBInstance.AllocatedStorage = int64Pointer(400)
+					rdsInstance.DescribeReturns(&newDBInstance, nil)
+
+					pollDetails.PlanID = "Plan-2"
+
+					properLastOperationResponse = domain.LastOperation{
+						State:       domain.Failed,
+						Description: "Operation failed and will need manual intervention to resolve. Please contact support.",
+					}
+				})
 				It("returns the proper LastOperationResponse", func() {
 					lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
 					Expect(err).ToNot(HaveOccurred())
