@@ -94,3 +94,5 @@ bosh-release-tarballs
 release/.dev_builds
 release/blobs
 release/dev_releases
+
+/.idea
