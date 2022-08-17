@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+
 	"github.com/pivotal-cf/brokerapi/domain"
 	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
-	"net/http"
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/alphagov/paas-rds-broker/rdsbroker/fakes"
@@ -28,23 +29,25 @@ var _ = Describe("RDS Broker", func() {
 	var (
 		ctx context.Context
 
-		rdsProperties1      RDSProperties
-		rdsProperties2      RDSProperties
-		rdsProperties3      RDSProperties
-		rdsPropertiesPSQL10 RDSProperties
-		rdsPropertiesPSQL11 RDSProperties
-		rdsPropertiesPSQL12 RDSProperties
-		plan1               ServicePlan
-		plan2               ServicePlan
-		plan3               ServicePlan
-		planPSQL10          ServicePlan
-		planPSQL11          ServicePlan
-		planPSQL12          ServicePlan
-		service1            Service
-		service2            Service
-		service3            Service
-		servicePSQL         Service
-		catalog             Catalog
+		rdsProperties1                RDSProperties
+		rdsProperties2                RDSProperties
+		rdsProperties3                RDSProperties
+		rdsPropertiesPSQL10           RDSProperties
+		rdsPropertiesPSQL11           RDSProperties
+		rdsPropertiesPSQL12           RDSProperties
+		rdsPropertiesPSQL12LowStorage RDSProperties
+		plan1                         ServicePlan
+		plan2                         ServicePlan
+		plan3                         ServicePlan
+		planPSQL10                    ServicePlan
+		planPSQL11                    ServicePlan
+		planPSQL12                    ServicePlan
+		planPSQL12LowStorage          ServicePlan
+		service1                      Service
+		service2                      Service
+		service3                      Service
+		servicePSQL                   Service
+		catalog                       Catalog
 
 		config Config
 
@@ -196,6 +199,21 @@ var _ = Describe("RDS Broker", func() {
 				stringPointer("postgres_super_extension"),
 			},
 		}
+		rdsPropertiesPSQL12LowStorage = RDSProperties{
+			DBInstanceClass:   stringPointer("db.t3.small"),
+			Engine:            stringPointer("postgres"),
+			EngineVersion:     stringPointer("12"),
+			AllocatedStorage:  int64Pointer(100),
+			SkipFinalSnapshot: boolPointer(skipFinalSnapshot),
+			DefaultExtensions: []*string{
+				stringPointer("pg_stat_statements"),
+			},
+			AllowedExtensions: []*string{
+				stringPointer("postgis"),
+				stringPointer("pg_stat_statements"),
+				stringPointer("postgres_super_extension"),
+			},
+		}
 	})
 
 	JustBeforeEach(func() {
@@ -241,6 +259,14 @@ var _ = Describe("RDS Broker", func() {
 			Metadata:      nil,
 			RDSProperties: rdsPropertiesPSQL12,
 		}
+		planPSQL12LowStorage = ServicePlan{
+			ID:            "plan-psql12-low-storage",
+			Name:          "Plan PSQL 12 (Low Storage)",
+			Description:   "",
+			Free:          nil,
+			Metadata:      nil,
+			RDSProperties: rdsPropertiesPSQL12LowStorage,
+		}
 
 		service1 = Service{
 			ID:            "Service-1",
@@ -272,6 +298,7 @@ var _ = Describe("RDS Broker", func() {
 				planPSQL10,
 				planPSQL11,
 				planPSQL12,
+				planPSQL12LowStorage,
 			},
 		}
 
@@ -1021,7 +1048,7 @@ var _ = Describe("RDS Broker", func() {
 				Expect(aws.StringValue(input.DBParameterGroupName)).To(Equal(newParamGroupName))
 			})
 
-			It("cannot be downgraded", func() {
+			It("cannot have the version downgraded", func() {
 				updateDetails.PlanID = planPSQL10.ID
 				updateDetails.ServiceID = servicePSQL.ID
 				updateDetails.PreviousValues = domain.PreviousValues{
@@ -1033,7 +1060,22 @@ var _ = Describe("RDS Broker", func() {
 
 				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal(ErrCannotDowngrade.Error()))
+				Expect(err.Error()).To(Equal(ErrCannotDowngradeVersion.Error()))
+			})
+
+			It("cannot have the storage downgraded", func() {
+				updateDetails.PlanID = planPSQL12LowStorage.ID
+				updateDetails.ServiceID = servicePSQL.ID
+				updateDetails.PreviousValues = domain.PreviousValues{
+					PlanID:    planPSQL12.ID,
+					ServiceID: servicePSQL.ID,
+					OrgID:     updateDetails.PreviousValues.OrgID,
+					SpaceID:   updateDetails.PreviousValues.SpaceID,
+				}
+
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal(ErrCannotDowngradeStorage.Error()))
 			})
 
 			It("cannot be changed by more than 1 major version", func() {

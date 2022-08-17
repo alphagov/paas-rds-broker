@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Masterminds/semver"
-	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Masterminds/semver"
+	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/pivotal-cf/brokerapi/domain"
@@ -48,7 +49,8 @@ const disagreementDBInstanceClass = "DBInstanceClass"
 var (
 	ErrEncryptionNotUpdateable = errors.New("instance can not be updated to a plan with different encryption settings")
 	ErrCannotSkipMajorVersion  = errors.New("cannot skip major Postgres versions. Please upgrade one major version at a time (e.g. 10, to 11, to 12)")
-	ErrCannotDowngrade         = errors.New("cannot downgrade major versions")
+	ErrCannotDowngradeVersion  = errors.New("cannot downgrade major versions")
+	ErrCannotDowngradeStorage  = errors.New("cannot downgrade storage")
 )
 
 var rdsStatus2State = map[string]domain.LastOperationState{
@@ -499,8 +501,19 @@ func (b *RDSBroker) Update(
 	}
 
 	if newVersion.Major() < oldVersion.Major() {
-		err := ErrCannotDowngrade
-		b.logger.Error("downgrade-attempted", err)
+		err := ErrCannotDowngradeVersion
+		b.logger.Error("version-downgrade-attempted", err)
+		return domain.UpdateServiceSpec{},
+			apiresponses.NewFailureResponse(
+				err,
+				http.StatusBadRequest,
+				"upgrade",
+			)
+	}
+
+	if *servicePlan.RDSProperties.AllocatedStorage < *previousServicePlan.RDSProperties.AllocatedStorage {
+		err := ErrCannotDowngradeStorage
+		b.logger.Error("storage-downgrade-attempted", err)
 		return domain.UpdateServiceSpec{},
 			apiresponses.NewFailureResponse(
 				err,
