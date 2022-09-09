@@ -704,6 +704,22 @@ func (b *RDSBroker) Update(
 	return domain.UpdateServiceSpec{IsAsync: true}, nil
 }
 
+// determine whether we actually want to skip final snapshot given
+// servicePlan and tagValue
+func resolveSkipFinalSnapshot(servicePlan ServicePlan, tagValue string) (bool, error) {
+	var err error
+	skipDBInstanceFinalSnapshot := servicePlan.RDSProperties.SkipFinalSnapshot == nil || *servicePlan.RDSProperties.SkipFinalSnapshot
+
+	if tagValue != "" {
+		skipDBInstanceFinalSnapshot, err = strconv.ParseBool(tagValue)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	return skipDBInstanceFinalSnapshot, nil
+}
+
 func (b *RDSBroker) Deprovision(
 	ctx context.Context,
 	instanceID string,
@@ -725,18 +741,14 @@ func (b *RDSBroker) Deprovision(
 		return domain.DeprovisionServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
-	skipDBInstanceFinalSnapshot := servicePlan.RDSProperties.SkipFinalSnapshot == nil || *servicePlan.RDSProperties.SkipFinalSnapshot
-
 	skipFinalSnapshot, err := b.dbInstance.GetTag(b.dbInstanceIdentifier(instanceID), awsrds.TagSkipFinalSnapshot)
 	if err != nil {
 		return domain.DeprovisionServiceSpec{}, err
 	}
 
-	if skipFinalSnapshot != "" {
-		skipDBInstanceFinalSnapshot, err = strconv.ParseBool(skipFinalSnapshot)
-		if err != nil {
-			return domain.DeprovisionServiceSpec{}, err
-		}
+	skipDBInstanceFinalSnapshot, err := resolveSkipFinalSnapshot(servicePlan, skipFinalSnapshot)
+	if err != nil {
+		return domain.DeprovisionServiceSpec{}, err
 	}
 
 	if err := b.dbInstance.Delete(b.dbInstanceIdentifier(instanceID), skipDBInstanceFinalSnapshot); err != nil {
