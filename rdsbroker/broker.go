@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver"
-	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
+	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 
 	"code.cloudfoundry.org/lager"
-	"github.com/pivotal-cf/brokerapi/domain"
+	"github.com/pivotal-cf/brokerapi/v8/domain"
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/alphagov/paas-rds-broker/sqlengine"
@@ -417,11 +417,11 @@ func (b *RDSBroker) restoreFromSnapshot(
 	return b.dbInstance.Restore(restoreDBInstanceInput)
 }
 
-func (b *RDSBroker) GetBinding(ctx context.Context, first, second string) (domain.GetBindingSpec, error) {
+func (b *RDSBroker) GetBinding(ctx context.Context, instanceID, bindingID string, details domain.FetchBindingDetails) (domain.GetBindingSpec, error) {
 	return domain.GetBindingSpec{}, fmt.Errorf("GetBinding method not implemented")
 }
 
-func (b *RDSBroker) GetInstance(ctx context.Context, first string) (domain.GetInstanceDetailsSpec, error) {
+func (b *RDSBroker) GetInstance(ctx context.Context, instanceID string, details domain.FetchInstanceDetails) (domain.GetInstanceDetailsSpec, error) {
 	return domain.GetInstanceDetailsSpec{}, fmt.Errorf("GetInstance method not implemented")
 }
 
