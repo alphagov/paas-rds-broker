@@ -418,24 +418,28 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 
 			It("should create a final snapshot by default", func() {
+				By("provisioning an instance")
 				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
 
+				By("deprovisioning the instance")
 				code, operation, err = brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("gone"))
 
+				By("checking for a final snapshot")
 				snapshots, err := rdsClient.GetDBSnapshot(finalSnapshotID)
 				fmt.Fprintf(GinkgoWriter, "Final snapshots for %s:\n", instanceID)
 				fmt.Fprint(GinkgoWriter, snapshots)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(snapshots).Should(ContainSubstring(instanceID))
 
+				By("tidying up the snapshot")
 				snapshotDeletionOutput, err := rdsClient.DeleteDBSnapshot(finalSnapshotID)
 				fmt.Fprintf(GinkgoWriter, "Snapshot deletion output for %s:\n", instanceID)
 				fmt.Fprint(GinkgoWriter, snapshotDeletionOutput)
@@ -443,24 +447,28 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 
 			It("should not create a final snapshot when `skip_final_snapshot` is set at provision time", func() {
+				By("provisioning an instance")
 				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, `{"skip_final_snapshot":true}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
 
+				By("deprovisioning the instance")
 				code, operation, err = brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("gone"))
 
+				By("checking for a final snapshot")
 				snapshots, err := rdsClient.GetDBSnapshot(finalSnapshotID)
 				fmt.Fprintf(GinkgoWriter, "Final snapshots for %s:\n", instanceID)
 				fmt.Fprint(GinkgoWriter, snapshots)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("DBSnapshotNotFound"))
 
+				By("tidying up the snapshot")
 				snapshotDeletionOutput, err := rdsClient.DeleteDBSnapshot(finalSnapshotID)
 				fmt.Fprintf(GinkgoWriter, "Snapshot deletion output for %s:\n", instanceID)
 				fmt.Fprint(GinkgoWriter, snapshotDeletionOutput)
@@ -468,18 +476,21 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 
 			It("should not create a final snapshot when `skip_final_snapshot` is set via update", func() {
+				By("provisioning an instance")
 				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, "{}")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
 
+				By("updating skip_final_snapshot")
 				code, operation, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"skip_final_snapshot":true}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
 
+				By("deprovisioning the instance")
 				code, operation, err = brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
@@ -517,7 +528,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 	})
 
 	Describe("Restore from snapshot", func() {
-		TestRestoreFromSnapshot := func(serviceID, planID string) {
+		TestRestoreFromSnapshot := func(serviceID, planID string, testExtensions bool) {
 			var (
 				instanceID         string
 				restoredInstanceID string
@@ -529,11 +540,16 @@ var _ = Describe("RDS Broker Daemon", func() {
 				brokerAPIClient.AcceptsIncomplete = true
 			})
 
-			It("should create a final snapshot by default", func() {
+			It("should be able to create a new instance from a snapshot of a deleted database", func() {
 				firstInstance := ProvisionManager{
 					Provisioner: func() (WaitFunc, CleanFunc) {
 						By("creating a first instance")
-						code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, `{"skip_final_snapshot":true}`)
+						extensionsClause := ""
+						if testExtensions {
+							extensionsClause = `, "enable_extensions": ["pg_stat_statements"]`
+						}
+						provisionParams := fmt.Sprintf(`{"skip_final_snapshot":true%s}`, extensionsClause)
+						code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, provisionParams)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(code).To(Equal(202))
 						waiter := func() {
@@ -619,102 +635,12 @@ var _ = Describe("RDS Broker Daemon", func() {
 				secondInstance.Provision()
 				defer secondInstance.CleanUp()
 				secondInstance.Wait()
-			})
 
-			It("should be able to create a binding to the database", func() {
-				firstInstance := ProvisionManager{
-					Provisioner: func() (WaitFunc, CleanFunc) {
-						By("creating a first instance")
-						code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, `{"skip_final_snapshot":true}`)
-						Expect(err).ToNot(HaveOccurred())
-						Expect(code).To(Equal(202))
-						waiter := func() {
-							state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
-							Expect(state).To(Equal("succeeded"))
-						}
-						cleaner := func() {
-							By("deleting the first instance")
-							code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
-							Expect(err).ToNot(HaveOccurred())
-							Expect(code).To(Equal(202))
-							state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
-							Expect(state).To(Equal("gone"))
-						}
-						return waiter, cleaner
-					},
 				}
-
-				firstInstance.Provision()
-				defer firstInstance.CleanUp()
-				firstInstance.Wait()
-
-				snapshot := ProvisionManager{
-					Provisioner: func() (WaitFunc, CleanFunc) {
-						By("creating a snapshot")
-						snapshotID, err := rdsClient.CreateDBSnapshot(instanceID)
-						Expect(err).ToNot(HaveOccurred())
-						waiter := func() {
-							Eventually(
-								func() string {
-									s, err := rdsClient.GetDBSnapshot(snapshotID)
-									Expect(err).ToNot(HaveOccurred())
-									return aws.StringValue(s.DBSnapshots[0].Status)
-								},
-								10*time.Minute,
-								20*time.Second,
-							).Should(
-								Equal("available"),
-							)
-						}
-						cleaner := func() {
-							By("deleting the snapshot")
-							snapshotDeletionOutput, err := rdsClient.DeleteDBSnapshot(snapshotID)
-							fmt.Fprintf(GinkgoWriter, "Snapshot deletion output for %s:\n", instanceID)
-							fmt.Fprint(GinkgoWriter, snapshotDeletionOutput)
-							Expect(err).ToNot(HaveOccurred())
-						}
-						return waiter, cleaner
-					},
-				}
-
-				snapshot.Provision()
-				defer snapshot.CleanUp()
-				snapshot.Wait()
-
-				firstInstance.CleanUp()
-
-				secondInstance := ProvisionManager{
-					Provisioner: func() (WaitFunc, CleanFunc) {
-						By("restoring a second instance from snapshot")
-						code, operation, err := brokerAPIClient.ProvisionInstance(
-							restoredInstanceID, serviceID, planID,
-							fmt.Sprintf(`{"skip_final_snapshot":true, "restore_from_latest_snapshot_of": "%s"}`, instanceID),
-						)
-						Expect(err).ToNot(HaveOccurred())
-						Expect(code).To(Equal(202))
-						waiter := func() {
-							state := pollForOperationCompletion(brokerAPIClient, restoredInstanceID, serviceID, planID, operation)
-							Expect(state).To(Equal("succeeded"))
-						}
-						cleaner := func() {
-							By("deleting the second instance ")
-							code, operation, err := brokerAPIClient.DeprovisionInstance(restoredInstanceID, serviceID, planID)
-							Expect(err).ToNot(HaveOccurred())
-							Expect(code).To(Equal(202))
-							state := pollForOperationCompletion(brokerAPIClient, restoredInstanceID, serviceID, planID, operation)
-							Expect(state).To(Equal("gone"))
-						}
-						return waiter, cleaner
-					},
-				}
-
-				secondInstance.Provision()
-				defer secondInstance.CleanUp()
-				secondInstance.Wait()
 
 				secondInstanceBinding := ProvisionManager{
 					Provisioner: func() (WaitFunc, CleanFunc) {
-						By("creating a binding to the service instance")
+						By("creating a binding to the second service instance")
 						code, _, err := brokerAPIClient.BindService(
 							restoredInstanceID, serviceID, planID, "app-guid",
 							"post-restore-binding",
@@ -744,28 +670,27 @@ var _ = Describe("RDS Broker Daemon", func() {
 		}
 
 		Describe("Postgres 10", func() {
-			TestRestoreFromSnapshot("postgres", "postgres-micro-10")
+			TestRestoreFromSnapshot("postgres", "postgres-micro-10", true)
 		})
 
 		Describe("Postgres 13", func() {
-			TestRestoreFromSnapshot("postgres", "postgres-micro-13")
+			TestRestoreFromSnapshot("postgres", "postgres-micro-13", true)
 		})
 
 		Describe("MySQL 5.7", func() {
-			TestRestoreFromSnapshot("mysql", "mysql-5.7-micro")
+			TestRestoreFromSnapshot("mysql", "mysql-5.7-micro", false)
 		})
 
 		Describe("MySQL 8.0", func() {
-			TestRestoreFromSnapshot("mysql", "mysql-8.0-micro")
+			TestRestoreFromSnapshot("mysql", "mysql-8.0-micro", false)
 		})
 	})
 
 	Describe("Restore from before a point in time", func() {
-		TestRestoreFromPointInTime := func(serviceID, planID string) {
+		TestRestoreFromPointInTime := func(serviceID, planID string, testExtensions bool) {
 			var (
 				instanceID           string
 				restoredInstanceID   string
-				snapshotCreationTime *time.Time
 			)
 
 			BeforeEach(func() {
@@ -774,11 +699,16 @@ var _ = Describe("RDS Broker Daemon", func() {
 				brokerAPIClient.AcceptsIncomplete = true
 			})
 
-			It("should create a final snapshot by default", func() {
+			It("should be able to create a new instance from a point in time of an existing database", func() {
 				firstInstance := ProvisionManager{
 					Provisioner: func() (WaitFunc, CleanFunc) {
 						By("creating a first instance")
-						code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, `{"skip_final_snapshot":true}`)
+						extensionsClause := ""
+						if testExtensions {
+							extensionsClause = `, "enable_extensions": ["pg_stat_statements"]`
+						}
+						provisionParams := fmt.Sprintf(`{"skip_final_snapshot":true%s}`, extensionsClause)
+						code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, planID, provisionParams)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(code).To(Equal(202))
 						waiter := func() {
@@ -801,50 +731,36 @@ var _ = Describe("RDS Broker Daemon", func() {
 				defer firstInstance.CleanUp()
 				firstInstance.Wait()
 
-				snapshot := ProvisionManager{
-					Provisioner: func() (WaitFunc, CleanFunc) {
-						By("creating a snapshot and recording its creation time")
-						snapshotID, err := rdsClient.CreateDBSnapshot(instanceID)
+				By("waiting until the time we want to restore is restorable from")
+				db, err := rdsClient.GetDBInstanceDetails(instanceID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(db.DBInstances)).To(Equal(1))
+				// RDS doesn't like being asked to restore from the *actual*
+				// first-presented latest-restorable-time, so add a minute
+				// (this is arbitrary) and wait for the LatestRestorableTime
+				// to be after *that* to avoid complaints
+				restoreTime := db.DBInstances[0].LatestRestorableTime.Add(1 * time.Minute)
+				Eventually(
+					func () time.Time {
+						db, err := rdsClient.GetDBInstanceDetails(instanceID)
 						Expect(err).ToNot(HaveOccurred())
-						waiter := func() {
-							Eventually(
-								func() string {
-									s, err := rdsClient.GetDBSnapshot(snapshotID)
-									Expect(err).ToNot(HaveOccurred())
-									snapshotCreationTime = s.DBSnapshots[0].SnapshotCreateTime
-									return aws.StringValue(s.DBSnapshots[0].Status)
-								},
-								10*time.Minute,
-								20*time.Second,
-							).Should(
-								Equal("available"),
-							)
-						}
-						cleaner := func() {
-							By("deleting the snapshot")
-							snapshotDeletionOutput, err := rdsClient.DeleteDBSnapshot(snapshotID)
-							fmt.Fprintf(GinkgoWriter, "Snapshot deletion output for %s:\n", instanceID)
-							fmt.Fprint(GinkgoWriter, snapshotDeletionOutput)
-							Expect(err).ToNot(HaveOccurred())
-						}
-						return waiter, cleaner
+						Expect(len(db.DBInstances)).To(Equal(1))
+						return *db.DBInstances[0].LatestRestorableTime
 					},
-				}
-
-				snapshot.Provision()
-				defer snapshot.CleanUp()
-				snapshot.Wait()
-
-				firstInstance.CleanUp()
+					15*time.Minute,
+					30*time.Second,
+				).Should(
+					BeTemporally(">", restoreTime),
+				)
 
 				secondInstance := ProvisionManager{
 					Provisioner: func() (WaitFunc, CleanFunc) {
 						By("restoring a second instance from a snapshot taken before a point in time")
-						By("using earlier snapshot creation time + 1 minute for these test purposes")
-						snapshotTimePlus1Minute := snapshotCreationTime.Add(1 * time.Minute).Format(time.RFC3339)
+						restoreTimestamp := restoreTime.Format("2006-01-02 15:04:05")
+
 						code, operation, err := brokerAPIClient.ProvisionInstance(
 							restoredInstanceID, serviceID, planID,
-							fmt.Sprintf(`{"skip_final_snapshot":true, "restore_from_latest_snapshot_of": "%s", "restore_from_point_in_time_before": "%s"}`, instanceID, snapshotTimePlus1Minute),
+							fmt.Sprintf(`{"skip_final_snapshot":true, "restore_from_point_in_time_of": "%s", "restore_from_point_in_time_before": "%s"}`, instanceID, restoreTimestamp),
 						)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(code).To(Equal(202))
@@ -867,23 +783,52 @@ var _ = Describe("RDS Broker Daemon", func() {
 				secondInstance.Provision()
 				defer secondInstance.CleanUp()
 				secondInstance.Wait()
+
+				secondInstanceBinding := ProvisionManager{
+					Provisioner: func() (WaitFunc, CleanFunc) {
+						By("creating a binding to the second service instance")
+						code, _, err := brokerAPIClient.BindService(
+							restoredInstanceID, serviceID, planID, "app-guid",
+							"post-restore-binding",
+						)
+
+						Expect(err).ToNot(HaveOccurred())
+						Expect(code).To(Equal(201))
+
+						// Binding is synchronous
+						waiter := func() { return }
+						cleaner := func() {
+							code, _, err := brokerAPIClient.UnbindService(
+								restoredInstanceID, serviceID, planID, "post-restore-binding",
+							)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(code).To(Equal(200))
+						}
+
+						return waiter, cleaner
+					},
+				}
+
+				secondInstanceBinding.Provision()
+				defer secondInstanceBinding.CleanUp()
+				secondInstanceBinding.Wait()
 			})
 		}
 
 		Describe("Postgres 10", func() {
-			TestRestoreFromPointInTime("postgres", "postgres-micro-10")
+			TestRestoreFromPointInTime("postgres", "postgres-micro-10", true)
 		})
 
 		Describe("Postgres 13", func() {
-			TestRestoreFromPointInTime("postgres", "postgres-micro-13")
+			TestRestoreFromPointInTime("postgres", "postgres-micro-13", true)
 		})
 
 		Describe("MySQL 5.7", func() {
-			TestRestoreFromPointInTime("mysql", "mysql-5.7-micro")
+			TestRestoreFromPointInTime("mysql", "mysql-5.7-micro", false)
 		})
 
 		Describe("MySQL 8.0", func() {
-			TestRestoreFromPointInTime("mysql", "mysql-8.0-micro")
+			TestRestoreFromPointInTime("mysql", "mysql-8.0-micro", false)
 		})
 	})
 })
