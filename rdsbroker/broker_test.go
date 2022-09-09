@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pivotal-cf/brokerapi/domain"
-	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
+	"github.com/pivotal-cf/brokerapi/v8/domain"
+	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 
 	"github.com/alphagov/paas-rds-broker/rdsbroker/fakes"
 
@@ -28,7 +28,7 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
-	"github.com/pivotal-cf/brokerapi"
+	"github.com/pivotal-cf/brokerapi/v8"
 
 	rdsfake "github.com/alphagov/paas-rds-broker/awsrds/fakes"
 	sqlfake "github.com/alphagov/paas-rds-broker/sqlengine/fakes"
