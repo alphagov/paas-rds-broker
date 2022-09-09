@@ -421,8 +421,74 @@ func (b *RDSBroker) GetBinding(ctx context.Context, instanceID, bindingID string
 	return domain.GetBindingSpec{}, fmt.Errorf("GetBinding method not implemented")
 }
 
-func (b *RDSBroker) GetInstance(ctx context.Context, instanceID string, details domain.FetchInstanceDetails) (domain.GetInstanceDetailsSpec, error) {
-	return domain.GetInstanceDetailsSpec{}, fmt.Errorf("GetInstance method not implemented")
+func (b *RDSBroker) GetInstance(
+	ctx context.Context,
+	instanceID string,
+	details domain.FetchInstanceDetails,
+) (domain.GetInstanceDetailsSpec, error) {
+	b.logger.Debug("get-instance", lager.Data{
+		instanceIDLogKey: instanceID,
+	})
+
+	dbInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
+	if err != nil {
+		b.logger.Error("describe-instance", err)
+		if err == awsrds.ErrDBInstanceDoesNotExist {
+			return domain.GetInstanceDetailsSpec{}, apiresponses.ErrInstanceDoesNotExist
+		}
+		return domain.GetInstanceDetailsSpec{}, err
+	}
+
+	servicePlan, ok := b.catalog.FindServicePlan(details.PlanID)
+	if !ok {
+		return domain.GetInstanceDetailsSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
+	}
+
+	tags, err := b.dbInstance.GetResourceTags(aws.StringValue(dbInstance.DBInstanceArn))
+	if err != nil {
+		b.logger.Error("get-instance-tags", err)
+		if err == awsrds.ErrDBInstanceDoesNotExist {
+			return domain.GetInstanceDetailsSpec{}, apiresponses.ErrInstanceDoesNotExist
+		}
+		return domain.GetInstanceDetailsSpec{}, err
+	}
+	tagsByName := awsrds.RDSTagsValues(tags)
+
+	extensions := []string{}
+	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
+		extensions = unpackExtensions(extensionsTag)
+	}
+
+	skipFinalSnapshot, err := resolveSkipFinalSnapshot(servicePlan, tagsByName[awsrds.TagSkipFinalSnapshot])
+	if err != nil {
+		b.logger.Error("resolve-skip-final-snapshot", err)
+		return domain.GetInstanceDetailsSpec{}, err
+	}
+
+	instanceParams := map[string]interface{}{
+		"backup_retention_period": dbInstance.BackupRetentionPeriod,
+		"extensions": extensions,
+		"preferred_backup_window": dbInstance.PreferredBackupWindow,
+		"preferred_maintenance_window": dbInstance.PreferredMaintenanceWindow,
+		"skip_final_snapshot": skipFinalSnapshot,
+	}
+
+	if tagsByName[awsrds.TagOriginDatabase] != "" {
+		if tagsByName[awsrds.TagOriginPointInTime] != "" {
+			instanceParams["restored_from_point_in_time_of"] = tagsByName[awsrds.TagOriginDatabase]
+			instanceParams["restored_from_point_in_time_before"] = tagsByName[awsrds.TagOriginPointInTime]
+		}
+		if tagsByName[awsrds.TagRestoredFromSnapshot] != "" {
+			// "restored_from_latest_snapshot_of" would be misleading as
+			// we don't know what value of restore_from_point_in_time_before
+			// was used at provisioning
+			instanceParams["restored_from_snapshot_of"] = tagsByName[awsrds.TagOriginDatabase]
+		}
+	}
+
+	return domain.GetInstanceDetailsSpec{
+		Parameters: instanceParams,
+	}, nil
 }
 
 func (b *RDSBroker) LastBindingOperation(ctx context.Context, first, second string, pollDetails domain.PollDetails) (domain.LastOperation, error) {
