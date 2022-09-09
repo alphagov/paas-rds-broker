@@ -312,7 +312,7 @@ func (b *RDSBroker) restoreFromPointInTime(
 
 	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
 		if extensionsTag != "" {
-			existingExts := strings.Split(extensionsTag, ":")
+			existingExts := unpackExtensions(extensionsTag)
 			provisionParameters.Extensions = mergeExtensions(provisionParameters.Extensions, existingExts)
 		}
 	}
@@ -404,7 +404,7 @@ func (b *RDSBroker) restoreFromSnapshot(
 
 	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
 		if extensionsTag != "" {
-			snapshotExts := strings.Split(extensionsTag, ":")
+			snapshotExts := unpackExtensions(extensionsTag)
 			provisionParameters.Extensions = mergeExtensions(provisionParameters.Extensions, snapshotExts)
 		}
 	}
@@ -574,7 +574,7 @@ func (b *RDSBroker) Update(
 
 	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
 		if extensionsTag != "" {
-			extensions = mergeExtensions(extensions, strings.Split(extensionsTag, ":"))
+			extensions = mergeExtensions(extensions, unpackExtensions(extensionsTag))
 		}
 	}
 
@@ -1109,7 +1109,7 @@ func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstance *rds.DB
 		defer sqlEngine.Close()
 
 		if extensions, exists := tagsByName[awsrds.TagExtensions]; exists {
-			postgresExtensionsString := strings.Split(extensions, ":")
+			postgresExtensionsString := unpackExtensions(extensions)
 
 			if err = sqlEngine.CreateExtensions(postgresExtensionsString); err != nil {
 				return err
@@ -1141,6 +1141,16 @@ func (b *RDSBroker) ensureDropExtensions(instanceID string, dbInstance *rds.DBIn
 	return nil
 }
 
+// pack array of extensions to their tag-stored format
+func packExtensions(unpackedExtensions []string) string {
+	return strings.Join(unpackedExtensions, ":")
+}
+
+// unpack array of extensions from their tag-stored format
+func unpackExtensions(packedExtensions string) []string {
+	return strings.Split(packedExtensions, ":")
+}
+
 func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperationTriggered bool, err error) {
 	serviceID := tagsByName[awsrds.TagServiceID]
 	planID := tagsByName[awsrds.TagPlanID]
@@ -1166,7 +1176,7 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 
 	extensions := []string{}
 	if exts, exists := tagsByName[awsrds.TagExtensions]; exists {
-		extensions = strings.Split(exts, ":")
+		extensions = unpackExtensions(exts)
 	}
 
 	tags := b.dbTags(RDSInstanceTags{
@@ -1655,7 +1665,7 @@ func (b *RDSBroker) dbTags(instanceTags RDSInstanceTags) map[string]string {
 	}
 
 	if len(instanceTags.Extensions) > 0 {
-		tags[awsrds.TagExtensions] = strings.Join(instanceTags.Extensions, ":")
+		tags[awsrds.TagExtensions] = packExtensions(instanceTags.Extensions)
 	}
 
 	return tags
