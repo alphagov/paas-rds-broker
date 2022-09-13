@@ -257,6 +257,17 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 
 			It("handles an enable/disable extensions", func() {
+				By("checking GetInstace results")
+				code, getInstanceResponse, err := brokerAPIClient.GetInstance(instanceID, serviceID, planID)
+				Expect(err).ToNot(HaveOccurred())
+				parameters, ok := getBindingSpec.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("extensions", []string{
+					"uuid-ossp",
+					"postgis",
+					"citext",
+				}))
+
 				By("enable extension")
 				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"enable_extensions": ["pg_stat_statements"], "reboot": true }`)
 				Expect(err).ToNot(HaveOccurred())
@@ -264,12 +275,35 @@ var _ = Describe("RDS Broker Daemon", func() {
 				extensions := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(extensions).To(Equal("succeeded"))
 
+				By("re-checking GetInstace results")
+				code, getInstanceResponse, err := brokerAPIClient.GetInstance(instanceID, serviceID, planID)
+				Expect(err).ToNot(HaveOccurred())
+				parameters, ok := getBindingSpec.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("extensions", []string{
+					"uuid-ossp",
+					"postgis",
+					"citext",
+					"pg_stat_statements",
+				}))
+
 				By("disable extension")
 				code, operation, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"disable_extensions": ["pg_stat_statements"], "reboot": true }`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				extensions = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(extensions).To(Equal("succeeded"))
+
+				By("re-checking GetInstace results")
+				code, getInstanceResponse, err := brokerAPIClient.GetInstance(instanceID, serviceID, planID)
+				Expect(err).ToNot(HaveOccurred())
+				parameters, ok := getBindingSpec.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("extensions", []string{
+					"uuid-ossp",
+					"postgis",
+					"citext",
+				}))
 			})
 		}
 
