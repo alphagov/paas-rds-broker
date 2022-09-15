@@ -376,7 +376,12 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
+		// tsearch2 isn't available on postgres > 10, hence will produce a
+		// reliable failure on upgrade
+
 		Describe("Postgres 10 to 11 simple failure", func() {
+			// tsearch2-caused failure shouldn't have caused any lasting effects
+			// and plan id should have been rolled back
 			TestUpdatePlan(
 				"postgres",
 				"postgres-micro-without-snapshot-10",
@@ -387,6 +392,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 		})
 
 		Describe("Postgres 10 to 11 complex failure", func() {
+			// tsearch2-caused failure will have happened after disk-space upgrade
+			// leaving the service instance now in limbo needing operator intervention
 			TestUpdatePlan(
 				"postgres",
 				"postgres-micro-without-snapshot-10",
