@@ -215,6 +215,10 @@ func (b *RDSBroker) Provision(
 		return domain.ProvisionedServiceSpec{}, fmt.Errorf("Parameter restore_from_latest_snapshot_before should be used with restore_from_latest_snapshot_of")
 	}
 
+	if provisionParameters.RestoreFromPointInTimeOf == nil && provisionParameters.RestoreFromPointInTimeBefore != nil {
+		return domain.ProvisionedServiceSpec{}, fmt.Errorf("Parameter restore_from_point_in_time_before should be used with restore_from_point_in_time_of")
+	}
+
 	if provisionParameters.RestoreFromLatestSnapshotOf != nil {
 		err := b.restoreFromSnapshot(
 			ctx, instanceID, details, asyncAllowed,
@@ -270,7 +274,7 @@ func (b *RDSBroker) restoreFromPointInTime(
 ) error {
 	if engine := servicePlan.RDSProperties.Engine; engine != nil {
 		if *engine != "postgres" && *engine != "mysql" {
-			return fmt.Errorf("Restore from snapshot not supported for engine '%s'", *engine)
+			return fmt.Errorf("Restore from point in time not supported for engine '%s'", *engine)
 		}
 	}
 	if *provisionParameters.RestoreFromPointInTimeOf == "" {

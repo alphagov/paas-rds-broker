@@ -574,6 +574,18 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 
+			Context("if it specifies restore_from_point_in_time_before without restore_from_point_in_time_of", func() {
+				BeforeEach(func() {
+					provisionDetails.RawParameters = json.RawMessage(`{ "restore_from_point_in_time_before": "2006-01-01"}`)
+				})
+
+				It("returns the correct error", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("Parameter restore_from_point_in_time_before should be used with restore_from_point_in_time_of"))
+				})
+			})
+
 			It("makes the proper calls", func() {
 				_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 				Expect(err).ToNot(HaveOccurred())
@@ -874,7 +886,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 
-			Context("without a restore_from_latest_snapshot_before modifier", func() {
+			Context("with a restore_from_latest_snapshot_before modifier", func() {
 				BeforeEach(func() {
 					rdsProperties1.Engine = stringPointer("postgres")
 					restoreFromSnapshotInstanceGUID = "guid-of-origin-instance"
