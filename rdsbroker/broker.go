@@ -404,8 +404,6 @@ func (b *RDSBroker) restoreFromSnapshot(
 		return err
 	}
 
-	snapshotIdentifier := aws.StringValue(snapshot.DBSnapshotIdentifier)
-
 	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
 		if extensionsTag != "" {
 			snapshotExts := unpackExtensions(extensionsTag)
@@ -413,7 +411,7 @@ func (b *RDSBroker) restoreFromSnapshot(
 		}
 	}
 
-	restoreDBInstanceInput, err := b.restoreDBInstanceInput(instanceID, snapshotIdentifier, servicePlan, provisionParameters, details)
+	restoreDBInstanceInput, err := b.restoreDBInstanceInput(instanceID, snapshot, servicePlan, provisionParameters, details)
 	if err != nil {
 		return err
 	}
@@ -1451,7 +1449,7 @@ func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan Serv
 	return createDBInstanceInput, nil
 }
 
-func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details domain.ProvisionDetails) (*rds.RestoreDBInstanceFromDBSnapshotInput, error) {
+func (b *RDSBroker) restoreDBInstanceInput(instanceID string, snapshot *rds.DBSnapshot, servicePlan ServicePlan, provisionParameters ProvisionParameters, details domain.ProvisionDetails) (*rds.RestoreDBInstanceFromDBSnapshotInput, error) {
 	skipFinalSnapshot := false
 	if provisionParameters.SkipFinalSnapshot != nil {
 		skipFinalSnapshot = *provisionParameters.SkipFinalSnapshot
@@ -1465,7 +1463,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		return nil, err
 	}
 
-	//"Restored", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, snapshotIdentifier, provisionParameters.Extensions
+	//"Restored", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, snapshot.DBSnapshotIdentifier, provisionParameters.Extensions
 	tags := RDSInstanceTags{
 		Action:                   "Restored",
 		ServiceID:                details.ServiceID,
@@ -1473,13 +1471,14 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		OrganizationID:           details.OrganizationGUID,
 		SpaceID:                  details.SpaceGUID,
 		SkipFinalSnapshot:        skipFinalSnapshotStr,
-		OriginSnapshotIdentifier: snapshotIdentifier,
+		OriginSnapshotIdentifier: aws.StringValue(snapshot.DBSnapshotIdentifier),
+		OriginDatabaseIdentifier: aws.StringValue(snapshot.DBInstanceIdentifier),
 		Extensions:               provisionParameters.Extensions,
 		ChargeableEntity:         instanceID,
 	}
 
 	return &rds.RestoreDBInstanceFromDBSnapshotInput{
-		DBSnapshotIdentifier:    aws.String(snapshotIdentifier),
+		DBSnapshotIdentifier:    snapshot.DBSnapshotIdentifier,
 		DBInstanceIdentifier:    aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBInstanceClass:         servicePlan.RDSProperties.DBInstanceClass,
 		Engine:                  servicePlan.RDSProperties.Engine,
