@@ -160,6 +160,15 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(aws.StringValue(details.DBInstances[0].PreferredMaintenanceWindow)).To(Equal("tue:10:00-tue:11:00"))
 				Expect(aws.StringValue(details.DBInstances[0].PreferredBackupWindow)).To(Equal("21:00-22:00"))
 
+				By("checking GetInstance results")
+				code, getInstanceResponse, err := brokerAPIClient.GetInstance(instanceID, "", "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(200))
+				parameters, ok := getInstanceResponse.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("preferred_maintenance_window", "tue:10:00-tue:11:00"))
+				Expect(parameters).To(HaveKeyWithValue("preferred_backup_window", "21:00-22:00"))
+
 				By("caching the instance details before master credentials rotation")
 				detailsBefore := details
 
@@ -257,19 +266,56 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 
 			It("handles an enable/disable extensions", func() {
-				By("enable extension")
+				By("checking GetInstance results")
+				code, getInstanceResponse, err := brokerAPIClient.GetInstance(instanceID, "", "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(200))
+				parameters, ok := getInstanceResponse.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("extensions", []interface {} {
+					"uuid-ossp",
+					"postgis",
+					"citext",
+				}))
+
+				By("enabling extension")
 				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"enable_extensions": ["pg_stat_statements"], "reboot": true }`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				extensions := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(extensions).To(Equal("succeeded"))
 
-				By("disable extension")
+				By("re-checking GetInstance results after enabling extension")
+				code, getInstanceResponse, err = brokerAPIClient.GetInstance(instanceID, "", "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(200))
+				parameters, ok = getInstanceResponse.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("extensions", []interface {} {
+					"uuid-ossp",
+					"postgis",
+					"citext",
+					"pg_stat_statements",
+				}))
+
+				By("disabling extension")
 				code, operation, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"disable_extensions": ["pg_stat_statements"], "reboot": true }`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				extensions = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(extensions).To(Equal("succeeded"))
+
+				By("re-checking GetInstance results after disabling extension")
+				code, getInstanceResponse, err = brokerAPIClient.GetInstance(instanceID, "", "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(200))
+				parameters, ok = getInstanceResponse.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("extensions", []interface {} {
+					"uuid-ossp",
+					"postgis",
+					"citext",
+				}))
 			})
 		}
 
@@ -425,6 +471,14 @@ var _ = Describe("RDS Broker Daemon", func() {
 				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
 
+				By("checking GetInstance results")
+				code, getInstanceResponse, err := brokerAPIClient.GetInstance(instanceID, "", "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(200))
+				parameters, ok := getInstanceResponse.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("skip_final_snapshot", false))
+
 				By("deprovisioning the instance")
 				code, operation, err = brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
 				Expect(err).ToNot(HaveOccurred())
@@ -453,6 +507,14 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(code).To(Equal(202))
 				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
+
+				By("checking GetInstance results")
+				code, getInstanceResponse, err := brokerAPIClient.GetInstance(instanceID, "", "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(200))
+				parameters, ok := getInstanceResponse.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("skip_final_snapshot", true))
 
 				By("deprovisioning the instance")
 				code, operation, err = brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
@@ -483,12 +545,28 @@ var _ = Describe("RDS Broker Daemon", func() {
 				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
 
+				By("checking GetInstance results")
+				code, getInstanceResponse, err := brokerAPIClient.GetInstance(instanceID, "", "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(200))
+				parameters, ok := getInstanceResponse.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("skip_final_snapshot", false))
+
 				By("updating skip_final_snapshot")
 				code, operation, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"skip_final_snapshot":true}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
 				Expect(state).To(Equal("succeeded"))
+
+				By("re-checking GetInstance results after updating skip_final_snapshot")
+				code, getInstanceResponse, err = brokerAPIClient.GetInstance(instanceID, "", "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(200))
+				parameters, ok = getInstanceResponse.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("skip_final_snapshot", true))
 
 				By("deprovisioning the instance")
 				code, operation, err = brokerAPIClient.DeprovisionInstance(instanceID, serviceID, planID)
@@ -572,6 +650,14 @@ var _ = Describe("RDS Broker Daemon", func() {
 				defer firstInstance.CleanUp()
 				firstInstance.Wait()
 
+				By("checking GetInstance results for first service instance")
+				code, getInstanceResponse, err := brokerAPIClient.GetInstance(instanceID, "", "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(200))
+				parameters, ok := getInstanceResponse.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).ToNot(HaveKey("restored_from_snapshot_of"))
+
 				snapshot := ProvisionManager{
 					Provisioner: func() (WaitFunc, CleanFunc) {
 						By("creating a snapshot")
@@ -636,6 +722,20 @@ var _ = Describe("RDS Broker Daemon", func() {
 				defer secondInstance.CleanUp()
 				secondInstance.Wait()
 
+				By("checking GetInstance results for second service instance")
+				code, getInstanceResponse, err = brokerAPIClient.GetInstance(restoredInstanceID, serviceID, planID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(200))
+				parameters, ok = getInstanceResponse.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("restored_from_snapshot_of", instanceID))
+				if testExtensions {
+					Expect(parameters).To(HaveKeyWithValue("extensions", []interface {} {
+						"uuid-ossp",
+						"postgis",
+						"citext",
+						"pg_stat_statements",
+					}))
 				}
 
 				secondInstanceBinding := ProvisionManager{
@@ -731,6 +831,15 @@ var _ = Describe("RDS Broker Daemon", func() {
 				defer firstInstance.CleanUp()
 				firstInstance.Wait()
 
+				By("checking GetInstance results for first service instance")
+				code, getInstanceResponse, err := brokerAPIClient.GetInstance(instanceID, "", "")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(200))
+				parameters, ok := getInstanceResponse.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).ToNot(HaveKey("restored_from_point_in_time_of"))
+				Expect(parameters).ToNot(HaveKey("restored_from_point_in_time_before"))
+
 				By("waiting until the time we want to restore is restorable from")
 				db, err := rdsClient.GetDBInstanceDetails(instanceID)
 				Expect(err).ToNot(HaveOccurred())
@@ -783,6 +892,23 @@ var _ = Describe("RDS Broker Daemon", func() {
 				secondInstance.Provision()
 				defer secondInstance.CleanUp()
 				secondInstance.Wait()
+
+				By("checking GetInstance results for second service instance")
+				code, getInstanceResponse, err = brokerAPIClient.GetInstance(restoredInstanceID, serviceID, planID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(200))
+				parameters, ok = getInstanceResponse.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("restored_from_point_in_time_of", instanceID))
+				Expect(parameters).To(HaveKey("restored_from_point_in_time_before"))
+				if testExtensions {
+					Expect(parameters).To(HaveKeyWithValue("extensions", []interface {} {
+						"uuid-ossp",
+						"postgis",
+						"citext",
+						"pg_stat_statements",
+					}))
+				}
 
 				secondInstanceBinding := ProvisionManager{
 					Provisioner: func() (WaitFunc, CleanFunc) {
