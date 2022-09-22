@@ -70,6 +70,7 @@ var _ = Describe("RDS Broker", func() {
 		allowUserUpdateParameters    bool
 		allowUserBindParameters      bool
 		serviceBindable              bool
+		instancesRetrievable         bool
 		planUpdateable               bool
 		skipFinalSnapshot            bool
 		dbPrefix                     string
@@ -99,6 +100,7 @@ var _ = Describe("RDS Broker", func() {
 		allowUserUpdateParameters = true
 		allowUserBindParameters = true
 		serviceBindable = true
+		instancesRetrievable = true
 		planUpdateable = true
 		skipFinalSnapshot = true
 		dbPrefix = "cf"
@@ -304,6 +306,7 @@ var _ = Describe("RDS Broker", func() {
 					Name:          "Service 1",
 					Description:   "This is the Service 1",
 					Bindable:      serviceBindable,
+					InstancesRetrievable: instancesRetrievable,
 					PlanUpdatable: planUpdateable,
 					Plans: []domain.ServicePlan{
 						domain.ServicePlan{
@@ -318,6 +321,7 @@ var _ = Describe("RDS Broker", func() {
 					Name:          "Service 2",
 					Description:   "This is the Service 2",
 					Bindable:      serviceBindable,
+					InstancesRetrievable: instancesRetrievable,
 					PlanUpdatable: planUpdateable,
 					Plans: []domain.ServicePlan{
 						domain.ServicePlan{
@@ -332,6 +336,7 @@ var _ = Describe("RDS Broker", func() {
 					Name:          "Service 3",
 					Description:   "This is the Service 3",
 					Bindable:      serviceBindable,
+					InstancesRetrievable: instancesRetrievable,
 					PlanUpdatable: planUpdateable,
 					Plans: []domain.ServicePlan{
 						domain.ServicePlan{

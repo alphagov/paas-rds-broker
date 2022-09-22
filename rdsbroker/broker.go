@@ -161,6 +161,7 @@ func (b *RDSBroker) Services(ctx context.Context) ([]domain.Service, error) {
 
 	for i := range apiCatalog.Services {
 		apiCatalog.Services[i].Bindable = true
+		apiCatalog.Services[i].InstancesRetrievable = true
 	}
 
 	return apiCatalog.Services, nil
