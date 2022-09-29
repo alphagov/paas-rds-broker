@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pivotal-cf/brokerapi/domain"
-	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
+	"github.com/pivotal-cf/brokerapi/v8/domain"
+	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 
 	"github.com/alphagov/paas-rds-broker/rdsbroker/fakes"
 
@@ -28,7 +28,7 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
-	"github.com/pivotal-cf/brokerapi"
+	"github.com/pivotal-cf/brokerapi/v8"
 
 	rdsfake "github.com/alphagov/paas-rds-broker/awsrds/fakes"
 	sqlfake "github.com/alphagov/paas-rds-broker/sqlengine/fakes"
@@ -70,6 +70,7 @@ var _ = Describe("RDS Broker", func() {
 		allowUserUpdateParameters    bool
 		allowUserBindParameters      bool
 		serviceBindable              bool
+		instancesRetrievable         bool
 		planUpdateable               bool
 		skipFinalSnapshot            bool
 		dbPrefix                     string
@@ -99,6 +100,7 @@ var _ = Describe("RDS Broker", func() {
 		allowUserUpdateParameters = true
 		allowUserBindParameters = true
 		serviceBindable = true
+		instancesRetrievable = true
 		planUpdateable = true
 		skipFinalSnapshot = true
 		dbPrefix = "cf"
@@ -304,6 +306,7 @@ var _ = Describe("RDS Broker", func() {
 					Name:          "Service 1",
 					Description:   "This is the Service 1",
 					Bindable:      serviceBindable,
+					InstancesRetrievable: instancesRetrievable,
 					PlanUpdatable: planUpdateable,
 					Plans: []domain.ServicePlan{
 						domain.ServicePlan{
@@ -318,6 +321,7 @@ var _ = Describe("RDS Broker", func() {
 					Name:          "Service 2",
 					Description:   "This is the Service 2",
 					Bindable:      serviceBindable,
+					InstancesRetrievable: instancesRetrievable,
 					PlanUpdatable: planUpdateable,
 					Plans: []domain.ServicePlan{
 						domain.ServicePlan{
@@ -332,6 +336,7 @@ var _ = Describe("RDS Broker", func() {
 					Name:          "Service 3",
 					Description:   "This is the Service 3",
 					Bindable:      serviceBindable,
+					InstancesRetrievable: instancesRetrievable,
 					PlanUpdatable: planUpdateable,
 					Plans: []domain.ServicePlan{
 						domain.ServicePlan{
@@ -571,6 +576,18 @@ var _ = Describe("RDS Broker", func() {
 					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
 					Expect(err).To(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("Parameter restore_from_point_in_time_before should be a date and a time"))
+				})
+			})
+
+			Context("if it specifies restore_from_point_in_time_before without restore_from_point_in_time_of", func() {
+				BeforeEach(func() {
+					provisionDetails.RawParameters = json.RawMessage(`{ "restore_from_point_in_time_before": "2006-01-01"}`)
+				})
+
+				It("returns the correct error", func() {
+					_, err := rdsBroker.Provision(ctx, instanceID, provisionDetails, acceptsIncomplete)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("Parameter restore_from_point_in_time_before should be used with restore_from_point_in_time_of"))
 				})
 			})
 
@@ -874,7 +891,7 @@ var _ = Describe("RDS Broker", func() {
 				})
 			})
 
-			Context("without a restore_from_latest_snapshot_before modifier", func() {
+			Context("with a restore_from_latest_snapshot_before modifier", func() {
 				BeforeEach(func() {
 					rdsProperties1.Engine = stringPointer("postgres")
 					restoreFromSnapshotInstanceGUID = "guid-of-origin-instance"
@@ -2832,6 +2849,205 @@ var _ = Describe("RDS Broker", func() {
 			Context("when instance status is "+instanceStatus, checkLastOperationResponse(instanceStatus, domain.InProgress))
 		}
 
+	})
+
+	Describe("GetInstance", func() {
+		var (
+			fetchInstanceDetails        domain.FetchInstanceDetails
+			defaultDBInstanceTagsByName map[string]string
+			defaultDBInstance           rds.DBInstance
+		)
+
+		BeforeEach(func() {
+			fetchInstanceDetails = domain.FetchInstanceDetails{
+				ServiceID:                  "Service-1",
+				PlanID:                     "Plan-1",
+			}
+			defaultDBInstanceTagsByName = map[string]string{
+				"Space ID":          "space-id",
+				"Organization ID":   "organization-id",
+				"Plan ID":           "Plan-1",
+				"Service ID":        "Service-1",
+				"Extensions":        "foo:bar:baz",
+				"SkipFinalSnapshot": "false",
+			}
+			defaultDBInstance = rds.DBInstance{
+				DBInstanceIdentifier:       aws.String(dbInstanceIdentifier),
+				DBInstanceArn:              aws.String(dbInstanceArn),
+				PreferredMaintenanceWindow: stringPointer("some-convenient-maintenance-window"),
+				PreferredBackupWindow:      stringPointer("some-convenient-backup-window"),
+				BackupRetentionPeriod:      int64Pointer(4),
+			}
+		})
+
+		JustBeforeEach(func() {
+			rdsInstance.DescribeReturns(&defaultDBInstance, nil)
+			rdsInstance.GetResourceTagsReturns(awsrds.BuildRDSTags(
+				defaultDBInstanceTagsByName,
+			), nil)
+		})
+
+		Context("when the service instance doesn't exist", func() {
+			JustBeforeEach(func() {
+				rdsInstance.DescribeReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
+			})
+
+			It("returns the correct error", func() {
+				_, err := rdsBroker.GetInstance(ctx, instanceID, fetchInstanceDetails)
+
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(Equal(apiresponses.ErrInstanceDoesNotExist))
+
+				Expect(rdsInstance.DescribeCallCount()).To(Equal(1))
+				Expect(rdsInstance.DescribeArgsForCall(0)).To(Equal(dbInstanceIdentifier))
+			})
+		})
+
+		Context("when the service instance can't be found by GetResourceTags", func() {
+			JustBeforeEach(func() {
+				rdsInstance.DescribeReturns(&defaultDBInstance, nil)
+				rdsInstance.GetResourceTagsReturns(nil, awsrds.ErrDBInstanceDoesNotExist)
+			})
+
+			It("returns the correct error", func() {
+				_, err := rdsBroker.GetInstance(ctx, instanceID, fetchInstanceDetails)
+
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(Equal(apiresponses.ErrInstanceDoesNotExist))
+
+				Expect(rdsInstance.DescribeCallCount()).To(Equal(1))
+				Expect(rdsInstance.DescribeArgsForCall(0)).To(Equal(dbInstanceIdentifier))
+
+				Expect(rdsInstance.GetResourceTagsCallCount()).To(Equal(1))
+				Expect(rdsInstance.GetResourceTagsArgsForCall(0)).To(Equal(dbInstanceArn))
+			})
+		})
+
+		Context("when the service instance has no tags", func() {
+			BeforeEach(func() {
+				defaultDBInstanceTagsByName = map[string]string{}
+			})
+
+			It("returns a sensible result", func() {
+				getBindingSpec, err := rdsBroker.GetInstance(ctx, instanceID, fetchInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.DescribeCallCount()).To(Equal(1))
+				Expect(rdsInstance.DescribeArgsForCall(0)).To(Equal(dbInstanceIdentifier))
+
+				Expect(rdsInstance.GetResourceTagsCallCount()).To(Equal(1))
+				Expect(rdsInstance.GetResourceTagsArgsForCall(0)).To(Equal(dbInstanceArn))
+
+				parameters, ok := getBindingSpec.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("backup_retention_period", int64Pointer(4)))
+				Expect(parameters).To(HaveKeyWithValue("extensions", []string{}))
+				Expect(parameters).To(HaveKeyWithValue("preferred_backup_window", stringPointer("some-convenient-backup-window")))
+				Expect(parameters).To(HaveKeyWithValue("preferred_maintenance_window", stringPointer("some-convenient-maintenance-window")))
+				Expect(parameters).To(HaveKeyWithValue("skip_final_snapshot", true))
+				Expect(len(parameters)).To(Equal(5))
+			})
+		})
+
+		Context("PlanID/ServiceID supplied via request are preferred over tags", func() {
+			BeforeEach(func() {
+				// would result in skip_final_snapshot true
+				defaultDBInstanceTagsByName = map[string]string{
+					"Plan ID":    "Plan-1",
+					"Service ID": "Service-1",
+				}
+				// would result in skip_final_snapshot false
+				fetchInstanceDetails = domain.FetchInstanceDetails{
+					ServiceID: "Service-3",
+					PlanID:    "Plan-3",
+				}
+			})
+
+			It("defaults to the correct skip_final_snapshot value", func() {
+				getBindingSpec, err := rdsBroker.GetInstance(ctx, instanceID, fetchInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.DescribeCallCount()).To(Equal(1))
+				Expect(rdsInstance.DescribeArgsForCall(0)).To(Equal(dbInstanceIdentifier))
+
+				Expect(rdsInstance.GetResourceTagsCallCount()).To(Equal(1))
+				Expect(rdsInstance.GetResourceTagsArgsForCall(0)).To(Equal(dbInstanceArn))
+
+				parameters, ok := getBindingSpec.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("skip_final_snapshot", false))
+			})
+		})
+
+		Context("when the service instance has no tags and ServiceID/PlanID aren't supplied in the request", func() {
+			BeforeEach(func() {
+				defaultDBInstanceTagsByName = map[string]string{}
+				fetchInstanceDetails = domain.FetchInstanceDetails{}
+			})
+
+			It("returns the correct error", func() {
+				_, err := rdsBroker.GetInstance(ctx, instanceID, fetchInstanceDetails)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("Can't find plan id for this service instance"))
+			})
+		})
+
+		Context("when the service was restored from a snapshot", func() {
+			BeforeEach(func() {
+				defaultDBInstanceTagsByName["Restored From Database"] = "cf-some-other-db-uuid"
+				defaultDBInstanceTagsByName["Restored From Snapshot"] = "Don't reveal this"
+			})
+
+			It("returns a the correct keys", func() {
+				getBindingSpec, err := rdsBroker.GetInstance(ctx, instanceID, fetchInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.DescribeCallCount()).To(Equal(1))
+				Expect(rdsInstance.DescribeArgsForCall(0)).To(Equal(dbInstanceIdentifier))
+
+				Expect(rdsInstance.GetResourceTagsCallCount()).To(Equal(1))
+				Expect(rdsInstance.GetResourceTagsArgsForCall(0)).To(Equal(dbInstanceArn))
+
+				parameters, ok := getBindingSpec.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("backup_retention_period", int64Pointer(4)))
+				Expect(parameters).To(HaveKeyWithValue("extensions", []string{"foo", "bar", "baz"}))
+				Expect(parameters).To(HaveKeyWithValue("preferred_backup_window", stringPointer("some-convenient-backup-window")))
+				Expect(parameters).To(HaveKeyWithValue("preferred_maintenance_window", stringPointer("some-convenient-maintenance-window")))
+				Expect(parameters).To(HaveKeyWithValue("skip_final_snapshot", false))
+				Expect(parameters).To(HaveKeyWithValue("restored_from_snapshot_of", "some-other-db-uuid"))
+				Expect(len(parameters)).To(Equal(6))
+			})
+		})
+
+		Context("when the service was restored from a point in time", func() {
+			BeforeEach(func() {
+				defaultDBInstanceTagsByName["Restored From Database"] = "cf-some-other-db-uuid"
+				defaultDBInstanceTagsByName["Restored From Time"] = "2026-01-02T15:04:05Z07:00"
+			})
+
+			It("returns a the correct keys", func() {
+				getBindingSpec, err := rdsBroker.GetInstance(ctx, instanceID, fetchInstanceDetails)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rdsInstance.DescribeCallCount()).To(Equal(1))
+				Expect(rdsInstance.DescribeArgsForCall(0)).To(Equal(dbInstanceIdentifier))
+
+				Expect(rdsInstance.GetResourceTagsCallCount()).To(Equal(1))
+				Expect(rdsInstance.GetResourceTagsArgsForCall(0)).To(Equal(dbInstanceArn))
+
+				parameters, ok := getBindingSpec.Parameters.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(parameters).To(HaveKeyWithValue("backup_retention_period", int64Pointer(4)))
+				Expect(parameters).To(HaveKeyWithValue("extensions", []string{"foo", "bar", "baz"}))
+				Expect(parameters).To(HaveKeyWithValue("preferred_backup_window", stringPointer("some-convenient-backup-window")))
+				Expect(parameters).To(HaveKeyWithValue("preferred_maintenance_window", stringPointer("some-convenient-maintenance-window")))
+				Expect(parameters).To(HaveKeyWithValue("skip_final_snapshot", false))
+				Expect(parameters).To(HaveKeyWithValue("restored_from_point_in_time_of", "some-other-db-uuid"))
+				Expect(parameters).To(HaveKeyWithValue("restored_from_point_in_time_before", "2026-01-02T15:04:05Z07:00"))
+				Expect(len(parameters)).To(Equal(7))
+			})
+		})
 	})
 
 	Describe("CheckAndRotateCredentials", func() {

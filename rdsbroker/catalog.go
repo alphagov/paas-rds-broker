@@ -3,11 +3,11 @@ package rdsbroker
 import (
 	"fmt"
 	"github.com/Masterminds/semver"
-	"github.com/pivotal-cf/brokerapi/domain"
+	"github.com/pivotal-cf/brokerapi/v8/domain"
 	"regexp"
 	"strings"
 
-	"github.com/pivotal-cf/brokerapi"
+	"github.com/pivotal-cf/brokerapi/v8"
 )
 
 const minAllocatedStorage = 5

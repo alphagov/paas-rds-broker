@@ -1,8 +1,8 @@
 package rdsbroker_test
 
 import (
-	"github.com/pivotal-cf/brokerapi"
-	"github.com/pivotal-cf/brokerapi/domain"
+	"github.com/pivotal-cf/brokerapi/v8"
+	"github.com/pivotal-cf/brokerapi/v8/domain"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

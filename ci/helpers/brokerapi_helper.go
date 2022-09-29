@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/pivotal-cf/brokerapi/domain"
-	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
+	"github.com/pivotal-cf/brokerapi/v8/domain"
+	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 	"io"
 	"net/http"
 	"os"
@@ -231,6 +231,50 @@ func (b *BrokerAPIClient) UpdateInstance(instanceID, serviceID, planID string, n
 	}
 
 	return resp.StatusCode, provisioningResponse.Operation, nil
+}
+
+func (b *BrokerAPIClient) DoGetInstanceRequest(instanceID, serviceID, planID string) (*http.Response, error) {
+	path := fmt.Sprintf("/v2/service_instances/%s", instanceID)
+
+	params := []uriParam{}
+	if serviceID != "" {
+		params = append(params, uriParam{key: "service_id", value: serviceID})
+	}
+	if planID != "" {
+		params = append(params, uriParam{key: "plan_id", value: planID})
+	}
+
+	return b.doRequest(
+		"GET",
+		path,
+		nil,
+		params...,
+	)
+}
+
+func (b *BrokerAPIClient) GetInstance(instanceID, serviceID, planID string) (int, *apiresponses.GetInstanceResponse, error) {
+	resp, err := b.DoGetInstanceRequest(instanceID, serviceID, planID)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 202 {
+		return resp.StatusCode, nil, nil
+	}
+
+	getInstanceResponse := apiresponses.GetInstanceResponse{}
+
+	body, err := BodyBytes(resp)
+	if err != nil {
+		return resp.StatusCode, nil, err
+	}
+
+	err = json.Unmarshal(body, &getInstanceResponse)
+	if err != nil {
+		return resp.StatusCode, nil, err
+	}
+
+	return resp.StatusCode, &getInstanceResponse, nil
 }
 
 func (b *BrokerAPIClient) DoLastOperationRequest(instanceID, serviceID, planID, operation string) (*http.Response, error) {

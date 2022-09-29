@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver"
-	"github.com/pivotal-cf/brokerapi/domain/apiresponses"
+	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 
 	"code.cloudfoundry.org/lager"
-	"github.com/pivotal-cf/brokerapi/domain"
+	"github.com/pivotal-cf/brokerapi/v8/domain"
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/alphagov/paas-rds-broker/sqlengine"
@@ -161,6 +161,7 @@ func (b *RDSBroker) Services(ctx context.Context) ([]domain.Service, error) {
 
 	for i := range apiCatalog.Services {
 		apiCatalog.Services[i].Bindable = true
+		apiCatalog.Services[i].InstancesRetrievable = true
 	}
 
 	return apiCatalog.Services, nil
@@ -213,6 +214,10 @@ func (b *RDSBroker) Provision(
 
 	if provisionParameters.RestoreFromLatestSnapshotOf == nil && provisionParameters.RestoreFromLatestSnapshotBefore != nil {
 		return domain.ProvisionedServiceSpec{}, fmt.Errorf("Parameter restore_from_latest_snapshot_before should be used with restore_from_latest_snapshot_of")
+	}
+
+	if provisionParameters.RestoreFromPointInTimeOf == nil && provisionParameters.RestoreFromPointInTimeBefore != nil {
+		return domain.ProvisionedServiceSpec{}, fmt.Errorf("Parameter restore_from_point_in_time_before should be used with restore_from_point_in_time_of")
 	}
 
 	if provisionParameters.RestoreFromLatestSnapshotOf != nil {
@@ -270,7 +275,7 @@ func (b *RDSBroker) restoreFromPointInTime(
 ) error {
 	if engine := servicePlan.RDSProperties.Engine; engine != nil {
 		if *engine != "postgres" && *engine != "mysql" {
-			return fmt.Errorf("Restore from snapshot not supported for engine '%s'", *engine)
+			return fmt.Errorf("Restore from point in time not supported for engine '%s'", *engine)
 		}
 	}
 	if *provisionParameters.RestoreFromPointInTimeOf == "" {
@@ -312,7 +317,7 @@ func (b *RDSBroker) restoreFromPointInTime(
 
 	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
 		if extensionsTag != "" {
-			existingExts := strings.Split(extensionsTag, ":")
+			existingExts := unpackExtensions(extensionsTag)
 			provisionParameters.Extensions = mergeExtensions(provisionParameters.Extensions, existingExts)
 		}
 	}
@@ -400,16 +405,14 @@ func (b *RDSBroker) restoreFromSnapshot(
 		return err
 	}
 
-	snapshotIdentifier := aws.StringValue(snapshot.DBSnapshotIdentifier)
-
 	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
 		if extensionsTag != "" {
-			snapshotExts := strings.Split(extensionsTag, ":")
+			snapshotExts := unpackExtensions(extensionsTag)
 			provisionParameters.Extensions = mergeExtensions(provisionParameters.Extensions, snapshotExts)
 		}
 	}
 
-	restoreDBInstanceInput, err := b.restoreDBInstanceInput(instanceID, snapshotIdentifier, servicePlan, provisionParameters, details)
+	restoreDBInstanceInput, err := b.restoreDBInstanceInput(instanceID, snapshot, servicePlan, provisionParameters, details)
 	if err != nil {
 		return err
 	}
@@ -417,12 +420,93 @@ func (b *RDSBroker) restoreFromSnapshot(
 	return b.dbInstance.Restore(restoreDBInstanceInput)
 }
 
-func (b *RDSBroker) GetBinding(ctx context.Context, first, second string) (domain.GetBindingSpec, error) {
+func (b *RDSBroker) GetBinding(ctx context.Context, instanceID, bindingID string, details domain.FetchBindingDetails) (domain.GetBindingSpec, error) {
 	return domain.GetBindingSpec{}, fmt.Errorf("GetBinding method not implemented")
 }
 
-func (b *RDSBroker) GetInstance(ctx context.Context, first string) (domain.GetInstanceDetailsSpec, error) {
-	return domain.GetInstanceDetailsSpec{}, fmt.Errorf("GetInstance method not implemented")
+func (b *RDSBroker) GetInstance(
+	ctx context.Context,
+	instanceID string,
+	details domain.FetchInstanceDetails,
+) (domain.GetInstanceDetailsSpec, error) {
+	b.logger.Debug("get-instance", lager.Data{
+		instanceIDLogKey: instanceID,
+	})
+
+	dbInstance, err := b.dbInstance.Describe(b.dbInstanceIdentifier(instanceID))
+	if err != nil {
+		b.logger.Error("describe-instance", err)
+		if err == awsrds.ErrDBInstanceDoesNotExist {
+			return domain.GetInstanceDetailsSpec{}, apiresponses.ErrInstanceDoesNotExist
+		}
+		return domain.GetInstanceDetailsSpec{}, err
+	}
+
+	tags, err := b.dbInstance.GetResourceTags(aws.StringValue(dbInstance.DBInstanceArn))
+	if err != nil {
+		b.logger.Error("get-instance-tags", err)
+		if err == awsrds.ErrDBInstanceDoesNotExist {
+			return domain.GetInstanceDetailsSpec{}, apiresponses.ErrInstanceDoesNotExist
+		}
+		return domain.GetInstanceDetailsSpec{}, err
+	}
+	tagsByName := awsrds.RDSTagsValues(tags)
+
+	extensions := []string{}
+	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
+		extensions = unpackExtensions(extensionsTag)
+	}
+
+	var ok bool
+	planID := details.PlanID
+	if planID == "" {
+		// supplying the plan id as a GET parameter doesn't appear to be
+		// a mandatory part of the OSB spec but we prefer it if it's
+		// present as it doesn't have the same (small) possibility of
+		// being incorrect that the aws tag has, which we fall back to
+		// here
+		planID, ok = tagsByName[awsrds.TagPlanID]
+		if !ok {
+			err = fmt.Errorf("Can't find plan id for this service instance")
+			b.logger.Error("cant-find-plan-id", err)
+			return domain.GetInstanceDetailsSpec{}, err
+		}
+	}
+	servicePlan, ok := b.catalog.FindServicePlan(planID)
+	if !ok {
+		return domain.GetInstanceDetailsSpec{}, fmt.Errorf("Service Plan '%s' not found", planID)
+	}
+
+	skipFinalSnapshot, err := resolveSkipFinalSnapshot(servicePlan, tagsByName[awsrds.TagSkipFinalSnapshot])
+	if err != nil {
+		b.logger.Error("resolve-skip-final-snapshot", err)
+		return domain.GetInstanceDetailsSpec{}, err
+	}
+
+	instanceParams := map[string]interface{}{
+		"backup_retention_period": dbInstance.BackupRetentionPeriod,
+		"extensions": extensions,
+		"preferred_backup_window": dbInstance.PreferredBackupWindow,
+		"preferred_maintenance_window": dbInstance.PreferredMaintenanceWindow,
+		"skip_final_snapshot": skipFinalSnapshot,
+	}
+
+	if tagsByName[awsrds.TagOriginDatabase] != "" {
+		if tagsByName[awsrds.TagOriginPointInTime] != "" {
+			instanceParams["restored_from_point_in_time_of"] = b.dbInstanceIdentifierToServiceInstanceID(tagsByName[awsrds.TagOriginDatabase])
+			instanceParams["restored_from_point_in_time_before"] = tagsByName[awsrds.TagOriginPointInTime]
+		}
+		if tagsByName[awsrds.TagRestoredFromSnapshot] != "" {
+			// "restored_from_latest_snapshot_of" would be misleading as
+			// we don't know what value of restore_from_point_in_time_before
+			// was used at provisioning
+			instanceParams["restored_from_snapshot_of"] = b.dbInstanceIdentifierToServiceInstanceID(tagsByName[awsrds.TagOriginDatabase])
+		}
+	}
+
+	return domain.GetInstanceDetailsSpec{
+		Parameters: instanceParams,
+	}, nil
 }
 
 func (b *RDSBroker) LastBindingOperation(ctx context.Context, first, second string, pollDetails domain.PollDetails) (domain.LastOperation, error) {
@@ -574,7 +658,7 @@ func (b *RDSBroker) Update(
 
 	if extensionsTag, ok := tagsByName[awsrds.TagExtensions]; ok {
 		if extensionsTag != "" {
-			extensions = mergeExtensions(extensions, strings.Split(extensionsTag, ":"))
+			extensions = mergeExtensions(extensions, unpackExtensions(extensionsTag))
 		}
 	}
 
@@ -700,6 +784,22 @@ func (b *RDSBroker) Update(
 	return domain.UpdateServiceSpec{IsAsync: true}, nil
 }
 
+// determine whether we actually want to skip final snapshot given
+// servicePlan and tagValue
+func resolveSkipFinalSnapshot(servicePlan ServicePlan, tagValue string) (bool, error) {
+	var err error
+	skipDBInstanceFinalSnapshot := servicePlan.RDSProperties.SkipFinalSnapshot == nil || *servicePlan.RDSProperties.SkipFinalSnapshot
+
+	if tagValue != "" {
+		skipDBInstanceFinalSnapshot, err = strconv.ParseBool(tagValue)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	return skipDBInstanceFinalSnapshot, nil
+}
+
 func (b *RDSBroker) Deprovision(
 	ctx context.Context,
 	instanceID string,
@@ -721,18 +821,14 @@ func (b *RDSBroker) Deprovision(
 		return domain.DeprovisionServiceSpec{}, fmt.Errorf("Service Plan '%s' not found", details.PlanID)
 	}
 
-	skipDBInstanceFinalSnapshot := servicePlan.RDSProperties.SkipFinalSnapshot == nil || *servicePlan.RDSProperties.SkipFinalSnapshot
-
 	skipFinalSnapshot, err := b.dbInstance.GetTag(b.dbInstanceIdentifier(instanceID), awsrds.TagSkipFinalSnapshot)
 	if err != nil {
 		return domain.DeprovisionServiceSpec{}, err
 	}
 
-	if skipFinalSnapshot != "" {
-		skipDBInstanceFinalSnapshot, err = strconv.ParseBool(skipFinalSnapshot)
-		if err != nil {
-			return domain.DeprovisionServiceSpec{}, err
-		}
+	skipDBInstanceFinalSnapshot, err := resolveSkipFinalSnapshot(servicePlan, skipFinalSnapshot)
+	if err != nil {
+		return domain.DeprovisionServiceSpec{}, err
 	}
 
 	if err := b.dbInstance.Delete(b.dbInstanceIdentifier(instanceID), skipDBInstanceFinalSnapshot); err != nil {
@@ -1109,7 +1205,7 @@ func (b *RDSBroker) ensureCreateExtensions(instanceID string, dbInstance *rds.DB
 		defer sqlEngine.Close()
 
 		if extensions, exists := tagsByName[awsrds.TagExtensions]; exists {
-			postgresExtensionsString := strings.Split(extensions, ":")
+			postgresExtensionsString := unpackExtensions(extensions)
 
 			if err = sqlEngine.CreateExtensions(postgresExtensionsString); err != nil {
 				return err
@@ -1141,6 +1237,16 @@ func (b *RDSBroker) ensureDropExtensions(instanceID string, dbInstance *rds.DBIn
 	return nil
 }
 
+// pack array of extensions to their tag-stored format
+func packExtensions(unpackedExtensions []string) string {
+	return strings.Join(unpackedExtensions, ":")
+}
+
+// unpack array of extensions from their tag-stored format
+func unpackExtensions(packedExtensions string) []string {
+	return strings.Split(packedExtensions, ":")
+}
+
 func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstance, tagsByName map[string]string) (asyncOperationTriggered bool, err error) {
 	serviceID := tagsByName[awsrds.TagServiceID]
 	planID := tagsByName[awsrds.TagPlanID]
@@ -1166,7 +1272,7 @@ func (b *RDSBroker) updateDBSettings(instanceID string, dbInstance *rds.DBInstan
 
 	extensions := []string{}
 	if exts, exists := tagsByName[awsrds.TagExtensions]; exists {
-		extensions = strings.Split(exts, ":")
+		extensions = unpackExtensions(exts)
 	}
 
 	tags := b.dbTags(RDSInstanceTags{
@@ -1425,7 +1531,7 @@ func (b *RDSBroker) newCreateDBInstanceInput(instanceID string, servicePlan Serv
 	return createDBInstanceInput, nil
 }
 
-func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string, servicePlan ServicePlan, provisionParameters ProvisionParameters, details domain.ProvisionDetails) (*rds.RestoreDBInstanceFromDBSnapshotInput, error) {
+func (b *RDSBroker) restoreDBInstanceInput(instanceID string, snapshot *rds.DBSnapshot, servicePlan ServicePlan, provisionParameters ProvisionParameters, details domain.ProvisionDetails) (*rds.RestoreDBInstanceFromDBSnapshotInput, error) {
 	skipFinalSnapshot := false
 	if provisionParameters.SkipFinalSnapshot != nil {
 		skipFinalSnapshot = *provisionParameters.SkipFinalSnapshot
@@ -1439,7 +1545,7 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		return nil, err
 	}
 
-	//"Restored", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, snapshotIdentifier, provisionParameters.Extensions
+	//"Restored", details.ServiceID, details.PlanID, details.OrganizationGUID, details.SpaceGUID, skipFinalSnapshotStr, snapshot.DBSnapshotIdentifier, provisionParameters.Extensions
 	tags := RDSInstanceTags{
 		Action:                   "Restored",
 		ServiceID:                details.ServiceID,
@@ -1447,13 +1553,14 @@ func (b *RDSBroker) restoreDBInstanceInput(instanceID, snapshotIdentifier string
 		OrganizationID:           details.OrganizationGUID,
 		SpaceID:                  details.SpaceGUID,
 		SkipFinalSnapshot:        skipFinalSnapshotStr,
-		OriginSnapshotIdentifier: snapshotIdentifier,
+		OriginSnapshotIdentifier: aws.StringValue(snapshot.DBSnapshotIdentifier),
+		OriginDatabaseIdentifier: aws.StringValue(snapshot.DBInstanceIdentifier),
 		Extensions:               provisionParameters.Extensions,
 		ChargeableEntity:         instanceID,
 	}
 
 	return &rds.RestoreDBInstanceFromDBSnapshotInput{
-		DBSnapshotIdentifier:    aws.String(snapshotIdentifier),
+		DBSnapshotIdentifier:    snapshot.DBSnapshotIdentifier,
 		DBInstanceIdentifier:    aws.String(b.dbInstanceIdentifier(instanceID)),
 		DBInstanceClass:         servicePlan.RDSProperties.DBInstanceClass,
 		Engine:                  servicePlan.RDSProperties.Engine,
@@ -1655,7 +1762,7 @@ func (b *RDSBroker) dbTags(instanceTags RDSInstanceTags) map[string]string {
 	}
 
 	if len(instanceTags.Extensions) > 0 {
-		tags[awsrds.TagExtensions] = strings.Join(instanceTags.Extensions, ":")
+		tags[awsrds.TagExtensions] = packExtensions(instanceTags.Extensions)
 	}
 
 	return tags
