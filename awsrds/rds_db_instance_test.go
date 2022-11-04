@@ -749,6 +749,9 @@ var _ = Describe("RDS DB Instance", func() {
 				DBSubnetGroup: &rds.DBSubnetGroup{
 					DBSubnetGroupName: aws.String("test-subnet-group"),
 				},
+				DBParameterGroups:    []*rds.DBParameterGroupStatus{
+					&rds.DBParameterGroupStatus{DBParameterGroupName: aws.String("test-parameter-group")},
+				},
 				Engine:           aws.String("test-engine"),
 				EngineVersion:    aws.String("1.2.3"),
 				DBName:           aws.String("test-dbname"),
@@ -892,6 +895,30 @@ var _ = Describe("RDS DB Instance", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(receivedModifyDBInstanceInput).ToNot(Equal(modifyDBInstanceInput))
 			Expect(receivedModifyDBInstanceInput.DBSubnetGroupName).To(BeNil())
+		})
+
+		It("does not update ParameterGroup if it is the same", func() {
+			modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBParameterGroupName: aws.String("test-parameter-group"),
+			}
+
+			_, err := rdsDBInstance.Modify(modifyDBInstanceInput)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(receivedModifyDBInstanceInput).ToNot(Equal(modifyDBInstanceInput))
+			Expect(receivedModifyDBInstanceInput.DBParameterGroupName).To(BeNil())
+		})
+
+		It("does update ParameterGroup if it different", func() {
+			modifyDBInstanceInput := &rds.ModifyDBInstanceInput{
+				DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
+				DBParameterGroupName: aws.String("test-parameter-group-2"),
+			}
+
+			_, err := rdsDBInstance.Modify(modifyDBInstanceInput)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(receivedModifyDBInstanceInput).ToNot(Equal(modifyDBInstanceInput))
+			Expect(receivedModifyDBInstanceInput.DBParameterGroupName).To(Equal(aws.String("test-parameter-group-2")))
 		})
 
 		Context("when describing the DB instance fails", func() {

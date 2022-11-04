@@ -333,6 +333,16 @@ func (r *RDSDBInstance) Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput)
 		r.logger.Info("modify-db-instance.prevented-update-same-subnetgroup", lager.Data{"input": &sanitizedDBInstanceInput})
 	}
 
+	newParameterGroup := aws.StringValue(modifyDBInstanceInput.DBParameterGroupName)
+	oldParameterGroup := ""
+	if len(oldDbInstance.DBParameterGroups) == 1 {
+		oldParameterGroup = aws.StringValue(oldDbInstance.DBParameterGroups[0].DBParameterGroupName)
+	}
+	if newParameterGroup == oldParameterGroup {
+		updatedModifyDBInstanceInput.DBParameterGroupName = nil
+		r.logger.Info("modify-db-instance.prevented-update-same-parametergroup", lager.Data{"input": &sanitizedDBInstanceInput})
+	}
+
 	modifyDBInstanceOutput, err := r.rdssvc.ModifyDBInstance(&updatedModifyDBInstanceInput)
 	if err != nil {
 		return nil, HandleAWSError(err, r.logger)
