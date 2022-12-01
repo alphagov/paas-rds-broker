@@ -1698,7 +1698,7 @@ func (b *RDSBroker) compareDBDescriptionWithPlan(dbInstance *rds.DBInstance, ser
 		disagreements = append(disagreements, disagreementEngine)
 	}
 
-	if *servicePlan.RDSProperties.AllocatedStorage != *dbInstance.AllocatedStorage {
+	if *servicePlan.RDSProperties.AllocatedStorage > *dbInstance.AllocatedStorage {
 		disagreements = append(disagreements, disagreementAllocatedStorage)
 	}
 
