@@ -2448,7 +2448,7 @@ var _ = Describe("RDS Broker", func() {
 		Context("when a complex major version upgrade failed", func() {
 			BeforeEach(func() {
 				dbInstanceStatus = "available"
-				dbAllocatedStorage = 400
+				dbAllocatedStorage = 200
 			})
 
 			JustBeforeEach(func() {
@@ -2526,7 +2526,7 @@ var _ = Describe("RDS Broker", func() {
 			Context("but the plan properties are mismatched", func() {
 				JustBeforeEach(func() {
 					newDBInstance := *defaultDBInstance
-					newDBInstance.AllocatedStorage = int64Pointer(400)
+					newDBInstance.AllocatedStorage = int64Pointer(200)
 					rdsInstance.DescribeReturns(&newDBInstance, nil)
 
 					pollDetails.PlanID = "Plan-2"

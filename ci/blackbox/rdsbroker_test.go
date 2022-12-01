@@ -439,13 +439,14 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 		Describe("Postgres 10 to 11 complex failure", func() {
 			// tsearch2-caused failure will have happened after disk-space upgrade
-			// leaving the service instance now in limbo needing operator intervention
+			// however the plan id should be rolled back even with the disk space
+			// higher than the plan
 			TestUpdatePlan(
 				"postgres",
 				"postgres-micro-without-snapshot-10",
 				"postgres-small-without-snapshot-11",
 				"tsearch2",
-				"postgres-small-without-snapshot-11",
+				"postgres-micro-without-snapshot-10",
 			)
 		})
 	})
