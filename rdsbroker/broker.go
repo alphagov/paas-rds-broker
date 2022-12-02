@@ -41,6 +41,8 @@ const dbInstanceLogKey = "dbInstance"
 const lastOperationResponseLogKey = "lastOperationResponse"
 const extensionsLogKey = "requestedExtensions"
 
+const warningOverAllocatedStorage = "OverAllocatedStorage"
+
 const disagreementEngine = "Engine"
 const disagreementAllocatedStorage = "AllocatedStorage"
 const disagreementMultiAZ = "MultiAZ"
@@ -1038,12 +1040,20 @@ func (b *RDSBroker) LastOperation(
 					awsrds.TagPlanID,
 				)
 			}
-			awsTagsPlanDisagreements, err := b.compareDBDescriptionWithPlan(
+			awsTagsPlanDisagreements, awsTagsPlanWarnings, err := b.compareDBDescriptionWithPlan(
 				dbInstance,
 				awsTagsPlan,
 			)
 			if err != nil {
 				return domain.LastOperation{State: domain.Failed}, err
+			}
+
+			if len(awsTagsPlanWarnings) != 0 {
+				b.logger.Info("aws-tags-plan-properties-mismatch-warning", lager.Data{
+					instanceIDLogKey: instanceID,
+					"awsTagsPlanID":  awsTagsPlanID,
+					"warnings":       awsTagsPlanWarnings,
+				})
 			}
 
 			// if all has gone well, the current state of the instance should
@@ -1058,12 +1068,20 @@ func (b *RDSBroker) LastOperation(
 				if !ok {
 					return domain.LastOperation{State: domain.Failed}, fmt.Errorf("Service Plan '%s' provided in request not found", pollDetails.PlanID)
 				}
-				currentPlanDisagreements, err := b.compareDBDescriptionWithPlan(
+				currentPlanDisagreements, currentPlanWarnings, err := b.compareDBDescriptionWithPlan(
 					dbInstance,
 					currentPlan,
 				)
 				if err != nil {
 					return domain.LastOperation{State: domain.Failed}, err
+				}
+
+				if len(awsTagsPlanWarnings) != 0 {
+					b.logger.Info("current-plan-properties-mismatch-warning", lager.Data{
+						instanceIDLogKey:  instanceID,
+						servicePlanLogKey: awsTagsPlanID,
+						"warnings":        currentPlanWarnings,
+					})
 				}
 
 				if len(currentPlanDisagreements) == 0 {
@@ -1682,23 +1700,28 @@ func (b *RDSBroker) newModifyDBInstanceInput(instanceID string, servicePlan Serv
 
 // compares only the most important properties of the dbInstance with the
 // expected RDSProperties in servicePlan
-func (b *RDSBroker) compareDBDescriptionWithPlan(dbInstance *rds.DBInstance, servicePlan ServicePlan) ([]string, error) {
+func (b *RDSBroker) compareDBDescriptionWithPlan(dbInstance *rds.DBInstance, servicePlan ServicePlan) ([]string, []string, error) {
 	disagreements := []string{}
+	warnings := []string{}
 
 	planEngineVersion, err := servicePlan.EngineVersion()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rdsEngineVersion, err := semver.NewVersion(*dbInstance.EngineVersion)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if planEngineVersion.Major() != rdsEngineVersion.Major() {
 		disagreements = append(disagreements, disagreementEngine)
 	}
 
-	if *servicePlan.RDSProperties.AllocatedStorage != *dbInstance.AllocatedStorage {
+	if *servicePlan.RDSProperties.AllocatedStorage < *dbInstance.AllocatedStorage {
+		warnings = append(warnings, warningOverAllocatedStorage)
+	}
+
+	if *servicePlan.RDSProperties.AllocatedStorage > *dbInstance.AllocatedStorage {
 		disagreements = append(disagreements, disagreementAllocatedStorage)
 	}
 
@@ -1710,7 +1733,7 @@ func (b *RDSBroker) compareDBDescriptionWithPlan(dbInstance *rds.DBInstance, ser
 		disagreements = append(disagreements, disagreementMultiAZ)
 	}
 
-	return disagreements, nil
+	return disagreements, warnings, nil
 }
 
 func (b *RDSBroker) dbTags(instanceTags RDSInstanceTags) map[string]string {
