@@ -903,6 +903,34 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
+		Context("when the plan is currently on an older version of postgres than we actually are", func() {
+			BeforeEach(func() {
+				existingDbInstance.EngineVersion = stringPointer("11.6")
+
+				updateDetails.PlanID = planPSQL11.ID
+				updateDetails.ServiceID = servicePSQL.ID
+				updateDetails.PreviousValues = domain.PreviousValues{
+					PlanID:    planPSQL10.ID,
+					ServiceID: servicePSQL.ID,
+					OrgID:     updateDetails.PreviousValues.OrgID,
+					SpaceID:   updateDetails.PreviousValues.SpaceID,
+				}
+			})
+
+			It("returns no error bringing the instance back on plan", func() {
+				rdsInstance.GetFullValidTargetVersionCalls(func(engine string, currentVersion string, targetVersionMoniker string) (string, error) {
+					return "", nil
+				})
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rdsInstance.ModifyCallCount()).To(Equal(1))
+				input := rdsInstance.ModifyArgsForCall(0)
+				Expect(aws.StringValue(input.EngineVersion)).To(Equal("11"))
+				Expect(rdsInstance.GetFullValidTargetVersionCallCount()).To(Equal(1))
+			})
+		})
+
 		Context("when Service Plan is not found", func() {
 			BeforeEach(func() {
 				updateDetails.PlanID = "unknown"

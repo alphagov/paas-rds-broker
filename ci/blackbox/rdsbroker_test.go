@@ -382,6 +382,54 @@ var _ = Describe("RDS Broker Daemon", func() {
 		})
 	})
 
+	Describe("go off plan and allow user to get back", func() {
+		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, engineVersion string) {
+			var (
+				instanceID string
+			)
+
+			BeforeEach(func() {
+				instanceID = uuid.NewV4().String()
+
+				brokerAPIClient.AcceptsIncomplete = true
+
+				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlanID, "{}")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
+				Expect(state).To(Equal("succeeded"))
+			})
+
+			AfterEach(func() {
+				brokerAPIClient.AcceptsIncomplete = true
+				code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, upgradeToPlanID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, upgradeToPlanID, operation)
+				Expect(state).To(Equal("gone"))
+			})
+
+			It("handles an update to a plan with a newer engine version", func() {
+
+				// lets upgrade and go off plan
+				err := rdsClient.UpgradeEngine(instanceID, engineVersion, fmt.Sprintf("%s%s", serviceID, engineVersion))
+				Expect(err).ToNot(HaveOccurred())
+
+				// now lets try to go back on plan
+				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
+				Expect(state).To(Equal("succeeded"))
+
+			})
+		}
+
+		Describe("Postgres 11 to 12", func() {
+			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-11", "postgres-micro-without-snapshot-12", "12")
+		})
+	})
+
 	Describe("plan upgrade failures", func() {
 		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, extensionName, expectedAwsTagPlanID string) {
 			var (
