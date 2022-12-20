@@ -82,6 +82,39 @@
                             }
                         },
                         {
+                            "description": "Small plan without final snapshot - Postgres 10",
+                            "free": false,
+                            "id": "postgres-small-without-snapshot-10",
+                            "name": "small-without-snapshot-10",
+                            "rds_properties": {
+                                "allocated_storage": 13,
+                                "auto_minor_version_upgrade": true,
+                                "db_instance_class": "db.t2.micro",
+                                "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
+                                "engine": "postgres",
+                                "engine_version": "10",
+                                "engine_family": "postgres10",
+                                "multi_az": false,
+                                "skip_final_snapshot": true,
+                                "copy_tags_to_snapshot":true,
+                                "vpc_security_group_ids": [
+                                    "POPULATED_BY_TEST_SUITE"
+                                ],
+                                "default_extensions": [
+                                    "uuid-ossp",
+                                    "postgis",
+                                    "citext"
+                                ],
+                                "allowed_extensions": [
+                                    "uuid-ossp",
+                                    "tsearch2",
+                                    "postgis",
+                                    "citext",
+                                    "pg_stat_statements"
+                                ]
+                            }
+                        },
+                        {
                             "description": "Micro plan - Postgres 11",
                             "free": false,
                             "id": "postgres-micro-11",

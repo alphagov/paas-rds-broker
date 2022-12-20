@@ -317,7 +317,10 @@ func (r *RDSDBInstance) Modify(modifyDBInstanceInput *rds.ModifyDBInstanceInput)
 	if modifyDBInstanceInput.AllocatedStorage != nil {
 		newAllocatedSpace := aws.Int64Value(modifyDBInstanceInput.AllocatedStorage)
 		oldAllocatedSpace := aws.Int64Value(oldDbInstance.AllocatedStorage)
-		if newAllocatedSpace <= oldAllocatedSpace {
+		if newAllocatedSpace == oldAllocatedSpace {
+			updatedModifyDBInstanceInput.AllocatedStorage = nil
+			r.logger.Info("modify-db-instance.storage-unchanged", lager.Data{"input": &sanitizedDBInstanceInput})
+		} else if newAllocatedSpace < oldAllocatedSpace {
 			updatedModifyDBInstanceInput.AllocatedStorage = nil
 			r.logger.Info("modify-db-instance.prevented-storage-downgrade", lager.Data{"input": &sanitizedDBInstanceInput})
 		}

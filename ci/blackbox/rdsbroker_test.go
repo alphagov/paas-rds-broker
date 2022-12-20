@@ -80,7 +80,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service2.Description).To(Equal("AWS RDS PostgreSQL service"))
 			Expect(service2.Bindable).To(BeTrue())
 			Expect(service2.PlanUpdatable).To(BeTrue())
-			Expect(service2.Plans).To(HaveLen(9))
+			Expect(service2.Plans).To(HaveLen(10))
 		})
 	})
 
@@ -430,8 +430,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 		})
 	})
 
-	Describe("plan upgrade failures", func() {
-		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, extensionName, expectedAwsTagPlanID string) {
+	Describe("plan upgrade failures and recovery", func() {
+		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, extensionName, expectedAwsTagPlanID, recoveryPlanID string) {
 			var (
 				instanceID string
 			)
@@ -457,7 +457,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(state).To(Equal("gone"))
 			})
 
-			It("handles a failure to update to a plan with a newer engine version", func() {
+			It("handles a failure to upgrade followed by an optional recovery plan", func() {
 				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
@@ -467,13 +467,25 @@ var _ = Describe("RDS Broker Daemon", func() {
 				tagPlanID, err := rdsClient.GetDBInstanceTag(instanceID, "Plan ID")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(tagPlanID).To(Equal(expectedAwsTagPlanID))
+
+				if recoveryPlanID != "" {
+					code, operation, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, expectedAwsTagPlanID, recoveryPlanID, `{}`)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(code).To(Equal(202))
+					state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
+					Expect(state).To(Equal("succeeded"))
+
+					tagPlanID, err = rdsClient.GetDBInstanceTag(instanceID, "Plan ID")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(tagPlanID).To(Equal(recoveryPlanID))
+				}
 			})
 		}
 
 		// tsearch2 isn't available on postgres > 10, hence will produce a
 		// reliable failure on upgrade
 
-		Describe("Postgres 10 to 11 simple failure", func() {
+		Describe("Postgres 10 to 11 clean failure", func() {
 			// tsearch2-caused failure shouldn't have caused any lasting effects
 			// and plan id should have been rolled back
 			TestUpdatePlan(
@@ -482,19 +494,23 @@ var _ = Describe("RDS Broker Daemon", func() {
 				"postgres-micro-without-snapshot-11",
 				"tsearch2",
 				"postgres-micro-without-snapshot-10",
+				"",
 			)
 		})
 
-		Describe("Postgres 10 to 11 complex failure", func() {
-			// tsearch2-caused failure will have happened after disk-space upgrade
-			// however the plan id should be rolled back even with the disk space
-			// higher than the plan
+		Describe("Postgres 10 to 11 failure resulting in over-allocated disk", func() {
+			// the test upgrades from postgres 10 to 11, which fails due to the tsearch2 extension
+			// being unavailable on postgres 11. This will leave the aws storage over-allocated with
+			// 15gb instead of 10gb.
+			// The test then moves to another postgres 10 plan which still (in theory) has less disk space than we now actually have
+			// (13gb), but should succeed.
 			TestUpdatePlan(
 				"postgres",
 				"postgres-micro-without-snapshot-10",
 				"postgres-small-without-snapshot-11",
 				"tsearch2",
 				"postgres-micro-without-snapshot-10",
+				"postgres-small-without-snapshot-10",
 			)
 		})
 	})

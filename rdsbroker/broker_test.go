@@ -2205,6 +2205,7 @@ var _ = Describe("RDS Broker", func() {
 			properLastOperationResponse domain.LastOperation
 			parameterGroupStatus        string
 			dbAllocatedStorage          int64
+			pollDetails domain.PollDetails
 
 			defaultDBInstance = &rds.DBInstance{
 				AllocatedStorage:     int64Pointer(300),
@@ -2235,17 +2236,16 @@ var _ = Describe("RDS Broker", func() {
 				"Plan ID":     "Plan-3",
 				"Extensions":  "postgis:pg-stat-statements",
 			}
-
-			pollDetails = domain.PollDetails{
-				ServiceID:     "Service-3",
-				PlanID:        "Plan-3",
-				OperationData: "123blah",
-			}
 		)
 
 		BeforeEach(func() {
 			parameterGroupStatus = "in-sync"
 			dbAllocatedStorage = 300
+			pollDetails = domain.PollDetails{
+				ServiceID:     "Service-3",
+				PlanID:        "Plan-3",
+				OperationData: "123blah",
+			}
 		})
 
 		JustBeforeEach(func() {
@@ -2442,6 +2442,37 @@ var _ = Describe("RDS Broker", func() {
 				tagsByName := awsrds.RDSTagsValues(tags)
 
 				Expect(tagsByName).To(Equal(defaultDBInstanceTagsByName))
+			})
+		})
+
+		Context("when our aws storage is greater than the plan we should still succeed", func() {
+			BeforeEach(func() {
+				dbInstanceStatus = "available"
+				dbAllocatedStorage = 400
+				pollDetails = domain.PollDetails{
+					ServiceID:     "Service-3",
+					PlanID:        "Plan-5",
+					OperationData: "123blah",
+				}
+			})
+
+			JustBeforeEach(func() {
+				newDBInstanceTagsByName := copyStringStringMap(defaultDBInstanceTagsByName)
+
+				newDBInstanceTagsByName["Plan ID"] = "Plan-5"
+				rdsInstance.GetResourceTagsReturns(
+					awsrds.BuildRDSTags(newDBInstanceTagsByName),
+					nil,
+				)
+			})
+
+			It("returns the proper LastOperationResponse", func() {
+				lastOperationResponse, err := rdsBroker.LastOperation(ctx, instanceID, pollDetails)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(lastOperationResponse).To(Equal(domain.LastOperation{
+					State:       domain.Succeeded,
+					Description: "DB Instance 'cf-instance-id' status is 'available'",
+				}))
 			})
 		})
 
