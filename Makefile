@@ -136,3 +136,11 @@ bosh_release:
 	@echo "    url: https://s3-${REGION}.amazonaws.com/$${BUCKET}/rds-broker-${VERSION}.tgz"
 	@echo "    sha1: $$(openssl sha1 "${TARBALL_PATH}" | cut -d' ' -f 2)"
 
+.PHONY: build_amd64
+build_amd64:
+	mkdir -p amd64
+	GOOS=linux GOARCH=amd64 go build -o amd64/paas-rds-broker
+
+.PHONY: bosh_scp
+bosh_scp: build_amd64
+	./scripts/bosh-scp.sh

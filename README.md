@@ -23,6 +23,12 @@ $ rds-broker -config=<path-to-your-config-file>
 
 This broker can be deployed using the Bosh release built in this repository (`make bosh_release`). On the GOV.UK PaaS, the release is created in the `paas-rds-broker` pipeline of the CI env. 
 
+You can patch an existing bosh environment by first logging into a bosh director and running the following:
+
+```
+$ make bosh_scp
+```
+
 ## Configuration
 
 Refer to the [Configuration](https://github.com/alphagov/paas-rds-broker/blob/master/CONFIGURATION.md) instructions for details about configuring this broker.
