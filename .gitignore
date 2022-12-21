@@ -96,3 +96,5 @@ release/blobs
 release/dev_releases
 
 /.idea
+
+/.vscode
