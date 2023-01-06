@@ -731,9 +731,10 @@ func (b *RDSBroker) Update(
 			b.logger.Error("find-exact-upgrade-version", err)
 			return domain.UpdateServiceSpec{}, err
 		}
-
-		b.logger.Info("selected-upgrade-version", lager.Data{"version": targetVersion})
-		modifyDBInstanceInput.EngineVersion = aws.String(targetVersion)
+		if targetVersion != "" {
+			b.logger.Info("selected-upgrade-version", lager.Data{"version": targetVersion})
+			modifyDBInstanceInput.EngineVersion = aws.String(targetVersion)
+		}
 	}
 
 	updatedDBInstance, err := b.dbInstance.Modify(modifyDBInstanceInput)

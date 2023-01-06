@@ -49,6 +49,36 @@ func (r *RDSClient) Ping() (bool, error) {
 	return true, nil
 }
 
+func (r *RDSClient) UpgradeEngine(ID string, engineVersion string, parameterGroupFamily string) error {
+
+	parameterGroupName := fmt.Sprintf("build-test-%s-%s", ID, parameterGroupFamily)
+
+	_, err := r.rdssvc.CreateDBParameterGroup(&rds.CreateDBParameterGroupInput{
+		DBParameterGroupFamily: aws.String(parameterGroupFamily),
+		DBParameterGroupName:   aws.String(parameterGroupName),
+		Description:            aws.String(parameterGroupName),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	params := &rds.ModifyDBInstanceInput{
+		DBInstanceIdentifier:     aws.String(r.dbInstanceIdentifier(ID)),
+		EngineVersion:            aws.String(engineVersion),
+		AllowMajorVersionUpgrade: aws.Bool(true),
+		ApplyImmediately:         aws.Bool(true),
+		DBParameterGroupName:     aws.String(parameterGroupName),
+	}
+
+	_, err = r.rdssvc.ModifyDBInstance(params)
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (r *RDSClient) CreateDBSnapshot(ID string) (string, error) {
 	snapshotID := r.dbInstanceIdentifier(ID) + time.Now().Format("2006-01-02-15-04")
 

@@ -1502,8 +1502,32 @@ var _ = Describe("RDS DB Instance", func() {
 					EngineVersion: aws.String("11"),
 				},
 			})
-			_, err := rdsDBInstance.GetFullValidTargetVersion("postgres", currentVersion, targetVersion)
+			version, err := rdsDBInstance.GetFullValidTargetVersion("postgres", currentVersion, targetVersion)
 			Expect(err).To(HaveOccurred())
+			Expect(version).To(Equal(""))
+		})
+
+		It("returns an empty string if the current and target major versions match with no available upgrades", func() {
+			engineVersions = dbEngineVersions("11.1", []*rds.UpgradeTarget{})
+			version, err := rdsDBInstance.GetFullValidTargetVersion("postgres", "11.1", "11")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(version).To(Equal(""))
+		})
+
+		It("returns an empty string if the current and target major versions match with no available major upgrades", func() {
+			engineVersions = dbEngineVersions("11.1", []*rds.UpgradeTarget{
+				{
+					Engine:        aws.String("postgres"),
+					EngineVersion: aws.String("12.4"),
+				},
+				{
+					Engine:        aws.String("postgres"),
+					EngineVersion: aws.String("12.5"),
+				},
+			})
+			version, err := rdsDBInstance.GetFullValidTargetVersion("postgres", "11.1", "11")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(version).To(Equal(""))
 		})
 
 		It("returns the newest minor version of the target major version", func() {

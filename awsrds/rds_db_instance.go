@@ -565,9 +565,23 @@ func (r *RDSDBInstance) GetLatestMinorVersion(engine string, version string) (*s
 // currentVersion is current, exact version of a database engine
 // targetVersionMoniker is the name of a version of the database engine. It does not include the patch/minor level information.
 //   E.g. For postgres, 9.5 is the moniker for 9.5.x, and 10 is the moniker for 10.x
+// if no upgrades are available for the major version and the targetVersionMoniker is the same major version as the current version,
+// an empty string is returned. This should be interpreted as a signal to omit an engine version upgrade attempt.
 func (r *RDSDBInstance) GetFullValidTargetVersion(engine string, currentVersion string, targetVersionMoniker string) (string, error) {
 	logSess := r.logger.Session("get-full-valid-target-version",
 		lager.Data{"engine": engine, "version": currentVersion, "targetVersionMoniker": targetVersionMoniker})
+
+	currentSemVersion, err := semver.NewVersion(currentVersion)
+	if err != nil {
+		logSess.Error("parse-current-version-as-semver", err)
+		return "", err
+	}
+
+	targetMonikerSemVer, err := semver.NewVersion(targetVersionMoniker)
+	if err != nil {
+		logSess.Error("parse-target-version-moniker-as-semver", err)
+		return "", err
+	}
 
 	logSess.Info("describe-db-engine-versions")
 	engineVersionsOut, err := r.rdssvc.DescribeDBEngineVersions(&rds.DescribeDBEngineVersionsInput{
@@ -592,26 +606,21 @@ func (r *RDSDBInstance) GetFullValidTargetVersion(engine string, currentVersion 
 		return "", err
 	}
 
-	if len(engineVersionsOut.DBEngineVersions[0].ValidUpgradeTarget) == 0 {
-		err = fmt.Errorf("no upgrade targets for version '%s'", currentVersion)
-		logSess.Error("zero-upgrade-targets", err)
-		return "", err
-	}
-
 	var targetVersions []string
 	for _, target := range engineVersionsOut.DBEngineVersions[0].ValidUpgradeTarget {
 		targetVersions = append(targetVersions, *target.EngineVersion)
 	}
 
-	targetMonikerSemVer, err := semver.NewVersion(targetVersionMoniker)
-	if err != nil {
-		logSess.Error("parse-target-version-moniker-as-semver", err)
-		return "", err
-	}
-
 	semVersions, err := parseSemanticVersions(targetVersions)
 	targettableVersions := filterTargetVersion(semVersions, engine, *targetMonikerSemVer)
 	if len(targettableVersions) == 0 {
+		if currentSemVersion.Major() == targetMonikerSemVer.Major() {
+			logSess.Info("no-new-version-but-same-major-noop", lager.Data{
+				"target-version-moniker": targetVersionMoniker,
+				"current-version": currentVersion,
+			})
+			return "", nil
+		}
 		err := fmt.Errorf("no valid targets for target major version '%s'", targetVersionMoniker)
 		logSess.Error("no-upgrade-targets-for-target-version", err)
 		return "", err
