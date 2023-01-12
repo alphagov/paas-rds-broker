@@ -52,9 +52,9 @@ func checkMySQLIdentifierSafe(s string) error {
 func (d *MySQLEngine) Open(address string, port int64, dbname string, username string, password string) error {
 	logger := d.logger.Session("open")
 	logger.Debug("start")
-
-	connectionString := d.connectionString(address, port, dbname, username, password)
-	sanitizedConnectionString := d.connectionString(address, port, dbname, username, "REDACTED")
+	// leaving dbname blank in case it doesn't exist
+	connectionString := d.connectionString(address, port, "", username, password)
+	sanitizedConnectionString := d.connectionString(address, port, "", username, "REDACTED")
 	logger.Debug("sql-open", lager.Data{"connection-string": sanitizedConnectionString})
 
 	db, err := sql.Open("mysql", connectionString)
