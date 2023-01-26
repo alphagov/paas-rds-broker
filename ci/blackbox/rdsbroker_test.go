@@ -80,7 +80,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service2.Description).To(Equal("AWS RDS PostgreSQL service"))
 			Expect(service2.Bindable).To(BeTrue())
 			Expect(service2.PlanUpdatable).To(BeTrue())
-			Expect(service2.Plans).To(HaveLen(10))
+			Expect(service2.Plans).To(HaveLen(9))
 		})
 	})
 
@@ -221,8 +221,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
-			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-10")
+		Describe("Postgres 11", func() {
+			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-11")
 		})
 
 		Describe("Postgres 13", func() {
@@ -319,8 +319,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
-			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-10")
+		Describe("Postgres 11", func() {
+			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-11")
 		})
 
 		Describe("Postgres 13", func() {
@@ -364,10 +364,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(state).To(Equal("succeeded"))
 			})
 		}
-
-		Describe("Postgres 10 to 11", func() {
-			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-10", "postgres-micro-without-snapshot-11")
-		})
 
 		Describe("Postgres 11 to 12", func() {
 			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-11", "postgres-micro-without-snapshot-12")
@@ -500,32 +496,32 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10 to 11 clean failure", func() {
+		Describe("Postgres 11 to 12 clean failure", func() {
 			// postgresSabotageUpgrade-caused failure shouldn't have produced
 			// any lasting effects and plan id should have been rolled back
 			TestUpdatePlan(
 				"postgres",
-				"postgres-micro-without-snapshot-10",
 				"postgres-micro-without-snapshot-11",
-				"postgres-micro-without-snapshot-10",
+				"postgres-micro-without-snapshot-12",
+				"postgres-micro-without-snapshot-11",
 				"",
 			)
 		})
 
-		Describe("Postgres 10 to 11 failure resulting in over-allocated disk", func() {
-			// the test upgrades from postgres 10 to 11, which fails due to
+		Describe("Postgres 11 to 12 failure resulting in over-allocated disk", func() {
+			// this test upgrades from postgres 11 to 12, which fails due to
 			// postgresSabotageUpgrade's actions. this will leave the aws
 			// storage over-allocated with 15gb instead of 10gb.
 			//
-			// the test then moves to another postgres 10 plan which still
+			// the test then moves to another postgres 11 plan which still
 			// (in theory) has less disk space than we now actually have
 			// (13gb), but should succeed.
 			TestUpdatePlan(
 				"postgres",
-				"postgres-micro-without-snapshot-10",
+				"postgres-micro-without-snapshot-11",
+				"postgres-small-without-snapshot-12",
+				"postgres-micro-without-snapshot-11",
 				"postgres-small-without-snapshot-11",
-				"postgres-micro-without-snapshot-10",
-				"postgres-small-without-snapshot-10",
 			)
 		})
 	})
@@ -668,8 +664,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
-			TestFinalSnapshot("postgres", "postgres-micro-10")
+		Describe("Postgres 11", func() {
+			TestFinalSnapshot("postgres", "postgres-micro-11")
 		})
 
 		Describe("Postgres 13", func() {
@@ -849,8 +845,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
-			TestRestoreFromSnapshot("postgres", "postgres-micro-10", true)
+		Describe("Postgres 11", func() {
+			TestRestoreFromSnapshot("postgres", "postgres-micro-11", true)
 		})
 
 		Describe("Postgres 13", func() {
@@ -1021,8 +1017,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
-			TestRestoreFromPointInTime("postgres", "postgres-micro-10", true)
+		Describe("Postgres 11", func() {
+			TestRestoreFromPointInTime("postgres", "postgres-micro-11", true)
 		})
 
 		Describe("Postgres 13", func() {
