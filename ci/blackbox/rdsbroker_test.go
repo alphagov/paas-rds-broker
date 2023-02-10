@@ -80,7 +80,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service2.Description).To(Equal("AWS RDS PostgreSQL service"))
 			Expect(service2.Bindable).To(BeTrue())
 			Expect(service2.PlanUpdatable).To(BeTrue())
-			Expect(service2.Plans).To(HaveLen(10))
+			Expect(service2.Plans).To(HaveLen(9))
 		})
 	})
 
@@ -221,8 +221,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
-			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-10")
+		Describe("Postgres 11", func() {
+			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-11")
 		})
 
 		Describe("Postgres 13", func() {
@@ -319,8 +319,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
-			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-10")
+		Describe("Postgres 11", func() {
+			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-11")
 		})
 
 		Describe("Postgres 13", func() {
@@ -364,10 +364,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(state).To(Equal("succeeded"))
 			})
 		}
-
-		Describe("Postgres 10 to 11", func() {
-			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-10", "postgres-micro-without-snapshot-11")
-		})
 
 		Describe("Postgres 11 to 12", func() {
 			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-11", "postgres-micro-without-snapshot-12")
@@ -431,21 +427,39 @@ var _ = Describe("RDS Broker Daemon", func() {
 	})
 
 	Describe("plan upgrade failures and recovery", func() {
-		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, extensionName, expectedAwsTagPlanID, recoveryPlanID string) {
+		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, expectedAwsTagPlanID, recoveryPlanID string) {
 			var (
 				instanceID string
+				appGUID    string
+				bindingID  string
 			)
 
 			BeforeEach(func() {
 				instanceID = uuid.NewV4().String()
+				appGUID = uuid.NewV4().String()
+				bindingID = uuid.NewV4().String()
 
 				brokerAPIClient.AcceptsIncomplete = true
 
-				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlanID, fmt.Sprintf(`{"enable_extensions": ["%s"]}`, extensionName))
+				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlanID, `{}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
 				Expect(state).To(Equal("succeeded"))
+
+				resp, err := brokerAPIClient.DoBindRequest(instanceID, serviceID, startPlanID, appGUID, bindingID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(resp.StatusCode).To(Equal(201))
+
+				credentials, err := getCredentialsFromBindResponse(resp)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = postgresSabotageUpgrade(credentials.URI)
+				Expect(err).ToNot(HaveOccurred())
+
+				resp, err = brokerAPIClient.DoUnbindRequest(instanceID, serviceID, startPlanID, bindingID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(resp.StatusCode).To(Equal(200))
 			})
 
 			AfterEach(func() {
@@ -482,35 +496,32 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		// tsearch2 isn't available on postgres > 10, hence will produce a
-		// reliable failure on upgrade
-
-		Describe("Postgres 10 to 11 clean failure", func() {
-			// tsearch2-caused failure shouldn't have caused any lasting effects
-			// and plan id should have been rolled back
+		Describe("Postgres 11 to 12 clean failure", func() {
+			// postgresSabotageUpgrade-caused failure shouldn't have produced
+			// any lasting effects and plan id should have been rolled back
 			TestUpdatePlan(
 				"postgres",
-				"postgres-micro-without-snapshot-10",
 				"postgres-micro-without-snapshot-11",
-				"tsearch2",
-				"postgres-micro-without-snapshot-10",
+				"postgres-micro-without-snapshot-12",
+				"postgres-micro-without-snapshot-11",
 				"",
 			)
 		})
 
-		Describe("Postgres 10 to 11 failure resulting in over-allocated disk", func() {
-			// the test upgrades from postgres 10 to 11, which fails due to the tsearch2 extension
-			// being unavailable on postgres 11. This will leave the aws storage over-allocated with
-			// 15gb instead of 10gb.
-			// The test then moves to another postgres 10 plan which still (in theory) has less disk space than we now actually have
+		Describe("Postgres 11 to 12 failure resulting in over-allocated disk", func() {
+			// this test upgrades from postgres 11 to 12, which fails due to
+			// postgresSabotageUpgrade's actions. this will leave the aws
+			// storage over-allocated with 15gb instead of 10gb.
+			//
+			// the test then moves to another postgres 11 plan which still
+			// (in theory) has less disk space than we now actually have
 			// (13gb), but should succeed.
 			TestUpdatePlan(
 				"postgres",
-				"postgres-micro-without-snapshot-10",
+				"postgres-micro-without-snapshot-11",
+				"postgres-small-without-snapshot-12",
+				"postgres-micro-without-snapshot-11",
 				"postgres-small-without-snapshot-11",
-				"tsearch2",
-				"postgres-micro-without-snapshot-10",
-				"postgres-small-without-snapshot-10",
 			)
 		})
 	})
@@ -653,8 +664,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
-			TestFinalSnapshot("postgres", "postgres-micro-10")
+		Describe("Postgres 11", func() {
+			TestFinalSnapshot("postgres", "postgres-micro-11")
 		})
 
 		Describe("Postgres 13", func() {
@@ -834,8 +845,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
-			TestRestoreFromSnapshot("postgres", "postgres-micro-10", true)
+		Describe("Postgres 11", func() {
+			TestRestoreFromSnapshot("postgres", "postgres-micro-11", true)
 		})
 
 		Describe("Postgres 13", func() {
@@ -1006,8 +1017,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 10", func() {
-			TestRestoreFromPointInTime("postgres", "postgres-micro-10", true)
+		Describe("Postgres 11", func() {
+			TestRestoreFromPointInTime("postgres", "postgres-micro-11", true)
 		})
 
 		Describe("Postgres 13", func() {
@@ -1257,6 +1268,21 @@ func postgresExtensionsTest(databaseURI string) error {
 	default:
 		return fmt.Errorf("Scheme must either be postgres or mysql")
 	}
+
+	return nil
+}
+
+func postgresSabotageUpgrade(databaseURI string) error {
+	db, err := openConnection(databaseURI)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	// use of regoperator or other OID-referencing data types should
+	// cause a postgres version upgrade to consistently fail.
+	_, err = db.Exec("CREATE TABLE works ( spanner regoperator )")
+	Expect(err).ToNot(HaveOccurred())
 
 	return nil
 }
