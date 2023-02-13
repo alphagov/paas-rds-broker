@@ -23,7 +23,7 @@
                             "id": "postgres-micro-11",
                             "name": "micro-11",
                             "rds_properties": {
-                                "allocated_storage": 10,
+                                "allocated_storage": 5,
                                 "db_instance_class": "db.t3.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "postgres",
@@ -53,7 +53,7 @@
                             "id": "postgres-micro-without-snapshot-11",
                             "name": "micro-without-snapshot-11",
                             "rds_properties": {
-                                "allocated_storage": 10,
+                                "allocated_storage": 5,
                                 "auto_minor_version_upgrade": true,
                                 "db_instance_class": "db.t3.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
@@ -85,7 +85,7 @@
                             "id": "postgres-small-without-snapshot-11",
                             "name": "small-without-snapshot-11",
                             "rds_properties": {
-                                "allocated_storage": 15,
+                                "allocated_storage": 10,
                                 "auto_minor_version_upgrade": true,
                                 "db_instance_class": "db.t3.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
@@ -117,7 +117,7 @@
                             "id": "postgres-micro-12",
                             "name": "micro-12",
                             "rds_properties": {
-                                "allocated_storage": 10,
+                                "allocated_storage": 5,
                                 "db_instance_class": "db.t3.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "postgres",
@@ -147,7 +147,7 @@
                             "id": "postgres-micro-without-snapshot-12",
                             "name": "micro-without-snapshot-12",
                             "rds_properties": {
-                                "allocated_storage": 10,
+                                "allocated_storage": 5,
                                 "auto_minor_version_upgrade": true,
                                 "db_instance_class": "db.t3.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
@@ -179,7 +179,7 @@
                             "id": "postgres-small-without-snapshot-12",
                             "name": "small-without-snapshot-12",
                             "rds_properties": {
-                                "allocated_storage": 15,
+                                "allocated_storage": 10,
                                 "auto_minor_version_upgrade": true,
                                 "db_instance_class": "db.t3.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
@@ -211,7 +211,7 @@
                             "id": "postgres-micro-13",
                             "name": "micro-13",
                             "rds_properties": {
-                                "allocated_storage": 10,
+                                "allocated_storage": 5,
                                 "db_instance_class": "db.t3.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "postgres",
@@ -241,7 +241,7 @@
                             "id": "postgres-micro-without-snapshot-13",
                             "name": "micro-without-snapshot-13",
                             "rds_properties": {
-                                "allocated_storage": 10,
+                                "allocated_storage": 5,
                                 "auto_minor_version_upgrade": true,
                                 "db_instance_class": "db.t3.micro",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
@@ -263,7 +263,8 @@
                                     "uuid-ossp",
                                     "postgis",
                                     "citext",
-                                    "pg_stat_statements"
+                                    "pg_stat_statements",
+                                    "pgcrypto"
                                 ]
                             }
                         },
@@ -273,9 +274,9 @@
                             "id": "postgres-small-without-snapshot-13",
                             "name": "small-without-snapshot-13",
                             "rds_properties": {
-                                "allocated_storage": 15,
+                                "allocated_storage": 10,
                                 "auto_minor_version_upgrade": true,
-                                "db_instance_class": "db.t3.micro",
+                                "db_instance_class": "db.t3.small",
                                 "db_subnet_group_name": "POPULATED_BY_TEST_SUITE",
                                 "engine": "postgres",
                                 "engine_version": "13",
@@ -295,7 +296,8 @@
                                     "uuid-ossp",
                                     "postgis",
                                     "citext",
-                                    "pg_stat_statements"
+                                    "pg_stat_statements",
+                                    "pgcrypto"
                                 ]
                             }
                         }

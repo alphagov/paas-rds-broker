@@ -1,17 +1,18 @@
 package helpers
 
 import (
-	"code.cloudfoundry.org/lager"
 	"fmt"
-	"golang.org/x/sync/errgroup"
 	"strings"
+
+	"code.cloudfoundry.org/lager"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 )
 
 func CreateSubnetGroup(prefix string, session *session.Session) (*string, error) {
@@ -85,6 +86,17 @@ func CreateSecurityGroup(prefix string, session *session.Session) (*string, erro
 	}
 
 	return securityGroup.GroupId, nil
+}
+
+func GetRDSStatus(instanceID string, session *session.Session) (string, error) {
+	rdsService := rds.New(session)
+	instance, err := rdsService.DescribeDBInstances(&rds.DescribeDBInstancesInput{
+		DBInstanceIdentifier: aws.String(instanceID),
+	})
+	if err != nil {
+		return "", err
+	}
+	return aws.StringValue(instance.DBInstances[0].DBInstanceStatus), nil
 }
 
 func DestroySubnetGroup(name *string, session *session.Session, logger lager.Logger) error {

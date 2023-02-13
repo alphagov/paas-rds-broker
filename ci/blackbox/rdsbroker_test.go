@@ -1,8 +1,10 @@
 package integration_aws_test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -16,6 +18,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 	"github.com/phayes/freeport"
@@ -148,7 +151,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				By("updating the backup and maintenance windows")
-				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"preferred_maintenance_window":"tue:10:00-tue:11:00", "preferred_backup_window":"21:00-22:00"}`)
+				code, operation, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"preferred_maintenance_window":"tue:10:00-tue:11:00", "preferred_backup_window":"21:00-22:00"}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
@@ -279,7 +282,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				}))
 
 				By("enabling extension")
-				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"enable_extensions": ["pg_stat_statements"], "reboot": true }`)
+				code, operation, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"enable_extensions": ["pg_stat_statements"], "reboot": true }`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				extensions := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
@@ -299,7 +302,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				}))
 
 				By("disabling extension")
-				code, operation, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"disable_extensions": ["pg_stat_statements"], "reboot": true }`)
+				code, operation, _, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"disable_extensions": ["pg_stat_statements"], "reboot": true }`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				extensions = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
@@ -357,7 +360,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 
 			It("handles an update to a plan with a newer engine version", func() {
-				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
+				code, operation, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
@@ -412,7 +415,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// now lets try to go back on plan
-				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
+				code, operation, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
@@ -426,8 +429,78 @@ var _ = Describe("RDS Broker Daemon", func() {
 		})
 	})
 
-	Describe("plan upgrade failures and recovery", func() {
-		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, expectedAwsTagPlanID, recoveryPlanID string) {
+	Describe("aws storage full and plan upgrade attempt", func() {
+		TestStorageFullUpgrade := func(serviceID, startPlanID, upgradeToPlanID string) {
+			var (
+				instanceID string
+				appGUID string
+				bindingID string
+			)
+
+			BeforeEach(func() {
+				instanceID = uuid.NewV4().String()
+				appGUID = uuid.NewV4().String()
+				bindingID = uuid.NewV4().String()
+
+				brokerAPIClient.AcceptsIncomplete = true
+
+				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlanID, "{\"enable_extensions\": [\"pgcrypto\"]}")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
+				Expect(state).To(Equal("succeeded"))
+			})
+
+			AfterEach(func() {
+				brokerAPIClient.AcceptsIncomplete = true
+				code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, startPlanID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(code).To(Equal(202))
+				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
+				Expect(state).To(Equal("gone"))
+			})
+
+			It("produces the correct error message when the aws storage is full", func() {
+
+
+				By("creating a binding")
+				resp, err := brokerAPIClient.DoBindRequest(instanceID, serviceID, startPlanID, appGUID, bindingID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(resp.StatusCode).To(Equal(201))
+
+				By("using the credentials from the binding")
+				credentials, err := getCredentialsFromBindResponse(resp)
+				Expect(err).ToNot(HaveOccurred())
+				err = setupPermissionsTest(credentials.URI)
+				Expect(err).ToNot(HaveOccurred())
+				err = postgresExtensionsTest(credentials.URI)
+				Expect(err).ToNot(HaveOccurred())
+
+
+				awsSession := session.New(&aws.Config{
+					Region: aws.String(suiteData.RdsBrokerConfig.RDSConfig.Region)},
+				)
+
+				// force-fill the db
+				err = ForceAwsStorageFull(credentials.URI, rdsClient.DbInstanceIdentifier(instanceID), awsSession)
+				Expect(err).ToNot(HaveOccurred())
+
+				// try to update to a new plan
+				code, _, descripton, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
+				Expect(code).To(Equal(500))
+				Expect(descripton).To(ContainSubstring("You will need to contact support to resolve this issue"))
+				
+			})
+		}
+
+		Describe("Postgres 13 5g to Postgress 13 10g with storage full", func() {
+			TestStorageFullUpgrade("postgres", "postgres-micro-without-snapshot-13", "postgres-small-without-snapshot-13")
+		})
+	})
+
+        Describe("plan upgrade failures and recovery", func() {
+            TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, expectedAwsTagPlanID, recoveryPlanID string) {
+
 			var (
 				instanceID string
 				appGUID    string
@@ -472,7 +545,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 
 			It("handles a failure to upgrade followed by an optional recovery plan", func() {
-				code, operation, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
+				code, operation, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
@@ -483,7 +556,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(tagPlanID).To(Equal(expectedAwsTagPlanID))
 
 				if recoveryPlanID != "" {
-					code, operation, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, expectedAwsTagPlanID, recoveryPlanID, `{}`)
+					code, operation, _, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, expectedAwsTagPlanID, recoveryPlanID, `{}`)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(code).To(Equal(202))
 					state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
@@ -630,7 +703,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(parameters).To(HaveKeyWithValue("skip_final_snapshot", false))
 
 				By("updating skip_final_snapshot")
-				code, operation, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"skip_final_snapshot":true}`)
+				code, operation, _, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, planID, planID, `{"skip_final_snapshot":true}`)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(code).To(Equal(202))
 				state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, planID, operation)
@@ -1285,4 +1358,56 @@ func postgresSabotageUpgrade(databaseURI string) error {
 	Expect(err).ToNot(HaveOccurred())
 
 	return nil
+}
+
+func ForceAwsStorageFull(databaseURI string, instanceID string, session *session.Session) error {
+	maxLoop := 400
+
+	for i := 0; i < maxLoop; i++ {
+
+		fillDatabase(databaseURI)
+		status, err := GetRDSStatus(instanceID, session)
+		Expect(err).ToNot(HaveOccurred())
+		if status == "storage-full" {
+			return nil
+		}
+
+		if i < maxLoop-1 {
+			time.Sleep(5 * time.Second)
+		}
+	}
+
+	return errors.New("Could not force AWS storage to full")
+}
+
+// Test function that will fill a postgres database with some data until it falls over
+func fillDatabase(databaseURI string) {
+
+	db, err := openConnection(databaseURI)
+	if err != nil {
+		return
+	}
+	defer db.Close()
+
+	err = QueryWithTwoMinuteTimeout(db, "CREATE TABLE IF NOT EXISTS fill_storage (data text);")
+	if err != nil {
+		return
+	}
+
+	err = QueryWithTwoMinuteTimeout(db, "INSERT INTO fill_storage (data) SELECT gen_random_bytes(1024) FROM generate_series(1, 10000000);")
+	Expect(err).To(HaveOccurred())
+
+	return
+}
+
+func QueryWithTwoMinuteTimeout(db *sql.DB, query string) error {
+    ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+    defer cancel()
+
+    _, err := db.ExecContext(ctx, query)
+    if err != nil {
+        return err
+    }
+
+    return nil
 }
