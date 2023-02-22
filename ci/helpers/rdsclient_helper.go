@@ -26,7 +26,7 @@ func NewRDSClient(region string, dbPrefix string) (*RDSClient, error) {
 	}, nil
 }
 
-func (b *RDSClient) dbInstanceIdentifier(instanceID string) string {
+func (b *RDSClient) DbInstanceIdentifier(instanceID string) string {
 	return fmt.Sprintf("%s-%s", strings.Replace(b.dbPrefix, "_", "-", -1), strings.Replace(instanceID, "_", "-", -1))
 }
 
@@ -35,7 +35,7 @@ func (b *RDSClient) dbInstanceIdentifierToServiceInstanceID(serviceInstanceID st
 }
 
 func (b *RDSClient) DBInstanceFinalSnapshotIdentifier(instanceID string) string {
-	return b.dbInstanceIdentifier(instanceID) + "-final-snapshot"
+	return b.DbInstanceIdentifier(instanceID) + "-final-snapshot"
 }
 
 func (r *RDSClient) Ping() (bool, error) {
@@ -64,7 +64,7 @@ func (r *RDSClient) UpgradeEngine(ID string, engineVersion string, parameterGrou
 	}
 
 	params := &rds.ModifyDBInstanceInput{
-		DBInstanceIdentifier:     aws.String(r.dbInstanceIdentifier(ID)),
+		DBInstanceIdentifier:     aws.String(r.DbInstanceIdentifier(ID)),
 		EngineVersion:            aws.String(engineVersion),
 		AllowMajorVersionUpgrade: aws.Bool(true),
 		ApplyImmediately:         aws.Bool(true),
@@ -80,10 +80,10 @@ func (r *RDSClient) UpgradeEngine(ID string, engineVersion string, parameterGrou
 }
 
 func (r *RDSClient) CreateDBSnapshot(ID string) (string, error) {
-	snapshotID := r.dbInstanceIdentifier(ID) + time.Now().Format("2006-01-02-15-04")
+	snapshotID := r.DbInstanceIdentifier(ID) + time.Now().Format("2006-01-02-15-04")
 
 	params := &rds.CreateDBSnapshotInput{
-		DBInstanceIdentifier: aws.String(r.dbInstanceIdentifier(ID)),
+		DBInstanceIdentifier: aws.String(r.DbInstanceIdentifier(ID)),
 		DBSnapshotIdentifier: aws.String(snapshotID),
 	}
 
@@ -123,7 +123,7 @@ func (r *RDSClient) DeleteDBSnapshot(snapshotID string) (*rds.DeleteDBSnapshotOu
 
 func (r *RDSClient) GetDBInstanceDetails(ID string) (*rds.DescribeDBInstancesOutput, error) {
 	params := &rds.DescribeDBInstancesInput{
-		DBInstanceIdentifier: aws.String(r.dbInstanceIdentifier(ID)),
+		DBInstanceIdentifier: aws.String(r.DbInstanceIdentifier(ID)),
 	}
 
 	return r.rdssvc.DescribeDBInstances(params)

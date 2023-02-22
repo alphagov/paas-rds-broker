@@ -636,6 +636,12 @@ func (b *RDSBroker) Update(
 		return domain.UpdateServiceSpec{}, fmt.Errorf("cannot find instance %s", b.dbInstanceIdentifier(instanceID))
 	}
 
+	if aws.StringValue(existingInstance.DBInstanceStatus) == "storage-full" {
+		return domain.UpdateServiceSpec{},
+				fmt.Errorf("Cannot update instance %s because it is in state \"storage-full\". You will need to contact support to resolve this issue.",
+				b.dbInstanceIdentifier(instanceID))
+	}
+
 	previousDbParamGroup := *existingInstance.DBParameterGroups[0].DBParameterGroupName
 
 	newDbParamGroup := previousDbParamGroup

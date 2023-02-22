@@ -530,6 +530,26 @@ var _ = Describe("RDS Broker", func() {
 			})
 		})
 
+		Context("when rds state is in state storage-full", func() {
+
+			It("returns a contact support error", func() {
+				existingDbInstance = &rds.DBInstance{
+					DBParameterGroups: []*rds.DBParameterGroupStatus{
+						&rds.DBParameterGroupStatus{
+							DBParameterGroupName: aws.String("originalParameterGroupName"),
+						},
+					},
+					Engine:        stringPointer("test-engine-one"),
+					EngineVersion: stringPointer("1.2.3"),
+					DBInstanceStatus: aws.String("storage-full"),
+				}
+				rdsInstance.DescribeReturns(existingDbInstance, nil)
+				_, err := rdsBroker.Update(ctx, instanceID, updateDetails, acceptsIncomplete)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("You will need to contact support to resolve this issue."))
+			})
+		})
+
 		Context("when has CopyTagsToSnapshot", func() {
 			BeforeEach(func() {
 				rdsProperties2.CopyTagsToSnapshot = boolPointer(true)

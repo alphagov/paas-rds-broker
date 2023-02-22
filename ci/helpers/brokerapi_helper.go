@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/pivotal-cf/brokerapi/v8/domain"
-	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 	"io"
 	"net/http"
 	"os"
 	"strconv"
+
+	"github.com/pivotal-cf/brokerapi/v8/domain"
+	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 
 	. "github.com/onsi/ginkgo"
 )
@@ -23,6 +24,7 @@ func (a ByServiceID) Less(i, j int) bool { return a[i].ID < a[j].ID }
 type ProvisioningResponse struct {
 	DashboardURL string `json:"dashboard_url,omitempty"`
 	Operation    string `json:"operation,omitempty"`
+	Description  string `json:"description,omitempty"`
 }
 
 type LastOperationResponse struct {
@@ -209,28 +211,25 @@ func (b *BrokerAPIClient) DeprovisionInstance(instanceID, serviceID, planID stri
 	return resp.StatusCode, provisioningResponse.Operation, nil
 }
 
-func (b *BrokerAPIClient) UpdateInstance(instanceID, serviceID, planID string, newPlanID string, paramJSON string) (responseCode int, operation string, err error) {
+func (b *BrokerAPIClient) UpdateInstance(instanceID, serviceID, planID string, newPlanID string, paramJSON string) (responseCode int, operation string, description string, err error) {
 	resp, err := b.DoUpdateRequest(instanceID, serviceID, planID, newPlanID, paramJSON)
 	if err != nil {
-		return 0, "", err
-	}
-	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 202 {
-		return resp.StatusCode, "", nil
+		return 0, "", "", err
 	}
 
 	provisioningResponse := ProvisioningResponse{}
 
 	body, err := BodyBytes(resp)
 	if err != nil {
-		return resp.StatusCode, "", err
+		return resp.StatusCode, "", "", err
 	}
 
 	err = json.Unmarshal(body, &provisioningResponse)
 	if err != nil {
-		return resp.StatusCode, "", err
+		return resp.StatusCode, "", "", err
 	}
 
-	return resp.StatusCode, provisioningResponse.Operation, nil
+	return resp.StatusCode, provisioningResponse.Operation, provisioningResponse.Description, nil
 }
 
 func (b *BrokerAPIClient) DoGetInstanceRequest(instanceID, serviceID, planID string) (*http.Response, error) {
