@@ -81,7 +81,7 @@ func (c Config) Validate() error {
 	}
 
 	if err := c.RDSConfig.Validate(); err != nil {
-		return fmt.Errorf("validating rds_config contents: %w", err)
+		return fmt.Errorf("Validating RDS configuration: %s", err)
 	}
 
 	if c.SSLConfig != nil {
