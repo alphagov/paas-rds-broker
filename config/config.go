@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,11 @@ import (
 	"github.com/alphagov/paas-rds-broker/rdsbroker"
 )
 
+type SSLConfig struct {
+	CertificateContent string `json:"certificate"`
+	KeyContent         string `json:"key"`
+	Certificate        *tls.Certificate
+}
 type Config struct {
 	Port                 int               `json:"port"`
 	LogLevel             string            `json:"log_level"`
@@ -18,6 +24,7 @@ type Config struct {
 	KeepSnapshotsForDays int               `json:"keep_snapshots_for_days"`
 	CronSchedule         string            `json:"cron_schedule"`
 	RDSConfig            *rdsbroker.Config `json:"rds_config"`
+	SSLConfig            *SSLConfig        `json:"ssl_config"`
 }
 
 func LoadConfig(configFile string) (config *Config, err error) {
@@ -52,6 +59,7 @@ func (c *Config) FillDefaults() {
 }
 
 func (c Config) Validate() error {
+
 	if c.LogLevel == "" {
 		return errors.New("Must provide a non-empty LogLevel")
 	}
@@ -73,7 +81,23 @@ func (c Config) Validate() error {
 	}
 
 	if err := c.RDSConfig.Validate(); err != nil {
-		return fmt.Errorf("Validating RDS configuration: %s", err)
+		return fmt.Errorf("validating rds_config contents: %w", err)
+	}
+
+	if c.SSLConfig != nil {
+		if c.SSLConfig.CertificateContent == "" {
+			return errors.New("must provide a non-empty ssl_config.certificate")
+		}
+
+		if c.SSLConfig.KeyContent == "" {
+			return errors.New("must provide a non-empty ssl_config.key")
+		}
+
+		cert, err := tls.X509KeyPair([]byte(c.SSLConfig.CertificateContent), []byte(c.SSLConfig.KeyContent))
+		if err != nil {
+			return fmt.Errorf("parsing ssl_config contents: %w", err)
+		}
+		c.SSLConfig.Certificate = &cert
 	}
 
 	return nil

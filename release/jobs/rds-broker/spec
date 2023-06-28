@@ -60,3 +60,20 @@ properties:
   rds-broker.keep_snapshots_for_days:
     description: "Number of days to keep old RDS snapshots for"
     default: 35
+
+  rds-broker.tls:
+    description: "Certificate and private key for TLS listener"
+    default: {}
+    example: |
+      ca: |
+        -----BEGIN CERTIFICATE-----
+        ...
+        -----END CERTIFICATE-----
+      certificate: |
+        -----BEGIN CERTIFICATE-----
+        ...
+        -----END CERTIFICATE-----
+      private_key: |
+        -----BEGIN EXAMPLE RSA PRIVATE KEY-----
+        ...
+        -----END EXAMPLE RSA PRIVATE KEY-----

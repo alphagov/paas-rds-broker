@@ -1,5 +1,9 @@
 {
   "port": <%= p('rds-broker.port') %>,
+  "ssl_config": {
+    "certificate": "<%= p('rds-broker.tls.certificate') %>",
+    "key": "<%= p('rds-broker.tls.private_key') %>",
+  },
   "log_level": "<%= p('rds-broker.log_level') %>",
   "username": "<%= p('rds-broker.username') %>",
   "password": "<%= p('rds-broker.password') %>",

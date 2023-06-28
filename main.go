@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -85,7 +86,7 @@ func buildDBInstance(rdsCfg rdsbroker.Config, logger lager.Logger) awsrds.RDSIns
 		"aws",
 		rdssvc,
 		logger,
-		time.Second * time.Duration(rdsCfg.AWSTagCacheSeconds),
+		time.Second*time.Duration(rdsCfg.AWSTagCacheSeconds),
 		nil,
 	)
 }
@@ -104,7 +105,11 @@ func startHTTPServer(
 	if err != nil {
 		return fmt.Errorf("failed to listen on port %d: %s", cfg.Port, err)
 	}
-
+	if cfg.SSLConfig.Certificate != nil {
+		listener = tls.NewListener(listener, &tls.Config{
+			Certificates: []tls.Certificate{*cfg.SSLConfig.Certificate},
+		})
+	}
 	logger.Info("start", lager.Data{"port": cfg.Port})
 	return http.Serve(listener, server)
 }
