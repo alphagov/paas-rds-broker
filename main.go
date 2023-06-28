@@ -105,7 +105,7 @@ func startHTTPServer(
 	if err != nil {
 		return fmt.Errorf("failed to listen on port %d: %s", cfg.Port, err)
 	}
-	if cfg.SSLConfig.Certificate != nil {
+	if cfg.SSLConfig != nil {
 		listener = tls.NewListener(listener, &tls.Config{
 			Certificates: []tls.Certificate{*cfg.SSLConfig.Certificate},
 		})
