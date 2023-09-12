@@ -2,14 +2,15 @@ package integration_aws_test
 
 import (
 	"bytes"
-	"code.cloudfoundry.org/lager"
 	"encoding/gob"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	"code.cloudfoundry.org/lager"
+
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
 

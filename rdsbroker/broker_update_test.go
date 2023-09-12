@@ -14,7 +14,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	. "github.com/alphagov/paas-rds-broker/rdsbroker"
@@ -539,8 +539,8 @@ var _ = Describe("RDS Broker", func() {
 							DBParameterGroupName: aws.String("originalParameterGroupName"),
 						},
 					},
-					Engine:        stringPointer("test-engine-one"),
-					EngineVersion: stringPointer("1.2.3"),
+					Engine:           stringPointer("test-engine-one"),
+					EngineVersion:    stringPointer("1.2.3"),
 					DBInstanceStatus: aws.String("storage-full"),
 				}
 				rdsInstance.DescribeReturns(existingDbInstance, nil)

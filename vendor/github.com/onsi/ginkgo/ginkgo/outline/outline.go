@@ -12,7 +12,7 @@ import (
 
 const (
 	// ginkgoImportPath is the well-known ginkgo import path
-	ginkgoImportPath = "github.com/onsi/ginkgo"
+	ginkgoImportPath = "github.com/onsi/ginkgo/v2"
 
 	// tableImportPath is the well-known table extension import path
 	tableImportPath = "github.com/onsi/ginkgo/extensions/table"

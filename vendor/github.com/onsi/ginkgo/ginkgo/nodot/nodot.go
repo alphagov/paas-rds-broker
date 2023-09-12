@@ -108,7 +108,7 @@ func (s nodotSection) containsDeclarationOrType(word string) bool {
 func generateNodotSections() ([]nodotSection, error) {
 	sections := []nodotSection{}
 
-	declarations, err := getExportedDeclerationsForPackage("github.com/onsi/ginkgo", "ginkgo_dsl.go", "GINKGO_VERSION", "GINKGO_PANIC")
+	declarations, err := getExportedDeclerationsForPackage("github.com/onsi/ginkgo/v2", "ginkgo_dsl.go", "GINKGO_VERSION", "GINKGO_PANIC")
 	if err != nil {
 		return nil, err
 	}
