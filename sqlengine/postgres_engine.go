@@ -11,7 +11,7 @@ import (
 
 	"github.com/lib/pq" // PostgreSQL Driver
 
-	"code.cloudfoundry.org/lager"
+	"code.cloudfoundry.org/lager/v3"
 )
 
 const (

@@ -2,7 +2,7 @@ package rdsbroker_test
 
 import (
 	"github.com/aws/aws-sdk-go/aws"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	. "github.com/alphagov/paas-rds-broker/rdsbroker"

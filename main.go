@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"code.cloudfoundry.org/lager"
+	"code.cloudfoundry.org/lager/v3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -85,7 +85,7 @@ func buildDBInstance(rdsCfg rdsbroker.Config, logger lager.Logger) awsrds.RDSIns
 		"aws",
 		rdssvc,
 		logger,
-		time.Second * time.Duration(rdsCfg.AWSTagCacheSeconds),
+		time.Second*time.Duration(rdsCfg.AWSTagCacheSeconds),
 		nil,
 	)
 }

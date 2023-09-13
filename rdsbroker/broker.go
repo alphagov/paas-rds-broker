@@ -15,7 +15,7 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 
-	"code.cloudfoundry.org/lager"
+	"code.cloudfoundry.org/lager/v3"
 	"github.com/pivotal-cf/brokerapi/v8/domain"
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
@@ -486,11 +486,11 @@ func (b *RDSBroker) GetInstance(
 	}
 
 	instanceParams := map[string]interface{}{
-		"backup_retention_period": dbInstance.BackupRetentionPeriod,
-		"extensions": extensions,
-		"preferred_backup_window": dbInstance.PreferredBackupWindow,
+		"backup_retention_period":      dbInstance.BackupRetentionPeriod,
+		"extensions":                   extensions,
+		"preferred_backup_window":      dbInstance.PreferredBackupWindow,
 		"preferred_maintenance_window": dbInstance.PreferredMaintenanceWindow,
-		"skip_final_snapshot": skipFinalSnapshot,
+		"skip_final_snapshot":          skipFinalSnapshot,
 	}
 
 	if tagsByName[awsrds.TagOriginDatabase] != "" {
@@ -638,7 +638,7 @@ func (b *RDSBroker) Update(
 
 	if aws.StringValue(existingInstance.DBInstanceStatus) == "storage-full" {
 		return domain.UpdateServiceSpec{},
-				fmt.Errorf("Cannot update instance %s because it is in state \"storage-full\". You will need to contact support to resolve this issue.",
+			fmt.Errorf("Cannot update instance %s because it is in state \"storage-full\". You will need to contact support to resolve this issue.",
 				b.dbInstanceIdentifier(instanceID))
 	}
 

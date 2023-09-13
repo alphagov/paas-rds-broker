@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"code.cloudfoundry.org/lager"
+	"code.cloudfoundry.org/lager/v3"
 	"github.com/Masterminds/semver"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -43,7 +43,7 @@ type tagCacheEntry struct {
 }
 
 func (e *tagCacheEntry) HasExpired(now time.Time, duration time.Duration) bool {
-    return now.After(e.requestTime.Add(duration))
+	return now.After(e.requestTime.Add(duration))
 }
 
 func NewRDSDBInstance(
@@ -485,7 +485,7 @@ func (r *RDSDBInstance) cachedListTagsForResource(arn string, useCached bool) ([
 	tags, err := ListTagsForResource(arn, r.rdssvc, r.logger)
 	if err == nil {
 		entry := tagCacheEntry{
-			tags: tags,
+			tags:        tags,
 			requestTime: r.timeNowFunc(),
 		}
 		r.cachedTagsLock.Lock()
@@ -567,7 +567,9 @@ func (r *RDSDBInstance) GetLatestMinorVersion(engine string, version string) (*s
 // engine is the name of the database engine in AWS RDS (e.g. postgres).
 // currentVersion is current, exact version of a database engine
 // targetVersionMoniker is the name of a version of the database engine. It does not include the patch/minor level information.
-//   E.g. For postgres, 9.5 is the moniker for 9.5.x, and 10 is the moniker for 10.x
+//
+//	E.g. For postgres, 9.5 is the moniker for 9.5.x, and 10 is the moniker for 10.x
+//
 // if no upgrades are available for the major version and the targetVersionMoniker is the same major version as the current version,
 // an empty string is returned. This should be interpreted as a signal to omit an engine version upgrade attempt.
 func (r *RDSDBInstance) GetFullValidTargetVersion(engine string, currentVersion string, targetVersionMoniker string) (string, error) {
@@ -620,7 +622,7 @@ func (r *RDSDBInstance) GetFullValidTargetVersion(engine string, currentVersion 
 		if currentSemVersion.Major() == targetMonikerSemVer.Major() {
 			logSess.Info("no-new-version-but-same-major-noop", lager.Data{
 				"target-version-moniker": targetVersionMoniker,
-				"current-version": currentVersion,
+				"current-version":        currentVersion,
 			})
 			return "", nil
 		}
