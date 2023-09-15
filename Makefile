@@ -3,14 +3,14 @@ MYSQL_PASSWORD=toor
 
 .PHONY: integration
 integration:
-	go run github.com/onsi/ginkgo/v2/ginkgo --nodes=4 -r ci/blackbox --slowSpecThreshold=1800 -stream -failFast
+	go run github.com/onsi/ginkgo/v2/ginkgo --nodes=4 -r ci/blackbox --slowSpecThreshold=1800 -stream -failFast -mod=readonly
 
 .PHONY: unit
 unit: test_unit test_all_sql
 
 .PHONY: test_unit
 test_unit:
-	go run github.com/onsi/ginkgo/v2/ginkgo -r --skip-package=ci,sqlengine,release
+	go run github.com/onsi/ginkgo/v2/ginkgo -r --skip-package=ci,sqlengine,release -mod=readonly
 .PHONY: test_all_sql
 test_all_sql: test_postgres test_mysql
 .PHONY: test_postgres
