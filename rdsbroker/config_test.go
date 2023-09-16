@@ -2,7 +2,7 @@ package rdsbroker_test
 
 import (
 	"github.com/aws/aws-sdk-go/aws"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	. "github.com/alphagov/paas-rds-broker/rdsbroker"
@@ -20,7 +20,7 @@ var _ = Describe("Config", func() {
 			AWSPartition:       "rds-partition",
 			Catalog: Catalog{
 				Services: []Service{
-					Service{
+					{
 						ID:          "service-1",
 						Name:        "Service 1",
 						Description: "Service 1 description",
@@ -93,7 +93,7 @@ var _ = Describe("Config", func() {
 		It("returns error if Catalog is not valid", func() {
 			config.Catalog = Catalog{
 				Services: []Service{
-					Service{},
+					{},
 				},
 				ExcludeEngines: []Engine{},
 			}

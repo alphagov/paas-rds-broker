@@ -85,6 +85,33 @@ clean_security_groups() {
   fi
 }
 
+clean_parameter_groups() {
+  echo "Current db parameter groups"
+  aws rds describe-db-parameter-groups | \
+    jq -r '
+      .DBParameterGroups[] |
+        select(.DBParameterGroupName | startswith("build-test-")) |
+        "\(.DBParameterGroupName) \(.Description)"
+    '
+
+  db_parametergroups_to_delete="$(
+    aws rds describe-db-parameter-groups | \
+      jq -r '
+        .DBParameterGroups[] |
+          select(.DBParameterGroupName | startswith("build-test-")) |
+          .DBParameterGroupName
+      '
+  )"
+
+  if [ "$db_parametergroups_to_delete" != "" ]; then
+    echo "${db_parametergroups_to_delete}" |
+      xargs -n 1 -I {} \
+        aws rds delete-db-parameter-group \
+          --db-parameter-group-name {}
+  fi
+}
+
 clean_instances
 clean_subnet_groups
 clean_security_groups
+clean_parameter_groups # added

@@ -3,14 +3,14 @@ MYSQL_PASSWORD=toor
 
 .PHONY: integration
 integration:
-	go run github.com/onsi/ginkgo/ginkgo --nodes=4 -r ci/blackbox --slowSpecThreshold=1800 -stream -failFast
+	go run github.com/onsi/ginkgo/v2/ginkgo --timeout=5h --nodes=4 -r ci/blackbox --slowSpecThreshold=1800 -stream -failFast
 
 .PHONY: unit
 unit: test_unit test_all_sql
 
 .PHONY: test_unit
 test_unit:
-	go run github.com/onsi/ginkgo/ginkgo -r --skipPackage=ci,sqlengine,release
+	go run github.com/onsi/ginkgo/v2/ginkgo -r --skip-package=ci,sqlengine,release
 .PHONY: test_all_sql
 test_all_sql: test_postgres test_mysql
 .PHONY: test_postgres
@@ -20,11 +20,11 @@ test_mysql: start_mysql_80 run_mysql_sql_tests stop_mysql_80 start_mysql_57 run_
 
 .PHONY: run_mysql_sql_tests
 run_mysql_sql_tests:
-	MYSQL_PASSWORD=$(MYSQL_PASSWORD) go run github.com/onsi/ginkgo/ginkgo -focus=MySQLEngine.* sqlengine/
+	MYSQL_PASSWORD=$(MYSQL_PASSWORD) go run github.com/onsi/ginkgo/v2/ginkgo -focus=MySQLEngine.* sqlengine/
 
 .PHONY: run_postgres_sql_tests
 run_postgres_sql_tests:
-	POSTGRESQL_PASSWORD=$(POSTGRESQL_PASSWORD) go run github.com/onsi/ginkgo/ginkgo -focus=PostgresEngine.* sqlengine/
+	POSTGRESQL_PASSWORD=$(POSTGRESQL_PASSWORD) go run github.com/onsi/ginkgo/v2/ginkgo -focus=PostgresEngine.* sqlengine/
 
 .PHONY: start_postgres_10
 start_postgres_10:

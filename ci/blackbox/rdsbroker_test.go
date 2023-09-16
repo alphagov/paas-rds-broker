@@ -14,7 +14,7 @@ import (
 	"sort"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -275,7 +275,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(code).To(Equal(200))
 				parameters, ok := getInstanceResponse.Parameters.(map[string]interface{})
 				Expect(ok).To(BeTrue())
-				Expect(parameters).To(HaveKeyWithValue("extensions", []interface {} {
+				Expect(parameters).To(HaveKeyWithValue("extensions", []interface{}{
 					"uuid-ossp",
 					"postgis",
 					"citext",
@@ -294,7 +294,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(code).To(Equal(200))
 				parameters, ok = getInstanceResponse.Parameters.(map[string]interface{})
 				Expect(ok).To(BeTrue())
-				Expect(parameters).To(HaveKeyWithValue("extensions", []interface {} {
+				Expect(parameters).To(HaveKeyWithValue("extensions", []interface{}{
 					"uuid-ossp",
 					"postgis",
 					"citext",
@@ -314,7 +314,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(code).To(Equal(200))
 				parameters, ok = getInstanceResponse.Parameters.(map[string]interface{})
 				Expect(ok).To(BeTrue())
-				Expect(parameters).To(HaveKeyWithValue("extensions", []interface {} {
+				Expect(parameters).To(HaveKeyWithValue("extensions", []interface{}{
 					"uuid-ossp",
 					"postgis",
 					"citext",
@@ -433,8 +433,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 		TestStorageFullUpgrade := func(serviceID, startPlanID, upgradeToPlanID string) {
 			var (
 				instanceID string
-				appGUID string
-				bindingID string
+				appGUID    string
+				bindingID  string
 			)
 
 			BeforeEach(func() {
@@ -462,7 +462,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 			It("produces the correct error message when the aws storage is full", func() {
 
-
 				By("creating a binding")
 				resp, err := brokerAPIClient.DoBindRequest(instanceID, serviceID, startPlanID, appGUID, bindingID)
 				Expect(err).ToNot(HaveOccurred())
@@ -476,7 +475,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 				err = postgresExtensionsTest(credentials.URI)
 				Expect(err).ToNot(HaveOccurred())
 
-
 				awsSession := session.New(&aws.Config{
 					Region: aws.String(suiteData.RdsBrokerConfig.RDSConfig.Region)},
 				)
@@ -489,7 +487,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				code, _, descripton, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
 				Expect(code).To(Equal(500))
 				Expect(descripton).To(ContainSubstring("You will need to contact support to resolve this issue"))
-				
+
 			})
 		}
 
@@ -498,8 +496,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 		})
 	})
 
-        Describe("plan upgrade failures and recovery", func() {
-            TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, expectedAwsTagPlanID, recoveryPlanID string) {
+	Describe("plan upgrade failures and recovery", func() {
+		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, expectedAwsTagPlanID, recoveryPlanID string) {
 
 			var (
 				instanceID string
@@ -879,7 +877,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(ok).To(BeTrue())
 				Expect(parameters).To(HaveKeyWithValue("restored_from_snapshot_of", instanceID))
 				if testExtensions {
-					Expect(parameters).To(HaveKeyWithValue("extensions", []interface {} {
+					Expect(parameters).To(HaveKeyWithValue("extensions", []interface{}{
 						"uuid-ossp",
 						"postgis",
 						"citext",
@@ -938,8 +936,8 @@ var _ = Describe("RDS Broker Daemon", func() {
 	Describe("Restore from before a point in time", func() {
 		TestRestoreFromPointInTime := func(serviceID, planID string, testExtensions bool) {
 			var (
-				instanceID           string
-				restoredInstanceID   string
+				instanceID         string
+				restoredInstanceID string
 			)
 
 			BeforeEach(func() {
@@ -999,7 +997,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				// to be after *that* to avoid complaints
 				restoreTime := db.DBInstances[0].LatestRestorableTime.Add(1 * time.Minute)
 				Eventually(
-					func () time.Time {
+					func() time.Time {
 						db, err := rdsClient.GetDBInstanceDetails(instanceID)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(len(db.DBInstances)).To(Equal(1))
@@ -1051,7 +1049,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(parameters).To(HaveKeyWithValue("restored_from_point_in_time_of", instanceID))
 				Expect(parameters).To(HaveKey("restored_from_point_in_time_before"))
 				if testExtensions {
-					Expect(parameters).To(HaveKeyWithValue("extensions", []interface {} {
+					Expect(parameters).To(HaveKeyWithValue("extensions", []interface{}{
 						"uuid-ossp",
 						"postgis",
 						"citext",
@@ -1401,13 +1399,13 @@ func fillDatabase(databaseURI string) {
 }
 
 func QueryWithTwoMinuteTimeout(db *sql.DB, query string) error {
-    ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-    defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
 
-    _, err := db.ExecContext(ctx, query)
-    if err != nil {
-        return err
-    }
+	_, err := db.ExecContext(ctx, query)
+	if err != nil {
+		return err
+	}
 
-    return nil
+	return nil
 }

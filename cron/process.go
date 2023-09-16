@@ -3,7 +3,7 @@ package cron
 import (
 	"fmt"
 
-	"code.cloudfoundry.org/lager"
+	"code.cloudfoundry.org/lager/v3"
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/alphagov/paas-rds-broker/config"
 	robfig_cron "github.com/robfig/cron"

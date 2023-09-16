@@ -1,10 +1,10 @@
 package rdsbroker_test
 
 import (
-	"github.com/pivotal-cf/brokerapi/v8"
-	"github.com/pivotal-cf/brokerapi/v8/domain"
+	"github.com/pivotal-cf/brokerapi/v9"
+	"github.com/pivotal-cf/brokerapi/v9/domain"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	. "github.com/alphagov/paas-rds-broker/rdsbroker"
@@ -34,7 +34,7 @@ var _ = Describe("Catalog", func() {
 
 		It("returns error if Services are not valid", func() {
 			catalog.Services = []Service{
-				Service{},
+				{},
 			}
 
 			err := catalog.Validate()
@@ -137,7 +137,7 @@ var _ = Describe("Service", func() {
 
 		It("returns error if Plans are not valid", func() {
 			service.Plans = []ServicePlan{
-				ServicePlan{},
+				{},
 			}
 
 			err := service.Validate(catalog)

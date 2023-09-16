@@ -9,7 +9,7 @@ import (
 
 	"strings"
 
-	"code.cloudfoundry.org/lager"
+	"code.cloudfoundry.org/lager/v3"
 )
 
 const ER_ACCESS_DENIED_ERROR = 1045

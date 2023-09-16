@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"code.cloudfoundry.org/lager"
+	"code.cloudfoundry.org/lager/v3"
 	"github.com/alphagov/paas-rds-broker/config"
 	"github.com/alphagov/paas-rds-broker/rdsbroker"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 

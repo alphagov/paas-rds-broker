@@ -3,8 +3,8 @@ package cron_test
 import (
 	"errors"
 
-	"code.cloudfoundry.org/lager"
-	. "github.com/onsi/ginkgo"
+	"code.cloudfoundry.org/lager/v3"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/alphagov/paas-rds-broker/awsrds/fakes"
@@ -78,7 +78,7 @@ var _ = Describe("Process", func() {
 			cfg.CronSchedule = "invalid"
 			err := process.Start()
 			Expect(err).To(MatchError("cron_schedule is invalid: Expected 5 to 6 fields, found 1: invalid"))
-		}, 2)
+		})
 	})
 
 })
