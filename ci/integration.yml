@@ -15,4 +15,5 @@ run:
     - -c
     - |
       cd src/github.com/alphagov/paas-rds-broker
+      make tls_integration
       make integration

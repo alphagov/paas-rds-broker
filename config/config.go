@@ -9,15 +9,22 @@ import (
 	"github.com/alphagov/paas-rds-broker/rdsbroker"
 )
 
+const (
+	DefaultPort = 3000
+	DefaultHost = "0.0.0.0"
+)
+
 type Config struct {
 	Port                 int               `json:"port"`
 	LogLevel             string            `json:"log_level"`
 	Username             string            `json:"username"`
 	Password             string            `json:"password"`
+	Host                 string            `json:"host"`
 	RunHousekeeping      bool              `json:"run_housekeeping"`
 	KeepSnapshotsForDays int               `json:"keep_snapshots_for_days"`
 	CronSchedule         string            `json:"cron_schedule"`
 	RDSConfig            *rdsbroker.Config `json:"rds_config"`
+	TLS                  *TLSConfig        `json:"tls"`
 }
 
 func LoadConfig(configFile string) (config *Config, err error) {
@@ -46,9 +53,16 @@ func LoadConfig(configFile string) (config *Config, err error) {
 
 func (c *Config) FillDefaults() {
 	if c.Port == 0 {
-		c.Port = 3000
+		c.Port = DefaultPort
+	}
+	if c.Host == "" {
+		c.Host = DefaultHost
 	}
 	c.RDSConfig.FillDefaults()
+}
+
+func (c Config) TLSEnabled() bool {
+	return c.TLS != nil
 }
 
 func (c Config) Validate() error {
@@ -74,6 +88,13 @@ func (c Config) Validate() error {
 
 	if err := c.RDSConfig.Validate(); err != nil {
 		return fmt.Errorf("Validating RDS configuration: %s", err)
+	}
+
+	if c.TLS != nil {
+		tlsValidation := c.TLS.validate()
+		if tlsValidation != nil {
+			return tlsValidation
+		}
 	}
 
 	return nil
