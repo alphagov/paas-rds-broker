@@ -1,8 +1,9 @@
 package helpers
 
 import (
-	"github.com/onsi/ginkgo"
 	"sync"
+
+	"github.com/onsi/ginkgo/v2"
 )
 
 type WaitFunc func()
@@ -12,8 +13,8 @@ type ProvisionFunc func() (WaitFunc, CleanFunc)
 // ProvisionManager performs the provisioning.
 // It gets  a Provisioner function that should do the creating and
 // returns:
-//  - a function that would synchronously wait for the thing to finish
-//  - a function that would clean up whatever is created
+//   - a function that would synchronously wait for the thing to finish
+//   - a function that would clean up whatever is created
 //
 // It allows to optionally wait for the creation to finish or cleanup only once.
 type ProvisionManager struct {

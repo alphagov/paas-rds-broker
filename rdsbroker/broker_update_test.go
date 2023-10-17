@@ -6,21 +6,21 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/pivotal-cf/brokerapi/v8/domain"
-	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
+	"github.com/pivotal-cf/brokerapi/v9/domain"
+	"github.com/pivotal-cf/brokerapi/v9/domain/apiresponses"
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	"github.com/alphagov/paas-rds-broker/rdsbroker/fakes"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	. "github.com/alphagov/paas-rds-broker/rdsbroker"
 
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
+	"code.cloudfoundry.org/lager/v3"
+	"code.cloudfoundry.org/lager/v3/lagertest"
 	rdsfake "github.com/alphagov/paas-rds-broker/awsrds/fakes"
 	sqlfake "github.com/alphagov/paas-rds-broker/sqlengine/fakes"
 )
@@ -330,7 +330,7 @@ var _ = Describe("RDS Broker", func() {
 
 		existingDbInstance = &rds.DBInstance{
 			DBParameterGroups: []*rds.DBParameterGroupStatus{
-				&rds.DBParameterGroupStatus{
+				{
 					DBParameterGroupName: aws.String("originalParameterGroupName"),
 				},
 			},
@@ -535,12 +535,12 @@ var _ = Describe("RDS Broker", func() {
 			It("returns a contact support error", func() {
 				existingDbInstance = &rds.DBInstance{
 					DBParameterGroups: []*rds.DBParameterGroupStatus{
-						&rds.DBParameterGroupStatus{
+						{
 							DBParameterGroupName: aws.String("originalParameterGroupName"),
 						},
 					},
-					Engine:        stringPointer("test-engine-one"),
-					EngineVersion: stringPointer("1.2.3"),
+					Engine:           stringPointer("test-engine-one"),
+					EngineVersion:    stringPointer("1.2.3"),
 					DBInstanceStatus: aws.String("storage-full"),
 				}
 				rdsInstance.DescribeReturns(existingDbInstance, nil)

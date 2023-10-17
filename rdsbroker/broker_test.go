@@ -12,23 +12,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pivotal-cf/brokerapi/v8/domain"
-	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
+	"github.com/pivotal-cf/brokerapi/v9/domain"
+	"github.com/pivotal-cf/brokerapi/v9/domain/apiresponses"
 
 	"github.com/alphagov/paas-rds-broker/rdsbroker/fakes"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/alphagov/paas-rds-broker/awsrds"
 	. "github.com/alphagov/paas-rds-broker/rdsbroker"
 	"github.com/alphagov/paas-rds-broker/sqlengine"
 
-	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/lager/lagertest"
-	"github.com/pivotal-cf/brokerapi/v8"
+	"code.cloudfoundry.org/lager/v3"
+	"code.cloudfoundry.org/lager/v3/lagertest"
+	"github.com/pivotal-cf/brokerapi/v9"
 
 	rdsfake "github.com/alphagov/paas-rds-broker/awsrds/fakes"
 	sqlfake "github.com/alphagov/paas-rds-broker/sqlengine/fakes"
@@ -301,55 +301,55 @@ var _ = Describe("RDS Broker", func() {
 
 		BeforeEach(func() {
 			properCatalogResponse = []domain.Service{
-				domain.Service{
-					ID:            "Service-1",
-					Name:          "Service 1",
-					Description:   "This is the Service 1",
-					Bindable:      serviceBindable,
+				{
+					ID:                   "Service-1",
+					Name:                 "Service 1",
+					Description:          "This is the Service 1",
+					Bindable:             serviceBindable,
 					InstancesRetrievable: instancesRetrievable,
-					PlanUpdatable: planUpdateable,
+					PlanUpdatable:        planUpdateable,
 					Plans: []domain.ServicePlan{
-						domain.ServicePlan{
+						{
 							ID:          "Plan-1",
 							Name:        "Plan 1",
 							Description: "This is the Plan 1",
 						},
 					},
 				},
-				domain.Service{
-					ID:            "Service-2",
-					Name:          "Service 2",
-					Description:   "This is the Service 2",
-					Bindable:      serviceBindable,
+				{
+					ID:                   "Service-2",
+					Name:                 "Service 2",
+					Description:          "This is the Service 2",
+					Bindable:             serviceBindable,
 					InstancesRetrievable: instancesRetrievable,
-					PlanUpdatable: planUpdateable,
+					PlanUpdatable:        planUpdateable,
 					Plans: []domain.ServicePlan{
-						domain.ServicePlan{
+						{
 							ID:          "Plan-2",
 							Name:        "Plan 2",
 							Description: "This is the Plan 2",
 						},
 					},
 				},
-				domain.Service{
-					ID:            "Service-3",
-					Name:          "Service 3",
-					Description:   "This is the Service 3",
-					Bindable:      serviceBindable,
+				{
+					ID:                   "Service-3",
+					Name:                 "Service 3",
+					Description:          "This is the Service 3",
+					Bindable:             serviceBindable,
 					InstancesRetrievable: instancesRetrievable,
-					PlanUpdatable: planUpdateable,
+					PlanUpdatable:        planUpdateable,
 					Plans: []domain.ServicePlan{
-						domain.ServicePlan{
+						{
 							ID:          "Plan-3",
 							Name:        "Plan 3",
 							Description: "This is the Plan 3",
 						},
-						domain.ServicePlan{
+						{
 							ID:          "Plan-4",
 							Name:        "Plan 4",
 							Description: "This is the Plan 4",
 						},
-						domain.ServicePlan{
+						{
 							ID:          "Plan-5",
 							Name:        "Plan 5",
 							Description: "This is the Plan 5",
@@ -2205,7 +2205,7 @@ var _ = Describe("RDS Broker", func() {
 			properLastOperationResponse domain.LastOperation
 			parameterGroupStatus        string
 			dbAllocatedStorage          int64
-			pollDetails domain.PollDetails
+			pollDetails                 domain.PollDetails
 
 			defaultDBInstance = &rds.DBInstance{
 				AllocatedStorage:     int64Pointer(300),
@@ -2222,7 +2222,7 @@ var _ = Describe("RDS Broker", func() {
 				DBName:         aws.String("test-db"),
 				MasterUsername: aws.String("master-username"),
 				DBParameterGroups: []*rds.DBParameterGroupStatus{
-					&rds.DBParameterGroupStatus{
+					{
 						DBParameterGroupName: aws.String("rdsbroker-testengine10"),
 					},
 				},
@@ -2891,8 +2891,8 @@ var _ = Describe("RDS Broker", func() {
 
 		BeforeEach(func() {
 			fetchInstanceDetails = domain.FetchInstanceDetails{
-				ServiceID:                  "Service-1",
-				PlanID:                     "Plan-1",
+				ServiceID: "Service-1",
+				PlanID:    "Plan-1",
 			}
 			defaultDBInstanceTagsByName = map[string]string{
 				"Space ID":          "space-id",

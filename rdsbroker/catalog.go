@@ -3,11 +3,11 @@ package rdsbroker
 import (
 	"fmt"
 	"github.com/Masterminds/semver"
-	"github.com/pivotal-cf/brokerapi/v8/domain"
+	"github.com/pivotal-cf/brokerapi/v9/domain"
 	"regexp"
 	"strings"
 
-	"github.com/pivotal-cf/brokerapi/v8"
+	"github.com/pivotal-cf/brokerapi/v9"
 )
 
 const minAllocatedStorage = 5
@@ -28,12 +28,12 @@ type CatalogExternal struct {
 }
 
 type Service struct {
-	ID              string                            `json:"id"`
-	Name            string                            `json:"name"`
-	Description     string                            `json:"description"`
-	Tags            []string                          `json:"tags,omitempty"`
-	PlanUpdatable   bool                              `json:"plan_updateable"`
-	Plans           []ServicePlan                     `json:"plans"`
+	ID              string                         `json:"id"`
+	Name            string                         `json:"name"`
+	Description     string                         `json:"description"`
+	Tags            []string                       `json:"tags,omitempty"`
+	PlanUpdatable   bool                           `json:"plan_updateable"`
+	Plans           []ServicePlan                  `json:"plans"`
 	Requires        []domain.RequiredPermission    `json:"requires,omitempty"`
 	Metadata        *domain.ServiceMetadata        `json:"metadata,omitempty"`
 	DashboardClient *domain.ServiceDashboardClient `json:"dashboard_client,omitempty"`

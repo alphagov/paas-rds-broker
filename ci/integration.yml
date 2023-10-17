@@ -15,7 +15,7 @@ run:
     - -c
     - |
 
-      go install github.com/onsi/ginkgo/ginkgo@latest
+      go install github.com/onsi/ginkgo/v2/ginkgo@latest
 
       cd src/github.com/alphagov/paas-rds-broker
       make integration
