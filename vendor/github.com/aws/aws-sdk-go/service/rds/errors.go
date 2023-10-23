@@ -31,18 +31,29 @@ const (
 	// "BackupPolicyNotFoundFault".
 	ErrCodeBackupPolicyNotFoundFault = "BackupPolicyNotFoundFault"
 
+	// ErrCodeBlueGreenDeploymentAlreadyExistsFault for service response error code
+	// "BlueGreenDeploymentAlreadyExistsFault".
+	//
+	// A blue/green deployment with the specified name already exists.
+	ErrCodeBlueGreenDeploymentAlreadyExistsFault = "BlueGreenDeploymentAlreadyExistsFault"
+
+	// ErrCodeBlueGreenDeploymentNotFoundFault for service response error code
+	// "BlueGreenDeploymentNotFoundFault".
+	//
+	// BlueGreenDeploymentIdentifier doesn't refer to an existing blue/green deployment.
+	ErrCodeBlueGreenDeploymentNotFoundFault = "BlueGreenDeploymentNotFoundFault"
+
 	// ErrCodeCertificateNotFoundFault for service response error code
 	// "CertificateNotFound".
 	//
 	// CertificateIdentifier doesn't refer to an existing certificate.
 	ErrCodeCertificateNotFoundFault = "CertificateNotFound"
 
-	// ErrCodeCustomAvailabilityZoneAlreadyExistsFault for service response error code
-	// "CustomAvailabilityZoneAlreadyExists".
+	// ErrCodeCreateCustomDBEngineVersionFault for service response error code
+	// "CreateCustomDBEngineVersionFault".
 	//
-	// CustomAvailabilityZoneName is already used by an existing custom Availability
-	// Zone.
-	ErrCodeCustomAvailabilityZoneAlreadyExistsFault = "CustomAvailabilityZoneAlreadyExists"
+	// An error occurred while trying to create the CEV.
+	ErrCodeCreateCustomDBEngineVersionFault = "CreateCustomDBEngineVersionFault"
 
 	// ErrCodeCustomAvailabilityZoneNotFoundFault for service response error code
 	// "CustomAvailabilityZoneNotFound".
@@ -50,12 +61,6 @@ const (
 	// CustomAvailabilityZoneId doesn't refer to an existing custom Availability
 	// Zone identifier.
 	ErrCodeCustomAvailabilityZoneNotFoundFault = "CustomAvailabilityZoneNotFound"
-
-	// ErrCodeCustomAvailabilityZoneQuotaExceededFault for service response error code
-	// "CustomAvailabilityZoneQuotaExceeded".
-	//
-	// You have exceeded the maximum number of custom Availability Zones.
-	ErrCodeCustomAvailabilityZoneQuotaExceededFault = "CustomAvailabilityZoneQuotaExceeded"
 
 	// ErrCodeCustomDBEngineVersionAlreadyExistsFault for service response error code
 	// "CustomDBEngineVersionAlreadyExistsFault".
@@ -80,6 +85,20 @@ const (
 	//
 	// The user already has a DB cluster with the given identifier.
 	ErrCodeDBClusterAlreadyExistsFault = "DBClusterAlreadyExistsFault"
+
+	// ErrCodeDBClusterAutomatedBackupNotFoundFault for service response error code
+	// "DBClusterAutomatedBackupNotFoundFault".
+	//
+	// No automated backup for this DB cluster was found.
+	ErrCodeDBClusterAutomatedBackupNotFoundFault = "DBClusterAutomatedBackupNotFoundFault"
+
+	// ErrCodeDBClusterAutomatedBackupQuotaExceededFault for service response error code
+	// "DBClusterAutomatedBackupQuotaExceededFault".
+	//
+	// The quota for retained automated backups was exceeded. This prevents you
+	// from retaining any additional automated backups. The retained automated backups
+	// quota is the same as your DB cluster quota.
+	ErrCodeDBClusterAutomatedBackupQuotaExceededFault = "DBClusterAutomatedBackupQuotaExceededFault"
 
 	// ErrCodeDBClusterBacktrackNotFoundFault for service response error code
 	// "DBClusterBacktrackNotFoundFault".
@@ -175,7 +194,7 @@ const (
 	//
 	// The quota for retained automated backups was exceeded. This prevents you
 	// from retaining any additional automated backups. The retained automated backups
-	// quota is the same as your DB Instance quota.
+	// quota is the same as your DB instance quota.
 	ErrCodeDBInstanceAutomatedBackupQuotaExceededFault = "DBInstanceAutomatedBackupQuotaExceeded"
 
 	// ErrCodeDBInstanceNotFoundFault for service response error code
@@ -383,6 +402,12 @@ const (
 	// Domain doesn't refer to an existing Active Directory domain.
 	ErrCodeDomainNotFoundFault = "DomainNotFoundFault"
 
+	// ErrCodeEc2ImagePropertiesNotSupportedFault for service response error code
+	// "Ec2ImagePropertiesNotSupportedFault".
+	//
+	// The AMI configuration prerequisite has not been met.
+	ErrCodeEc2ImagePropertiesNotSupportedFault = "Ec2ImagePropertiesNotSupportedFault"
+
 	// ErrCodeEventSubscriptionQuotaExceededFault for service response error code
 	// "EventSubscriptionQuotaExceeded".
 	//
@@ -434,18 +459,6 @@ const (
 	// The IAM role is missing for exporting to an Amazon S3 bucket.
 	ErrCodeIamRoleNotFoundFault = "IamRoleNotFound"
 
-	// ErrCodeInstallationMediaAlreadyExistsFault for service response error code
-	// "InstallationMediaAlreadyExists".
-	//
-	// The specified installation medium has already been imported.
-	ErrCodeInstallationMediaAlreadyExistsFault = "InstallationMediaAlreadyExists"
-
-	// ErrCodeInstallationMediaNotFoundFault for service response error code
-	// "InstallationMediaNotFound".
-	//
-	// InstallationMediaID doesn't refer to an existing installation medium.
-	ErrCodeInstallationMediaNotFoundFault = "InstallationMediaNotFound"
-
 	// ErrCodeInstanceQuotaExceededFault for service response error code
 	// "InstanceQuotaExceeded".
 	//
@@ -481,11 +494,25 @@ const (
 	// Availability Zones that have more storage available.
 	ErrCodeInsufficientStorageClusterCapacityFault = "InsufficientStorageClusterCapacity"
 
+	// ErrCodeInvalidBlueGreenDeploymentStateFault for service response error code
+	// "InvalidBlueGreenDeploymentStateFault".
+	//
+	// The blue/green deployment can't be switched over or deleted because there
+	// is an invalid configuration in the green environment.
+	ErrCodeInvalidBlueGreenDeploymentStateFault = "InvalidBlueGreenDeploymentStateFault"
+
 	// ErrCodeInvalidCustomDBEngineVersionStateFault for service response error code
 	// "InvalidCustomDBEngineVersionStateFault".
 	//
 	// You can't delete the CEV.
 	ErrCodeInvalidCustomDBEngineVersionStateFault = "InvalidCustomDBEngineVersionStateFault"
+
+	// ErrCodeInvalidDBClusterAutomatedBackupStateFault for service response error code
+	// "InvalidDBClusterAutomatedBackupStateFault".
+	//
+	// The automated backup is in an invalid state. For example, this automated
+	// backup is associated with an active cluster.
+	ErrCodeInvalidDBClusterAutomatedBackupStateFault = "InvalidDBClusterAutomatedBackupStateFault"
 
 	// ErrCodeInvalidDBClusterCapacityFault for service response error code
 	// "InvalidDBClusterCapacityFault".
@@ -651,6 +678,13 @@ const (
 	// An error occurred accessing an Amazon Web Services KMS key.
 	ErrCodeKMSKeyNotAccessibleFault = "KMSKeyNotAccessibleFault"
 
+	// ErrCodeNetworkTypeNotSupported for service response error code
+	// "NetworkTypeNotSupported".
+	//
+	// The network type is invalid for the DB instance. Valid nework type values
+	// are IPV4 and DUAL.
+	ErrCodeNetworkTypeNotSupported = "NetworkTypeNotSupported"
+
 	// ErrCodeOptionGroupAlreadyExistsFault for service response error code
 	// "OptionGroupAlreadyExistsFault".
 	//
@@ -743,6 +777,18 @@ const (
 	// The request would result in the user exceeding the allowed number of DB snapshots.
 	ErrCodeSnapshotQuotaExceededFault = "SnapshotQuotaExceeded"
 
+	// ErrCodeSourceClusterNotSupportedFault for service response error code
+	// "SourceClusterNotSupportedFault".
+	//
+	// The source DB cluster isn't supported for a blue/green deployment.
+	ErrCodeSourceClusterNotSupportedFault = "SourceClusterNotSupportedFault"
+
+	// ErrCodeSourceDatabaseNotSupportedFault for service response error code
+	// "SourceDatabaseNotSupportedFault".
+	//
+	// The source DB instance isn't supported for a blue/green deployment.
+	ErrCodeSourceDatabaseNotSupportedFault = "SourceDatabaseNotSupportedFault"
+
 	// ErrCodeSourceNotFoundFault for service response error code
 	// "SourceNotFound".
 	//
@@ -756,10 +802,17 @@ const (
 	// available across all DB instances.
 	ErrCodeStorageQuotaExceededFault = "StorageQuotaExceeded"
 
+	// ErrCodeStorageTypeNotAvailableFault for service response error code
+	// "StorageTypeNotAvailableFault".
+	//
+	// The aurora-iopt1 storage type isn't available, because you modified the DB
+	// cluster to use this storage type less than one month ago.
+	ErrCodeStorageTypeNotAvailableFault = "StorageTypeNotAvailableFault"
+
 	// ErrCodeStorageTypeNotSupportedFault for service response error code
 	// "StorageTypeNotSupported".
 	//
-	// Storage of the StorageType specified can't be associated with the DB instance.
+	// The specified StorageType can't be associated with the DB instance.
 	ErrCodeStorageTypeNotSupportedFault = "StorageTypeNotSupported"
 
 	// ErrCodeSubnetAlreadyInUse for service response error code
