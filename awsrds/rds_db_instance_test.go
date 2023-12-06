@@ -1296,14 +1296,49 @@ var _ = Describe("RDS DB Instance", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			Context("when deleting a snapshot fails", func() {
+			Context("when deleting first snapshot fails", func() {
 				BeforeEach(func() {
-					deleteDBSnapshotErrors = []error{awserr.New("code", "message", errors.New("operation failed"))}
+					deleteDBSnapshotErrors = []error{awserr.New("code", "message", errors.New("operation failed")), nil}
 				})
 
 				It("returns the proper AWS error", func() {
 					err := rdsDBInstance.DeleteSnapshots("test-broker", 2)
-					Expect(err).To(MatchError("failed to delete snapshot-three: code: message\ncaused by: operation failed"))
+
+					Expect(string(testSink.Buffer().Contents())).To(ContainSubstring(
+						"\"message\":\"rdsdbinstance_test.db-instance.delete-snapshot-failed\"," +
+						"\"log_level\":2,\"data\":{\"error\":\"code: message\\ncaused by: operation failed\"," +
+						"\"session\":\"1\",\"snapshot_id\":\"snapshot-three\"}",
+					))
+					Expect(string(testSink.Buffer().Contents())).To(ContainSubstring("operation failed"))
+
+					Expect(string(testSink.Buffer().Contents())).To(ContainSubstring(
+						"\"message\":\"rdsdbinstance_test.db-instance.delete-snapshot-success\"," +
+						"\"log_level\":1,\"data\":{\"session\":\"1\",\"snapshot_id\":\"snapshot-two\"}",
+					))
+					Expect(err).To(MatchError("failed to delete snapshots: snapshot-three"))
+				})
+			})
+
+			Context("when deleting second snapshot fails", func() {
+				BeforeEach(func() {
+					deleteDBSnapshotErrors = []error{nil, awserr.New("code", "message", errors.New("operation failed"))}
+				})
+
+				It("returns the proper AWS error", func() {
+					err := rdsDBInstance.DeleteSnapshots("test-broker", 2)
+
+					Expect(string(testSink.Buffer().Contents())).To(ContainSubstring(
+						"\"message\":\"rdsdbinstance_test.db-instance.delete-snapshot-failed\"," +
+						"\"log_level\":2,\"data\":{\"error\":\"code: message\\ncaused by: operation failed\"," +
+						"\"session\":\"1\",\"snapshot_id\":\"snapshot-two\"}",
+					))
+					Expect(string(testSink.Buffer().Contents())).To(ContainSubstring("operation failed"))
+
+					Expect(string(testSink.Buffer().Contents())).To(ContainSubstring(
+						"\"message\":\"rdsdbinstance_test.db-instance.delete-snapshot-success\"," +
+						"\"log_level\":1,\"data\":{\"session\":\"1\",\"snapshot_id\":\"snapshot-three\"}",
+					))
+					Expect(err).To(MatchError("failed to delete snapshots: snapshot-two"))
 				})
 			})
 

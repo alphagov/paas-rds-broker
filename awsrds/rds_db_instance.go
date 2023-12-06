@@ -208,6 +208,9 @@ func (r *RDSDBInstance) DeleteSnapshots(brokerName string, keepForDays int) erro
 		}
 	}
 
+	// create variable to list all snapshots that failed to delete
+	var failedToDelete []string
+
 	if len(snapshotsToDelete) > 0 {
 		for _, snapshotID := range snapshotsToDelete {
 			r.logger.Info("delete-snapshot", lager.Data{"snapshot_id": snapshotID})
@@ -215,9 +218,18 @@ func (r *RDSDBInstance) DeleteSnapshots(brokerName string, keepForDays int) erro
 				DBSnapshotIdentifier: &snapshotID,
 			})
 			if err != nil {
-				return fmt.Errorf("failed to delete %s: %s", snapshotID, err)
+				failedToDelete = append(failedToDelete, snapshotID)
+				r.logger.Error("delete-snapshot-failed", err, lager.Data{
+					"snapshot_id": snapshotID,
+				})
+			} else {
+				r.logger.Info("delete-snapshot-success", lager.Data{"snapshot_id": snapshotID})
 			}
 		}
+	}
+
+	if len(failedToDelete) > 0 {
+		return fmt.Errorf("failed to delete snapshots: %s", strings.Join(failedToDelete, ", "))
 	}
 
 	return nil
