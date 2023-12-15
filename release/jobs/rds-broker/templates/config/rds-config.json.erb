@@ -1,5 +1,8 @@
 {
   "port": <%= p('rds-broker.port') %>,
+<% if_p('rds-broker.host') do |host| -%>
+  "host": "<%= host %>",
+<% end -%>
   "log_level": "<%= p('rds-broker.log_level') %>",
   "username": "<%= p('rds-broker.username') %>",
   "password": "<%= p('rds-broker.password') %>",
@@ -7,6 +10,12 @@
   "cron_schedule": "<%= p('rds-broker.cron_schedule') %>",
   "keep_snapshots_for_days": <%= p('rds-broker.keep_snapshots_for_days') %>,
   "state_encryption_key": "<%= p('rds-broker.state_encryption_key') %>",
+<% if_p('rds-broker.tls') do |tls| -%>
+  "tls": {
+    "certificate": "<%= tls.fetch("certificate").gsub(/\n/, '\\n') %>",
+    "private_key": "<%= tls.fetch("private_key").gsub(/\n/, '\\n') %>"
+  },
+<% end -%>
   "rds_config": {
     "region": "<%= p('rds-broker.aws_region') %>",
     "db_prefix": "<%= p('rds-broker.db_prefix') %>",

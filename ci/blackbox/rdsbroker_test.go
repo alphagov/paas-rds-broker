@@ -1163,7 +1163,7 @@ func startNewBroker(rdsBrokerConfig *config.Config, brokerName string) (*gexec.S
 	// Wait for it to be listening
 	Eventually(rdsBrokerSession, 10*time.Second).Should(And(
 		gbytes.Say("rds-broker.start"),
-		gbytes.Say(fmt.Sprintf(`{"port":%d}`, rdsBrokerPort)),
+		gbytes.Say(fmt.Sprintf(`{"address":"0.0.0.0:%d","host":"0.0.0.0","port":%d,"tls":false}`, rdsBrokerPort, rdsBrokerPort)),
 	))
 
 	rdsBrokerUrl := fmt.Sprintf("http://localhost:%d", rdsBrokerPort)

@@ -5,6 +5,10 @@ MYSQL_PASSWORD=toor
 integration:
 	go run github.com/onsi/ginkgo/v2/ginkgo --timeout=5h --nodes=4 -r ci/blackbox --slowSpecThreshold=1800 -stream -failFast
 
+.PHONY: tls_integration
+tls_integration:
+	go run github.com/onsi/ginkgo/v2/ginkgo --timeout=5h -r ci/tls --slowSpecThreshold=1800 -stream -failFast
+
 .PHONY: unit
 unit: test_unit test_all_sql
 
@@ -14,7 +18,7 @@ test_unit:
 .PHONY: test_all_sql
 test_all_sql: test_postgres test_mysql
 .PHONY: test_postgres
-test_postgres: run_postgres_sql_tests start_postgres_10 run_postgres_sql_tests stop_postgres_10 start_postgres_11 run_postgres_sql_tests stop_postgres_11 start_postgres_12 run_postgres_sql_tests stop_postgres_12 start_postgres_13 run_postgres_sql_tests stop_postgres_13
+test_postgres: start_postgres_10 run_postgres_sql_tests stop_postgres_10 start_postgres_11 run_postgres_sql_tests stop_postgres_11 start_postgres_12 run_postgres_sql_tests stop_postgres_12 start_postgres_13 run_postgres_sql_tests stop_postgres_13
 .PHONY: test_mysql
 test_mysql: start_mysql_80 run_mysql_sql_tests stop_mysql_80 start_mysql_57 run_mysql_sql_tests stop_mysql_57
 

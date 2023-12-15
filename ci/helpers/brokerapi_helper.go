@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -47,23 +48,37 @@ func BodyBytes(resp *http.Response) ([]byte, error) {
 }
 
 type BrokerAPIClient struct {
-	Url               string
-	Username          string
-	Password          string
-	AcceptsIncomplete bool
+	Url                    string
+	Username               string
+	Password               string
+	AcceptsIncomplete      bool
+	AcceptsSelfSignedCerts bool
 }
 
 func NewBrokerAPIClient(Url string, Username string, Password string) *BrokerAPIClient {
 	return &BrokerAPIClient{
-		Url:      Url,
-		Username: Username,
-		Password: Password,
+		Url:                    Url,
+		Username:               Username,
+		Password:               Password,
+		AcceptsSelfSignedCerts: true,
 	}
 }
 
 func (b *BrokerAPIClient) doRequest(action string, path string, body io.Reader, params ...uriParam) (*http.Response, error) {
 
-	client := &http.Client{}
+	var client *http.Client
+	if b.AcceptsSelfSignedCerts {
+		client = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}
+	} else {
+		client = &http.Client{}
+
+	}
 
 	req, err := http.NewRequest(action, b.Url+path, body)
 	if err != nil {

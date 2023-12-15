@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -97,15 +98,25 @@ func startHTTPServer(
 ) error {
 	server := buildHTTPHandler(serviceBroker, logger, cfg)
 
+	listenAddress := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 	// We don't use http.ListenAndServe here so that the "start" log message is
 	// logged after the socket is listening. This log message is used by the
 	// tests to wait until the broker is ready.
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Port))
+	listener, err := net.Listen("tcp", listenAddress)
 	if err != nil {
-		return fmt.Errorf("failed to listen on port %d: %s", cfg.Port, err)
+		return fmt.Errorf("failed to listen on address %s: %s", listenAddress, err)
+	}
+	if cfg.TLSEnabled() {
+		tlsConfig, err := cfg.TLS.GenerateTLSConfig()
+		if err != nil {
+			log.Fatalf("Error configuring TLS: %s", err)
+		}
+		listener = tls.NewListener(listener, tlsConfig)
+		logger.Info("start", lager.Data{"port": cfg.Port, "tls": true, "host": cfg.Host, "address": listenAddress})
+	} else {
+		logger.Info("start", lager.Data{"port": cfg.Port, "tls": false, "host": cfg.Host, "address": listenAddress})
 	}
 
-	logger.Info("start", lager.Data{"port": cfg.Port})
 	return http.Serve(listener, server)
 }
 
