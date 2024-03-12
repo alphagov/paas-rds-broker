@@ -124,6 +124,8 @@ bosh_release:
 	tar xf broker.tz -C release/src/github.com/alphagov/paas-rds-broker
 	rm broker.tz
 
+	./release/scripts/vendor_package.sh
+	
 	bosh create-release \
 		--name "rds-broker" \
 		--version "${VERSION}" \
