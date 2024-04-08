@@ -127,6 +127,4 @@ var SupportedPreloadExtensions = map[string][]DBExtension{
 			RequiresPreloadLibrary: true,
 		},
 	},
-
-	"mysql5.7": []DBExtension{},
 }
