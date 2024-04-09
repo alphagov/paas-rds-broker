@@ -76,7 +76,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service1.Description).To(Equal("AWS RDS MySQL service"))
 			Expect(service1.Bindable).To(BeTrue())
 			Expect(service1.PlanUpdatable).To(BeTrue())
-			Expect(service1.Plans).To(HaveLen(4))
+			Expect(service1.Plans).To(HaveLen(2))
 
 			Expect(service2.ID).To(Equal("postgres"))
 			Expect(service2.Name).To(Equal("postgres"))
@@ -232,10 +232,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-13")
 		})
 
-		Describe("MySQL 5.7", func() {
-			TestProvisionBindDeprovision("mysql", "mysql-5.7-micro-without-snapshot")
-		})
-
 		Describe("MySQL 8.0", func() {
 			TestProvisionBindDeprovision("mysql", "mysql-8.0-micro-without-snapshot")
 		})
@@ -374,10 +370,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 		Describe("Postgres 12 to 13", func() {
 			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-12", "postgres-micro-without-snapshot-13")
-		})
-
-		Describe("MySQL 5.7 to 8.0", func() {
-			TestUpdatePlan("mysql", "mysql-5.7-micro-without-snapshot", "mysql-8.0-micro-without-snapshot")
 		})
 	})
 
@@ -743,10 +735,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 			TestFinalSnapshot("postgres", "postgres-micro-13")
 		})
 
-		Describe("MySQL 5.7", func() {
-			TestFinalSnapshot("mysql", "mysql-5.7-micro")
-		})
-
 		Describe("MySQL 8.0", func() {
 			TestFinalSnapshot("mysql", "mysql-8.0-micro")
 		})
@@ -924,10 +912,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 			TestRestoreFromSnapshot("postgres", "postgres-micro-13", true)
 		})
 
-		Describe("MySQL 5.7", func() {
-			TestRestoreFromSnapshot("mysql", "mysql-5.7-micro", false)
-		})
-
 		Describe("MySQL 8.0", func() {
 			TestRestoreFromSnapshot("mysql", "mysql-8.0-micro", false)
 		})
@@ -1094,10 +1078,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 		Describe("Postgres 13", func() {
 			TestRestoreFromPointInTime("postgres", "postgres-micro-13", true)
-		})
-
-		Describe("MySQL 5.7", func() {
-			TestRestoreFromPointInTime("mysql", "mysql-5.7-micro", false)
 		})
 
 		Describe("MySQL 8.0", func() {

@@ -1608,8 +1608,6 @@ var _ = Describe("RDS DB Instance", func() {
 			Entry("postgres 9.5->10", "postgres", "9.5", "10", "10.6", "10.6"),
 			Entry("postgres 9.5->11", "postgres", "9.5", "11", "11.5", "11.5"),
 			Entry("postgres 9.5->12", "postgres", "9.5", "12", "12.4", "12.4"),
-			Entry("mysql 5.5->5.7", "mysql", "5.5", "5.7", "5.7.22", "5.7.22"),
-			Entry("mysql 5.7->8.0", "mysql", "5.7", "8.0", "8.0.20", "8.0.20"),
 		)
 	})
 })
