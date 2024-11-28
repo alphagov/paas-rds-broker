@@ -18,7 +18,7 @@ test_unit:
 .PHONY: test_all_sql
 test_all_sql: test_postgres test_mysql
 .PHONY: test_postgres
-test_postgres: start_postgres_10 run_postgres_sql_tests stop_postgres_10 start_postgres_11 run_postgres_sql_tests stop_postgres_11 start_postgres_12 run_postgres_sql_tests stop_postgres_12 start_postgres_13 run_postgres_sql_tests stop_postgres_13
+test_postgres: start_postgres_12 run_postgres_sql_tests stop_postgres_12 start_postgres_13 run_postgres_sql_tests stop_postgres_13
 .PHONY: test_mysql
 test_mysql: start_mysql_80 run_mysql_sql_tests stop_mysql_80
 
@@ -30,16 +30,6 @@ run_mysql_sql_tests:
 run_postgres_sql_tests:
 	POSTGRESQL_PASSWORD=$(POSTGRESQL_PASSWORD) go run github.com/onsi/ginkgo/v2/ginkgo -focus=PostgresEngine.* sqlengine/
 
-.PHONY: start_postgres_10
-start_postgres_10:
-	docker run -p 5432:5432 --name postgres-10 -e POSTGRES_PASSWORD=$(POSTGRESQL_PASSWORD) -d postgres:10.5; \
-	sleep 5
-
-.PHONY: start_postgres_11
-start_postgres_11:
-	docker run -p 5432:5432 --name postgres-11 -e POSTGRES_PASSWORD=$(POSTGRESQL_PASSWORD) -d postgres:11.5; \
-	sleep 5
-
 .PHONY: start_postgres_12
 start_postgres_12:
 	docker run -p 5432:5432 --name postgres-12 -e POSTGRES_PASSWORD=$(POSTGRESQL_PASSWORD) -d postgres:12.5; \
@@ -49,14 +39,6 @@ start_postgres_12:
 start_postgres_13:
 	docker run -p 5432:5432 --name postgres-13 -e POSTGRES_PASSWORD=$(POSTGRESQL_PASSWORD) -d postgres:13; \
 	sleep 5
-
-.PHONY: stop_postgres_10
-stop_postgres_10:
-	docker rm -f postgres-10
-
-.PHONY: stop_postgres_11
-stop_postgres_11:
-	docker rm -f postgres-11
 
 .PHONY: stop_postgres_12
 stop_postgres_12:
