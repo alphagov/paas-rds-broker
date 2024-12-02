@@ -883,6 +883,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 						// Binding is synchronous
 						waiter := func() { return }
 						cleaner := func() {
+							By("unbinding the second instance")
 							code, _, err := brokerAPIClient.UnbindService(
 								restoredInstanceID, serviceID, planID, "post-restore-binding",
 							)
@@ -1051,6 +1052,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 						// Binding is synchronous
 						waiter := func() { return }
 						cleaner := func() {
+							By("unbinding the second service instance")
 							code, _, err := brokerAPIClient.UnbindService(
 								restoredInstanceID, serviceID, planID, "post-restore-binding",
 							)
