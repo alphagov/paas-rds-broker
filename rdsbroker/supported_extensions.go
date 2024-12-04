@@ -66,37 +66,6 @@ var SupportedPreloadExtensions = map[string][]DBExtension{
 		},
 	},
 
-	"postgres11": {
-		DBExtension{
-			Name:                   "auto_explain",
-			RequiresPreloadLibrary: true,
-		},
-		DBExtension{
-			Name:                   "orafce",
-			RequiresPreloadLibrary: true,
-		},
-		DBExtension{
-			Name:                   "pgaudit",
-			RequiresPreloadLibrary: true,
-		},
-		DBExtension{
-			Name:                   "pglogical",
-			RequiresPreloadLibrary: true,
-		},
-		DBExtension{
-			Name:                   "pg_similarity",
-			RequiresPreloadLibrary: true,
-		},
-		DBExtension{
-			Name:                   "pg_stat_statements",
-			RequiresPreloadLibrary: true,
-		},
-		DBExtension{
-			Name:                   "pg_hint_plan",
-			RequiresPreloadLibrary: true,
-		},
-	},
-
 	"postgres10": {
 		DBExtension{
 			Name:                   "auto_explain",

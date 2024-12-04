@@ -230,9 +230,14 @@ func (d *MySQLEngine) ResetState() error {
 func (d *MySQLEngine) listNonSuperUsers(logger lager.Logger) ([]string, error) {
 	users := []string{}
 
-	rows, err := d.db.Query(
-		"SELECT User FROM mysql.user WHERE Super_priv != 'Y' AND Host = '%' AND User != SUBSTRING_INDEX(CURRENT_USER(), '@', 1)",
-	)
+	rows, err := d.db.Query(`
+		SELECT User
+		FROM mysql.user
+		WHERE Super_priv != 'Y'
+			AND Host = '%'
+			AND User != SUBSTRING_INDEX(CURRENT_USER(), '@', 1)
+			AND User != 'rds_superuser_role'
+	`)
 	if err != nil {
 		logger.Error("sql-error", err)
 		return nil, err
