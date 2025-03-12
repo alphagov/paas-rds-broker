@@ -532,7 +532,7 @@ func (d *PostgresEngine) ensurePermissionsTriggers(logger lager.Logger, tx *sql.
 	var reassignOwnedBody bytes.Buffer
 	if err := reassignOwnedBodyTemplate.Execute(&reassignOwnedBody, map[string]string{
 		"managerRoleStr": pq.QuoteLiteral(dbname + "_manager"),
-		"readerRoleStr":  pq.QuoteLiteral(dbname + "_reader"),
+		"readerRoleStr":  pq.QuoteLiteral(dbname + "x_reader"),
 	}); err != nil {
 		return err
 	}
