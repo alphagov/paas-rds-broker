@@ -83,7 +83,7 @@ var _ = Describe("RDS Broker Daemon", func() {
 			Expect(service2.Description).To(Equal("AWS RDS PostgreSQL service"))
 			Expect(service2.Bindable).To(BeTrue())
 			Expect(service2.PlanUpdatable).To(BeTrue())
-			Expect(service2.Plans).To(HaveLen(6))
+			Expect(service2.Plans).To(HaveLen(3))
 		})
 	})
 
@@ -224,10 +224,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 12", func() {
-			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-12")
-		})
-
 		Describe("Postgres 13", func() {
 			TestProvisionBindDeprovision("postgres", "postgres-micro-without-snapshot-13")
 		})
@@ -318,103 +314,10 @@ var _ = Describe("RDS Broker Daemon", func() {
 			})
 		}
 
-		Describe("Postgres 12", func() {
-			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-12")
-		})
-
 		Describe("Postgres 13", func() {
 			TestUpdateExtensions("postgres", "postgres-micro-without-snapshot-13")
 		})
 
-	})
-
-	Describe("update to a plan with a newer engine version", func() {
-		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID string) {
-			var (
-				instanceID string
-			)
-
-			BeforeEach(func() {
-				instanceID = uuid.NewV4().String()
-
-				brokerAPIClient.AcceptsIncomplete = true
-
-				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlanID, "{}")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
-				Expect(state).To(Equal("succeeded"))
-			})
-
-			AfterEach(func() {
-				brokerAPIClient.AcceptsIncomplete = true
-				code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, upgradeToPlanID)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, upgradeToPlanID, operation)
-				Expect(state).To(Equal("gone"))
-			})
-
-			It("handles an update to a plan with a newer engine version", func() {
-				code, operation, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
-				Expect(state).To(Equal("succeeded"))
-			})
-		}
-
-		Describe("Postgres 12 to 13", func() {
-			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-12", "postgres-micro-without-snapshot-13")
-		})
-	})
-
-	Describe("go off plan and allow user to get back", func() {
-		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, engineVersion string) {
-			var (
-				instanceID string
-			)
-
-			BeforeEach(func() {
-				instanceID = uuid.NewV4().String()
-
-				brokerAPIClient.AcceptsIncomplete = true
-
-				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlanID, "{}")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
-				Expect(state).To(Equal("succeeded"))
-			})
-
-			AfterEach(func() {
-				brokerAPIClient.AcceptsIncomplete = true
-				code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, upgradeToPlanID)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, upgradeToPlanID, operation)
-				Expect(state).To(Equal("gone"))
-			})
-
-			It("handles an update to a plan with a newer engine version", func() {
-
-				// lets upgrade and go off plan
-				err := rdsClient.UpgradeEngine(instanceID, engineVersion, fmt.Sprintf("%s%s", serviceID, engineVersion))
-				Expect(err).ToNot(HaveOccurred())
-
-				// now lets try to go back on plan
-				code, operation, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
-				Expect(state).To(Equal("succeeded"))
-
-			})
-		}
-
-		Describe("Postgres 12 to 13", func() {
-			TestUpdatePlan("postgres", "postgres-micro-without-snapshot-12", "postgres-micro-without-snapshot-13", "13")
-		})
 	})
 
 	Describe("aws storage full and plan upgrade attempt", func() {
@@ -481,107 +384,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 
 		Describe("Postgres 13 5g to Postgress 13 10g with storage full", func() {
 			TestStorageFullUpgrade("postgres", "postgres-micro-without-snapshot-13", "postgres-small-without-snapshot-13")
-		})
-	})
-
-	Describe("plan upgrade failures and recovery", func() {
-		TestUpdatePlan := func(serviceID, startPlanID, upgradeToPlanID, expectedAwsTagPlanID, recoveryPlanID string) {
-
-			var (
-				instanceID string
-				appGUID    string
-				bindingID  string
-			)
-
-			BeforeEach(func() {
-				instanceID = uuid.NewV4().String()
-				appGUID = uuid.NewV4().String()
-				bindingID = uuid.NewV4().String()
-
-				brokerAPIClient.AcceptsIncomplete = true
-
-				code, operation, err := brokerAPIClient.ProvisionInstance(instanceID, serviceID, startPlanID, `{}`)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
-				Expect(state).To(Equal("succeeded"))
-
-				resp, err := brokerAPIClient.DoBindRequest(instanceID, serviceID, startPlanID, appGUID, bindingID)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(resp.StatusCode).To(Equal(201))
-
-				credentials, err := getCredentialsFromBindResponse(resp)
-				Expect(err).ToNot(HaveOccurred())
-
-				err = postgresSabotageUpgrade(credentials.URI)
-				Expect(err).ToNot(HaveOccurred())
-
-				resp, err = brokerAPIClient.DoUnbindRequest(instanceID, serviceID, startPlanID, bindingID)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(resp.StatusCode).To(Equal(200))
-			})
-
-			AfterEach(func() {
-				brokerAPIClient.AcceptsIncomplete = true
-				code, operation, err := brokerAPIClient.DeprovisionInstance(instanceID, serviceID, startPlanID)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
-				Expect(state).To(Equal("gone"))
-			})
-
-			It("handles a failure to upgrade followed by an optional recovery plan", func() {
-				code, operation, _, err := brokerAPIClient.UpdateInstance(instanceID, serviceID, startPlanID, upgradeToPlanID, `{}`)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(code).To(Equal(202))
-				state := pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
-				Expect(state).To(Equal("failed"))
-
-				tagPlanID, err := rdsClient.GetDBInstanceTag(instanceID, "Plan ID")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(tagPlanID).To(Equal(expectedAwsTagPlanID))
-
-				if recoveryPlanID != "" {
-					code, operation, _, err = brokerAPIClient.UpdateInstance(instanceID, serviceID, expectedAwsTagPlanID, recoveryPlanID, `{}`)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(code).To(Equal(202))
-					state = pollForOperationCompletion(brokerAPIClient, instanceID, serviceID, startPlanID, operation)
-					Expect(state).To(Equal("succeeded"))
-
-					tagPlanID, err = rdsClient.GetDBInstanceTag(instanceID, "Plan ID")
-					Expect(err).ToNot(HaveOccurred())
-					Expect(tagPlanID).To(Equal(recoveryPlanID))
-				}
-			})
-		}
-
-		Describe("Postgres 12 to 13 clean failure", func() {
-			// postgresSabotageUpgrade-caused failure shouldn't have produced
-			// any lasting effects and plan id should have been rolled back
-			TestUpdatePlan(
-				"postgres",
-				"postgres-micro-without-snapshot-12",
-				"postgres-micro-without-snapshot-13",
-				"postgres-micro-without-snapshot-12",
-				"",
-			)
-		})
-
-		Describe("Postgres 12 to 13 failure resulting in over-allocated disk", func() {
-			// this test upgrades from postgres 12 to 13, which fails due to
-			// postgresSabotageUpgrade's actions. this will leave the aws
-			// storage over-allocated with 15gb instead of 10gb.
-			//
-			// the test then moves to another postgres 12 plan which still
-			// (in theory) has less disk space than we now actually have
-			// (13gb), but should succeed.
-			TestUpdatePlan(
-				"postgres",
-				"postgres-micro-without-snapshot-12",
-				"postgres-small-without-snapshot-13",
-				"postgres-micro-without-snapshot-12",
-				"postgres-small-without-snapshot-12",
-			)
 		})
 	})
 
@@ -722,10 +524,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 				Expect(err).To(HaveOccurred())
 			})
 		}
-
-		Describe("Postgres 12", func() {
-			TestFinalSnapshot("postgres", "postgres-micro-12")
-		})
 
 		Describe("Postgres 13", func() {
 			TestFinalSnapshot("postgres", "postgres-micro-13")
@@ -900,11 +698,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 				secondInstanceBinding.Wait()
 			})
 		}
-
-		Describe("Postgres 12", func() {
-			TestRestoreFromSnapshot("postgres", "postgres-micro-12", true)
-		})
-
 		Describe("Postgres 13", func() {
 			TestRestoreFromSnapshot("postgres", "postgres-micro-13", true)
 		})
@@ -1069,10 +862,6 @@ var _ = Describe("RDS Broker Daemon", func() {
 				secondInstanceBinding.Wait()
 			})
 		}
-
-		Describe("Postgres 12", func() {
-			TestRestoreFromPointInTime("postgres", "postgres-micro-12", true)
-		})
 
 		Describe("Postgres 13", func() {
 			TestRestoreFromPointInTime("postgres", "postgres-micro-13", true)
