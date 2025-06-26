@@ -2,5 +2,5 @@
 packaged_release:
   name: bosh-package-golang-release
   repo: https://github.com/cloudfoundry/bosh-package-golang-release.git
-  package: golang-1.22-linux
+  package: golang-1.24-linux
   tag: v0.147.0
