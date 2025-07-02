@@ -1,6 +1,6 @@
 ---
 name: rds-broker
 dependencies:
-  - golang-1.24-linux
+  - golang-1.23-linux
 files:
   - github.com/alphagov/paas-rds-broker/**/*
